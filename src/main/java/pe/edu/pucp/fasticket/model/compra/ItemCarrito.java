@@ -3,7 +3,10 @@ package pe.edu.pucp.fasticket.model.compra;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,6 +16,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -27,10 +31,12 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 @ToString(exclude = {"carroCompra", "ordenCompra", "tickets"})
 @Entity
 @Table(name = "ItemCarrito")
+@Table(name = "ItemCarrito")
 public class ItemCarrito {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "idItemCarrito")
     @Column(name = "idItemCarrito")
     private Integer idItemCarrito;
 
@@ -44,8 +50,10 @@ public class ItemCarrito {
     private Double descuento = 0.0;
 
     @Column(name = "precioFinal")
+    @Column(name = "precioFinal")
     private Double precioFinal;
 
+    @Column(name = "fechaAgregado")
     @Column(name = "fechaAgregado")
     private LocalDate fechaAgregado;
 
@@ -54,9 +62,11 @@ public class ItemCarrito {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idCarroCompra")
+    @JoinColumn(name = "idCarroCompra")
     private CarroCompras carroCompra;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idOrdenCompra")
     @JoinColumn(name = "idOrdenCompra")
     private OrdenCompra ordenCompra;
 

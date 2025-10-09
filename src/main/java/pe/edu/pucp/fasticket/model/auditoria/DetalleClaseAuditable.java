@@ -1,8 +1,6 @@
 package pe.edu.pucp.fasticket.model.auditoria;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

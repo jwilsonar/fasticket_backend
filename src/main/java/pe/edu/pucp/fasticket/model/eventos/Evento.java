@@ -14,9 +14,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -26,8 +24,8 @@ import lombok.ToString;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"local", "tickets", "categoriasEntrada"})
-@ToString(exclude = {"local", "tickets", "categoriasEntrada"})
+@EqualsAndHashCode(exclude = {"tickets", "tiposTicket"})
+@ToString(exclude = {"tickets", "tiposTicket"})
 @Entity
 @Table(name = "Evento")
 public class Evento {
@@ -85,5 +83,6 @@ public class Evento {
     @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 
-
+    @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<TipoTicket> tiposTicket = new ArrayList<>();
 }

@@ -80,4 +80,9 @@ public class Persona {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idDistrito")
     private Distrito distrito;
+    
+    // Setter explícito para rol (usado en constructores de subclases)
+    public void setRol(Rol rol) {
+        this.rol = rol;
+    }
 }

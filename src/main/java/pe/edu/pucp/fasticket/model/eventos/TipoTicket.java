@@ -25,16 +25,16 @@ import pe.edu.pucp.fasticket.model.fidelizacion.Promocion;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"evento", "zona", "tickets", "promociones"})
-@ToString(exclude = {"evento", "zona", "tickets", "promociones"})
+@EqualsAndHashCode(exclude = {"evento", "tickets", "promocionesAplicables"})
+@ToString(exclude = {"evento", "tickets", "promocionesAplicables"})
 @Entity
-@Table(name = "categoria_entrada")
-public class CategoriaEntrada {
+@Table(name = "TipoTicket")
+public class TipoTicket {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_categoria_entrada")
-    private Integer idCategoriaEntrada;
+    @Column(name = "idTipoTicket")
+    private Integer idTipoTicket;
 
     @Column(name = "nombre", nullable = false, length = 100)
     private String nombre;
@@ -45,49 +45,37 @@ public class CategoriaEntrada {
     @Column(name = "precio", nullable = false)
     private Double precio;
 
-    @Column(name = "cantidad_disponible", nullable = false)
+    // genera para el stock inicial
+    @Column(name = "stock", nullable = false)
+    private Integer stock;
+
+    @Column(name = "cantidadDisponible", nullable = false)
     private Integer cantidadDisponible;
 
-    @Column(name = "cantidad_vendida")
+    @Column(name = "cantidadVendida")
     private Integer cantidadVendida = 0;
 
-    @Column(name = "fecha_inicio_venta")
+    @Column(name = "fechaInicioVenta")
     private LocalDateTime fechaInicioVenta;
 
-    @Column(name = "fecha_fin_venta")
+    @Column(name = "fechaFinVenta")
     private LocalDateTime fechaFinVenta;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuario_creacion")
-    private Integer usuarioCreacion;
-
-    @Column(name = "fecha_creacion")
-    private LocalDateTime fechaCreacion;
-
-    @Column(name = "usuario_actualizacion")
-    private Integer usuarioActualizacion;
-
-    @Column(name = "fecha_actualizacion")
-    private LocalDateTime fechaActualizacion;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_evento", nullable = false)
+    @JoinColumn(name = "idEvento")
     private Evento evento;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_zona", nullable = false)
-    private Zona zona;
-
-    @OneToMany(mappedBy = "categoriaEntrada", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "categoria_promocion",
-        joinColumns = @JoinColumn(name = "id_categoria_entrada"),
-        inverseJoinColumns = @JoinColumn(name = "id_promocion")
+        name = "tipoTicketPromocion",
+        joinColumns = @JoinColumn(name = "idTipoTicket"),
+        inverseJoinColumns = @JoinColumn(name = "idPromocion")
     )
     private List<Promocion> promocionesAplicables = new ArrayList<>();
 }

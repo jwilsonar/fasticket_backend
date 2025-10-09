@@ -16,12 +16,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import pe.edu.pucp.fasticket.model.eventos.CategoriaEntrada;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = "categoriasEntrada")
-@ToString(exclude = "categoriasEntrada")
+@EqualsAndHashCode(exclude = "tiposTicket")
+@ToString(exclude = "tiposTicket")
 @Entity
 @Table(name = "promocion")
 public class Promocion {
@@ -53,5 +53,5 @@ public class Promocion {
     private Boolean activo = true;
 
     @ManyToMany(mappedBy = "promocionesAplicables", fetch = FetchType.LAZY)
-    private List<CategoriaEntrada> categoriasEntrada = new ArrayList<>();
+    private List<TipoTicket> tiposTicket = new ArrayList<>();
 }

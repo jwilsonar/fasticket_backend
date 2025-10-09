@@ -50,11 +50,14 @@ public class CarroCompras {
     private Boolean activo = true;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_cliente", unique = true)
+    @JoinColumn(name = "idCliente", unique = true)
     private Cliente cliente;
 
     @OneToMany(mappedBy = "carroCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<ItemCarrito> items = new ArrayList<>();
+
+    @OneToOne(mappedBy = "carroCompras", fetch = FetchType.LAZY)
+    private OrdenCompra ordenCompra;
 
     public void addItem(ItemCarrito item) {
         items.add(item);

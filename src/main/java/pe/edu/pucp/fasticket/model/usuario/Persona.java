@@ -23,18 +23,18 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
 @NoArgsConstructor
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
-@Table(name = "persona")
+@Table(name = "Persona")
 public class Persona {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_persona")
+    @Column(name = "idPersona")
     private Integer idPersona;
     
-    @Column(name = "tipo_documento", nullable = false)
+    @Column(name = "tipoDocumento", nullable = false)
     @Enumerated(EnumType.STRING)
     private TipoDocumento tipoDocumento;
     
-    @Column(name = "doc_identidad", nullable = false, unique = true, length = 20)
+    @Column(name = "docIdentidad", nullable = false, unique = true, length = 20)
     private String docIdentidad;
     
     @Column(name = "nombres", nullable = false, length = 100)
@@ -49,7 +49,7 @@ public class Persona {
     @Column(name = "email", unique = true, length = 150)
     private String email;
     
-    @Column(name = "fecha_nacimiento")
+    @Column(name = "fechaNacimiento")
     private LocalDate fechaNacimiento;
     
     @Column(name = "direccion", length = 200)
@@ -65,16 +65,16 @@ public class Persona {
     @Column(name = "activo")
     private Boolean activo = true;
     
-    @Column(name = "usuario_creacion")
+    @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
     
-    @Column(name = "fecha_creacion")
+    @Column(name = "fechaCreacion")
     private LocalDate fechaCreacion;
     
-    @Column(name = "usuario_actualizacion")
+    @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
     
-    @Column(name = "fecha_actualizacion")
+    @Column(name = "fechaActualizacion")
     private LocalDate fechaActualizacion;
     
     @ManyToOne(fetch = FetchType.LAZY)

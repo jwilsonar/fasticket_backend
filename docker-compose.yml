@@ -1,0 +1,90 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: fasticket-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: fasticket
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fasticket-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis para caché
+  redis:
+    image: redis:7-alpine
+    container_name: fasticket-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - fasticket-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend Spring Boot
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fasticket-backend
+    ports:
+      - "8081:8080"
+    environment:
+      # Variables de base de datos
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: fasticket
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      
+      # Variables de Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      
+      # Configuración de Spring
+      SPRING_PROFILES_ACTIVE: dev
+      FRONTEND_URL: http://localhost:4200
+      
+      # JVM Options
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fasticket-network
+    volumes:
+      # Para hot reload en desarrollo (opcional)
+      - ./src:/app/src
+    restart: unless-stopped
+
+networks:
+  fasticket-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+

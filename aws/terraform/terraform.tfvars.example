@@ -1,0 +1,10 @@
+# INSTRUCCIONES:
+# 1. Copiar este archivo: cp terraform.tfvars.example terraform.tfvars
+# 2. Cambiar los valores reales
+# 3. NUNCA hacer commit de terraform.tfvars (ya está en .gitignore)
+
+aws_region   = "us-east-1"
+db_username  = "fasticket_admin"
+db_password  = "CambiarEstaContraseña123!"  # Mínimo 8 caracteres
+frontend_url = "https://fasticket.com"       # URL de tu frontend
+

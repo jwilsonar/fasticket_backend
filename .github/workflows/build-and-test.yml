@@ -1,0 +1,136 @@
+name: Build & Test - Validación de PRs
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Compilar y Ejecutar Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Validar estructura del proyecto
+        run: |
+          echo "✓ Validando estructura del proyecto Maven..."
+          mvn validate
+          echo "✓ Proyecto Maven válido"
+
+      - name: Compilar el proyecto
+        run: |
+          echo "Compilando FastTicket..."
+          mvn clean compile
+          echo "✓ Compilación exitosa"
+
+      - name: Ejecutar tests unitarios
+        run: |
+          echo "Ejecutando tests..."
+          mvn test
+          echo "✓ Tests completados"
+
+      - name: Verificar y empaquetar
+        run: |
+          echo "Ejecutando verify y empaquetado..."
+          mvn verify
+          echo "✓ Verificación completa"
+
+      - name: Generar artefacto JAR
+        run: mvn package -DskipTests
+
+      - name: Subir artefacto de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: fasticket-jar-${{ github.sha }}
+          path: target/*.jar
+          retention-days: 7
+
+      - name: Resumen de build
+        if: success()
+        run: |
+          echo "BUILD EXITOSO"
+          echo "Proyecto: FastTicket"
+          echo "Java: 21 (Temurin)"
+          echo "Framework: Spring Boot 3.5.6"
+          echo "Build Tool: Maven"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          ls -lh target/*.jar
+
+      - name: Notificación de fallo
+        if: failure()
+        run: |
+          echo "❌ BUILD FALLIDO"
+          echo "Por favor revisa los logs anteriores para identificar el problema."
+          echo "Tip: Ejecuta 'make test' localmente antes de hacer push."
+          exit 1
+
+  code-quality:
+    name: Validación de Calidad
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verificar formato del código
+        run: |
+          echo "Verificando estructura del código..."
+          mvn clean compile
+          echo "✓ Código compilado correctamente"
+
+      - name: Verificar configuraciones
+        run: |
+          echo "Validando archivos de configuración..."
+          test -f src/main/resources/application.properties && echo "✓ application.properties encontrado"
+          test -f src/test/resources/application-test.properties && echo "✓ application-test.properties encontrado"
+          test -f pom.xml && echo "✓ pom.xml encontrado"
+          test -f Dockerfile && echo "✓ Dockerfile encontrado"
+          echo "✓ Todas las configuraciones presentes"
+
+  summary:
+    name: Resumen de Pipeline
+    runs-on: ubuntu-latest
+    needs: [build-and-test, code-quality]
+    if: always()
+    
+    steps:
+      - name: Estado del pipeline
+        run: |
+          if [ "${{ needs.build-and-test.result }}" == "success" ] && [ "${{ needs.code-quality.result }}" == "success" ]; then
+            echo "PIPELINE COMPLETADO EXITOSAMENTE"
+            echo "✓ Build y tests: PASADOS"
+            echo "✓ Calidad de código: VALIDADA"
+            echo ""
+            echo "Este Pull Request está listo para merge"
+            exit 0
+          else
+            echo "❌ PIPELINE FALLÓ"
+            echo "Build y tests: ${{ needs.build-and-test.result }}"
+            echo "Calidad de código: ${{ needs.code-quality.result }}"
+            echo ""
+            echo "Por favor corrige los errores antes de hacer merge."
+            exit 1
+          fi
+

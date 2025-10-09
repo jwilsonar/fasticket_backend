@@ -1,9 +1,5 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -12,7 +8,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -22,15 +17,15 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"distrito", "eventos", "zona"})
-@ToString(exclude = {"distrito", "eventos", "zona"})
+@EqualsAndHashCode(exclude = {"distrito"})
+@ToString(exclude = {"distrito"})
 @Entity
-@Table(name = "local")
+@Table(name = "Local")
 public class Local {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_local")
+    @Column(name = "idLocal")
     private Integer idLocal;
 
     @Column(name = "nombre", nullable = false, length = 200)
@@ -39,32 +34,25 @@ public class Local {
     @Column(name = "direccion", length = 300)
     private String direccion;
 
-    @Column(name = "aforo_total")
+    @Column(name = "aforoTotal")
     private Integer aforoTotal;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuario_creacion")
+    @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fecha_creacion")
+    @Column(name = "fechaCreacion")
     private java.time.LocalDate fechaCreacion;
 
-    @Column(name = "usuario_actualizacion")
+    @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fecha_actualizacion")
+    @Column(name = "fechaActualizacion")
     private java.time.LocalDate fechaActualizacion;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idDistrito")
     private Distrito distrito;
-
-    @OneToMany(mappedBy = "local", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Evento> eventos = new ArrayList<>();
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idCategoria")
-    private Zona zona;
 }

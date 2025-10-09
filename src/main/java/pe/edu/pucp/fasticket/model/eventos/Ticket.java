@@ -1,9 +1,5 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,33 +11,31 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"evento", "categoriaEntrada", "clienteActual", "itemsCarrito"})
-@ToString(exclude = {"evento", "categoriaEntrada", "clienteActual", "itemsCarrito"})
+@EqualsAndHashCode(exclude = {"evento", "tipoTicket", "itemCarrito"})
+@ToString(exclude = {"evento", "tipoTicket", "itemCarrito"})
 @Entity
-@Table(name = "ticket")
+@Table(name = "Ticket")
 public class Ticket {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_ticket")
+    @Column(name = "idTicket")
     private Integer idTicket;
 
-    @Column(name = "codigo_qr", unique = true, length = 255)
+    @Column(name = "codigoQr", unique = true, length = 255)
     private String codigoQr;
 
     @Lob
-    @Column(name = "qr_image")
+    @Column(name = "qrImage")
     private byte[] qrImage;
 
     @Column(name = "asiento", length = 50)
@@ -60,30 +54,27 @@ public class Ticket {
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuario_creacion")
+    @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fecha_creacion")
+    @Column(name = "fechaCreacion")
     private java.time.LocalDate fechaCreacion;
 
-    @Column(name = "usuario_actualizacion")
+    @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fecha_actualizacion")
+    @Column(name = "fechaActualizacion")
     private java.time.LocalDate fechaActualizacion;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_evento", nullable = false)
+    @JoinColumn(name = "idEvento", nullable = false)
     private Evento evento;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_categoria_entrada", nullable = false)
-    private CategoriaEntrada categoriaEntrada;
+    @JoinColumn(name = "idTipoTicket")
+    private TipoTicket tipoTicket;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_cliente_actual")
-    private Cliente clienteActual;
-
-    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ItemCarrito> itemsCarrito = new ArrayList<>();
+    @JoinColumn(name = "idItemCarrito", nullable = false)
+    private ItemCarrito itemCarrito;
 }

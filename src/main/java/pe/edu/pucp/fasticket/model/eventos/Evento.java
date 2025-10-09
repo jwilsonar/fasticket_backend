@@ -14,9 +14,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -26,15 +24,15 @@ import lombok.ToString;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"local", "tickets", "categoriasEntrada"})
-@ToString(exclude = {"local", "tickets", "categoriasEntrada"})
+@EqualsAndHashCode(exclude = {"tickets", "tiposTicket"})
+@ToString(exclude = {"tickets", "tiposTicket"})
 @Entity
-@Table(name = "evento")
+@Table(name = "Evento")
 public class Evento {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_evento")
+    @Column(name = "idEvento")
     private Integer idEvento;
 
     @Column(name = "nombre", nullable = false, length = 200)
@@ -44,51 +42,47 @@ public class Evento {
     @Column(name = "descripcion")
     private String descripcion;
 
-    @Column(name = "fecha_evento", nullable = false)
+    @Column(name = "fechaEvento", nullable = false)
     private LocalDate fechaEvento;
 
-    @Column(name = "hora_inicio")
+    @Column(name = "horaInicio")
     private LocalTime horaInicio;
 
-    @Column(name = "hora_fin")
+    @Column(name = "horaFin")
     private LocalTime horaFin;
 
-    @Column(name = "aforo_disponible")
+    @Column(name = "aforoDisponible")
     private Integer aforoDisponible;
 
-    @Column(name = "imagen_url", length = 500)
+    @Column(name = "imagenUrl", length = 500)
     private String imagenUrl;
 
-    @Column(name = "tipo_evento")
+    @Column(name = "tipoEvento")
     @Enumerated(EnumType.STRING)
     private TipoEvento tipoEvento;
 
-    @Column(name = "estado_evento")
+    @Column(name = "estadoEvento")
     @Enumerated(EnumType.STRING)
     private EstadoEvento estadoEvento;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuario_creacion")
+    @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fecha_creacion")
+    @Column(name = "fechaCreacion")
     private LocalDate fechaCreacion;
 
-    @Column(name = "usuario_actualizacion")
+    @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fecha_actualizacion")
+    @Column(name = "fechaActualizacion")
     private LocalDate fechaActualizacion;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idLocal", nullable = false)
-    private Local local;
 
     @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 
     @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<CategoriaEntrada> categoriasEntrada = new ArrayList<>();
+    private List<TipoTicket> tiposTicket = new ArrayList<>();
 }

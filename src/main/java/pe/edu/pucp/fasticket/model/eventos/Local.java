@@ -25,12 +25,12 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
 @EqualsAndHashCode(exclude = {"distrito", "eventos", "zona"})
 @ToString(exclude = {"distrito", "eventos", "zona"})
 @Entity
-@Table(name = "Local")
+@Table(name = "local")
 public class Local {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "idLocal")
+    @Column(name = "id_local")
     private Integer idLocal;
 
     @Column(name = "nombre", nullable = false, length = 200)
@@ -39,23 +39,32 @@ public class Local {
     @Column(name = "direccion", length = 300)
     private String direccion;
 
-    @Column(name = "aforoTotal")
+    @Column(name = "aforo_total")
     private Integer aforoTotal;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuarioCreacion")
+    @Column(name = "usuario_creacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fechaCreacion")
+    @Column(name = "fecha_creacion")
     private java.time.LocalDate fechaCreacion;
 
-    @Column(name = "usuarioActualizacion")
+    @Column(name = "usuario_actualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fechaActualizacion")
+    @Column(name = "fecha_actualizacion")
     private java.time.LocalDate fechaActualizacion;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idDistrito")
+    private Distrito distrito;
 
+    @OneToMany(mappedBy = "local", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Evento> eventos = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idCategoria")
+    private Zona zona;
 }

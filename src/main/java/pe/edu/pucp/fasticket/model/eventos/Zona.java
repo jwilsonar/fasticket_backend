@@ -22,13 +22,13 @@ import lombok.ToString;
 @EqualsAndHashCode(exclude = {"locales", "categoriasEntrada"})
 @ToString(exclude = {"locales", "categoriasEntrada"})
 @Entity
-@Table(name = "Zona")
+@Table(name = "zona")
 public class Zona {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "idZona")
-    private Integer idZona;
+    @Column(name = "idCategoria") // Según el esquema SQL
+    private Integer idCategoria;
 
     @Column(name = "nombre", length = 255)
     private String nombre;
@@ -39,17 +39,21 @@ public class Zona {
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuarioCreacion")
+    @Column(name = "usuario_creacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fechaCreacion")
+    @Column(name = "fecha_creacion")
     private java.time.LocalDate fechaCreacion;
 
-    @Column(name = "usuarioActualizacion")
+    @Column(name = "usuario_actualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fechaActualizacion")
+    @Column(name = "fecha_actualizacion")
     private java.time.LocalDate fechaActualizacion;
 
+    @OneToMany(mappedBy = "zona", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Local> locales = new ArrayList<>();
 
+    @OneToMany(mappedBy = "zona", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<CategoriaEntrada> categoriasEntrada = new ArrayList<>();
 }

@@ -76,16 +76,16 @@ public class OrdenCompra {
 
     @Column(name = "fecha_actualizacion")
     private LocalDate fechaActualizacion;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idCliente", nullable = false)
+    @JoinColumn(name = "id_cliente", nullable = false)
     private Cliente cliente;
 
     @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemCarrito> items = new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idCarroCompra", nullable = false)
+    @JoinColumn(name = "idCarroCompra")
     private CarroCompras carroCompras;
 
     public void addItem(ItemCarrito item) {

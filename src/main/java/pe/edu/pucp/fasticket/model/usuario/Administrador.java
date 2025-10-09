@@ -12,8 +12,8 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 @Entity
-@Table(name = "Administrador")
-@PrimaryKeyJoinColumn(name = "idPersona")
+@Table(name = "administrador")
+@PrimaryKeyJoinColumn(name = "id_admin")
 public class Administrador extends Persona {
 
     @Column(name = "cargo", length = 100)

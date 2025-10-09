@@ -24,15 +24,15 @@ import pe.edu.pucp.fasticket.model.fidelizacion.ClienteMembresia;
 @EqualsAndHashCode(callSuper = true, exclude = {"carroCompras", "ordenesCompra", "membresiaClientes"})
 @ToString(callSuper = true, exclude = {"carroCompras", "ordenesCompra", "membresiaClientes"})
 @Entity
-@Table(name = "Cliente")
-@PrimaryKeyJoinColumn(name = "idPersona")
+@Table(name = "cliente")
+@PrimaryKeyJoinColumn(name = "id_cliente")
 public class Cliente extends Persona {
 
     @Column(name = "nivel")
     @Enumerated(EnumType.STRING)
     private TipoNivel nivel = TipoNivel.CLASICO;
 
-    @Column(name = "puntosAcumulados")
+    @Column(name = "puntos_acumulados")
     private Integer puntosAcumulados = 0;
 
     @OneToOne(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)

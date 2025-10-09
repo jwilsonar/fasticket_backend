@@ -54,32 +54,6 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-## 🚀 Despliegue en AWS
-
-Para desplegar la aplicación en AWS, consulta la guía completa en [SETUP-AWS-PASO-A-PASO.md](./SETUP-AWS-PASO-A-PASO.md).
-
-### Resumen rápido
-
-```bash
-# 1. Configurar Terraform
-cd aws/terraform
-cp terraform.tfvars.example terraform.tfvars
-# Editar terraform.tfvars con tus valores
-
-# 2. Inicializar y aplicar infraestructura
-terraform init
-terraform apply
-
-# 3. Build y push de imagen Docker
-docker build -t fasticket-backend:prod .
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ECR_URL>
-docker tag fasticket-backend:prod <ECR_URL>:prod-latest
-docker push <ECR_URL>:prod-latest
-
-# 4. Actualizar servicio ECS
-aws ecs update-service --cluster fasticket-cluster --service fasticket-service-prod --force-new-deployment
-```
-
 ## Estructura del Proyecto
 
 ```

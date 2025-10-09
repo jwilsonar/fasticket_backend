@@ -23,8 +23,8 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"carroCompra", "ordenCompra", "ticket"})
-@ToString(exclude = {"carroCompra", "ordenCompra", "ticket"})
+@EqualsAndHashCode(exclude = {"carroCompra", "ordenCompra", "tickets"})
+@ToString(exclude = {"carroCompra", "ordenCompra", "tickets"})
 @Entity
 @Table(name = "ItemCarrito")
 public class ItemCarrito {
@@ -59,10 +59,6 @@ public class ItemCarrito {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idOrdenCompra")
     private OrdenCompra ordenCompra;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idTicket", nullable = false)
-    private Ticket ticket;
 
     @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();

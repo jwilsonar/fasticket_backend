@@ -29,7 +29,7 @@ El proyecto utiliza una arquitectura de microservicios desplegada en AWS:
 - **Application Load Balancer**: Balanceo de carga
 - **ECR**: Registro de imágenes Docker
 
-## 🛠️ Desarrollo Local
+## Desarrollo Local
 
 ### Con Docker Compose
 
@@ -79,7 +79,7 @@ fasticket/
 └── pom.xml
 ```
 
-## 🔧 Configuración
+## Configuración
 
 ### Variables de Entorno
 
@@ -114,20 +114,4 @@ GET    /api/personas/{id}
 PUT    /api/personas/{id}
 DELETE /api/personas/{id}
 ```
-
-## Contribución
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## Licencia
-
-Este proyecto está bajo la licencia MIT.
-
-## Soporte
-
-Para más información sobre el despliegue en AWS, consulta [SETUP-AWS-PASO-A-PASO.md](./SETUP-AWS-PASO-A-PASO.md).
 

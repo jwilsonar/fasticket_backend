@@ -20,6 +20,7 @@ import pe.edu.pucp.fasticket.repository.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+import pe.edu.pucp.fasticket.services.CarroComprasService;
 
 import static org.junit.jupiter.api.Assertions.*;
 

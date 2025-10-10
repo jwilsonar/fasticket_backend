@@ -16,8 +16,6 @@ public class LocalDTO {
     private Boolean activo;
     private LocalDate fechaActualizacion, fechaCreacion;
 
-    //NOTA, Se supone que una Zona puede tener varios tiposTicket, pero no hay dato de conexion
-
     public LocalDTO(Local p_local){
         this.idLocal = p_local.getIdLocal();
         this.aforoTotal = p_local.getAforoTotal();
@@ -30,6 +28,5 @@ public class LocalDTO {
         this.fechaActualizacion = p_local.getFechaCreacion();
         this.fechaCreacion = p_local.getFechaCreacion();
         //Faltan algunos campos, pero voy a consultar, asi que NOTA
-        //NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA NOTA
     }
 }

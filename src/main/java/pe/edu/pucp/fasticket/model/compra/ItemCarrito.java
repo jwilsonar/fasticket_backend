@@ -20,6 +20,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Data
 @NoArgsConstructor
@@ -60,8 +61,14 @@ public class ItemCarrito {
     @JoinColumn(name = "idOrdenCompra")
     private OrdenCompra ordenCompra;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idTipoTicket", nullable = false)
+    private TipoTicket tipoTicket;
+
+    /*
     @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
+     */
 
     public void calcularPrecioFinal() {
         this.precioFinal = (this.precio * this.cantidad) - this.descuento;

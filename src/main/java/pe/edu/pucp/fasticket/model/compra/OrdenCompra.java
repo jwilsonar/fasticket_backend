@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.model.compra;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +23,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
+import pe.edu.pucp.fasticket.model.pago.Pago;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
 @Data
@@ -88,6 +91,13 @@ public class OrdenCompra {
     @JoinColumn(name = "idCarroCompra", nullable = false)
     private CarroCompras carroCompras;
 
+    @Column(name = "fecha_expiracion")
+    private LocalDateTime fechaExpiracion;
+
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "idPago", referencedColumnName = "idPago")
+    private Pago pago;
+
     public void addItem(ItemCarrito item) {
         items.add(item);
         item.setOrdenCompra(this);
@@ -96,5 +106,12 @@ public class OrdenCompra {
     public void removeItem(ItemCarrito item) {
         items.remove(item);
         item.setOrdenCompra(null);
+    }
+
+    public void calcularTotal() {
+        this.subtotal = this.items.stream().mapToDouble(ItemCarrito::getPrecioFinal).sum();
+        double valorVenta = this.subtotal / 1.18;
+        this.igv = this.subtotal - valorVenta;
+        this.total = this.subtotal - this.descuento;
     }
 }

@@ -18,6 +18,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.fidelizacion.ClienteMembresia;
 
 @Data
@@ -43,6 +44,9 @@ public class Cliente extends Persona {
 
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ClienteMembresia> membresiaClientes = new ArrayList<>();
+
+    @OneToMany(mappedBy = "cliente", fetch = FetchType.LAZY)
+    private List<Ticket> tickets = new ArrayList<>();
 
     public Cliente() {
         super();

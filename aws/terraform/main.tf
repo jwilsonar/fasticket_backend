@@ -280,6 +280,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "REDIS_HOST", value = aws_elasticache_replication_group.redis.primary_endpoint_address },
         { name = "REDIS_PORT", value = "6379" },
         { name = "FRONTEND_URL", value = var.frontend_url },
+        { name = "SWAGGER_ENABLED", value = var.swagger_enabled },
         { name = "JAVA_OPTS", value = "-Xmx768m -Xms512m -XX:+UseG1GC" }
       ]
       

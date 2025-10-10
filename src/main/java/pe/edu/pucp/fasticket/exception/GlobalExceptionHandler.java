@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -194,6 +195,41 @@ public class GlobalExceptionHandler {
                 .build();
         
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    /**
+     * Maneja errores de recurso no encontrado (endpoint inexistente o Swagger deshabilitado).
+     * 
+     * @param ex Excepción de recurso no encontrado
+     * @param request Request HTTP que generó el error
+     * @return ResponseEntity con código 404 y detalles del error
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+            NoResourceFoundException ex,
+            HttpServletRequest request) {
+        
+        String path = request.getRequestURI();
+        String message = "Recurso no encontrado";
+        
+        // Mensaje específico si intenta acceder a Swagger deshabilitado
+        if (path.contains("/swagger-ui") || path.contains("/api-docs")) {
+            message = "La documentación Swagger está deshabilitada en este ambiente. " +
+                      "Para habilitarla, configure SWAGGER_ENABLED=true en las variables de entorno.";
+            log.warn("Intento de acceso a Swagger deshabilitado: {}", path);
+        } else {
+            log.error("Recurso no encontrado: {}", path);
+        }
+        
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Not Found")
+                .message(message)
+                .path(path)
+                .build();
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
     /**

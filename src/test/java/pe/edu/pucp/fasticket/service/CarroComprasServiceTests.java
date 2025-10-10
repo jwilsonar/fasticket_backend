@@ -12,10 +12,10 @@ import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.*;
-import pe.edu.pucp.fasticket.repository.CarroComprasRepository;
-import pe.edu.pucp.fasticket.repository.ClienteRepository;
-import pe.edu.pucp.fasticket.repository.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
 

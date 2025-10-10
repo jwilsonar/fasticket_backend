@@ -12,7 +12,7 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-import pe.edu.pucp.fasticket.repository.usuario.ClienteRepositorio;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -23,21 +23,21 @@ public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;
     private final TipoTicketRepositorio tipoTicketRepositorio;
-    private final ClienteRepositorio clienteRepositorio;
+    private final ClienteRepository clienteRepository;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
             TipoTicketRepositorio tipoTicketRepositorio,
-            ClienteRepositorio clienteRepositorio
+            ClienteRepository clienteRepository
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
-        this.clienteRepositorio = clienteRepositorio;
+        this.clienteRepository = clienteRepository;
     }
 
     @Transactional
     public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
-        Cliente cliente = clienteRepositorio.findById(datosOrden.getIdCliente()).orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente()).orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
         List<ItemCarrito> items = construirItemsDesdeDTO(datosOrden.getItems(),cliente);
         OrdenCompra orden=new OrdenCompra();
         orden.setCliente(cliente);

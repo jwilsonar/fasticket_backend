@@ -5,6 +5,6 @@ import org.springframework.stereotype.Repository;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
 @Repository
-public interface ClienteRepositorio extends JpaRepository<Cliente, Integer> {
-
+public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
 }
+

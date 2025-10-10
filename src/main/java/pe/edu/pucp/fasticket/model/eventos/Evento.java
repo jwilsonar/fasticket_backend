@@ -13,8 +13,8 @@ import lombok.ToString;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"tickets", "tiposTicket"})
-@ToString(exclude = {"tickets", "tiposTicket"})
+@EqualsAndHashCode(exclude = {"local", "tickets", "tiposTicket"})
+@ToString(exclude = {"local", "tickets", "tiposTicket"})
 @Entity
 @Table(name = "Evento")
 public class Evento {

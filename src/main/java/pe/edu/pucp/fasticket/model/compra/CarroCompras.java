@@ -59,7 +59,7 @@ public class CarroCompras {
     @OneToOne(mappedBy = "carroCompras", fetch = FetchType.LAZY)
     private OrdenCompra ordenCompra;
 
-    @Column(name = "id_evento_actual")
+    @Column(name = "idEventoActual")
     private Integer idEventoActual;
 
     public void addItem(ItemCarrito item) {

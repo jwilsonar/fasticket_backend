@@ -12,13 +12,11 @@ import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
-import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
-import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
-import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
 import pe.edu.pucp.fasticket.security.JwtUtil;
 
 import java.time.LocalDate;
@@ -34,7 +32,6 @@ import java.time.LocalDate;
 public class AuthService {
 
     private final PersonasRepositorio personasRepositorio;
-    private final ClienteRepository clienteRepository;
     private final DistritoRepository distritoRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
@@ -93,36 +90,65 @@ public class AuthService {
                     .orElse(null);
         }
 
-        // Crear cliente
-        Cliente cliente = new Cliente();
-        cliente.setTipoDocumento(request.getTipoDocumento());
-        cliente.setDocIdentidad(request.getDocIdentidad());
-        cliente.setNombres(request.getNombres());
-        cliente.setApellidos(request.getApellidos());
-        cliente.setEmail(request.getEmail());
-        cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
-        cliente.setTelefono(request.getTelefono());
-        cliente.setFechaNacimiento(request.getFechaNacimiento());
-        cliente.setDireccion(request.getDireccion());
-        cliente.setDistrito(distrito);
-        cliente.setRol(Rol.CLIENTE);
-        cliente.setActivo(true);
-        cliente.setFechaCreacion(LocalDate.now());
-
-        Cliente clienteGuardado = clienteRepository.save(cliente);
+        // Crear instancia según el dominio del email y configurar
+        Persona personaGuardada;
+        
+        if (request.getEmail().toLowerCase().endsWith("@pucp.edu.pe")) {
+            // Crear y configurar Administrador
+            log.info("Registrando usuario con rol ADMINISTRADOR (email PUCP): {}", request.getEmail());
+            Administrador administrador = new Administrador();
+            
+            // Configurar datos comunes (de Persona)
+            administrador.setTipoDocumento(request.getTipoDocumento());
+            administrador.setDocIdentidad(request.getDocIdentidad());
+            administrador.setNombres(request.getNombres());
+            administrador.setApellidos(request.getApellidos());
+            administrador.setEmail(request.getEmail());
+            administrador.setContrasena(passwordEncoder.encode(request.getContrasena()));
+            administrador.setTelefono(request.getTelefono());
+            administrador.setFechaNacimiento(request.getFechaNacimiento());
+            administrador.setDireccion(request.getDireccion());
+            administrador.setDistrito(distrito);
+            administrador.setActivo(true);
+            administrador.setFechaCreacion(LocalDate.now());
+            
+            // Configurar datos específicos de Administrador
+            administrador.setCargo("Administrador");
+            
+            personaGuardada = personasRepositorio.save(administrador);
+        } else {
+            // Crear y configurar Cliente
+            Cliente cliente = new Cliente();
+            
+            // Configurar datos comunes (de Persona)
+            cliente.setTipoDocumento(request.getTipoDocumento());
+            cliente.setDocIdentidad(request.getDocIdentidad());
+            cliente.setNombres(request.getNombres());
+            cliente.setApellidos(request.getApellidos());
+            cliente.setEmail(request.getEmail());
+            cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
+            cliente.setTelefono(request.getTelefono());
+            cliente.setFechaNacimiento(request.getFechaNacimiento());
+            cliente.setDireccion(request.getDireccion());
+            cliente.setDistrito(distrito);
+            cliente.setActivo(true);
+            cliente.setFechaCreacion(LocalDate.now());
+            
+            personaGuardada = personasRepositorio.save(cliente);
+        }
 
         // Generar token automáticamente
-        String token = jwtUtil.generateToken(clienteGuardado.getEmail(), clienteGuardado.getRol().name());
+        String token = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
 
-        log.info("Cliente registrado exitosamente: {}", clienteGuardado.getEmail());
+        log.info("Usuario registrado exitosamente: {} con rol {}", personaGuardada.getEmail(), personaGuardada.getRol());
 
         return LoginResponseDTO.builder()
                 .token(token)
                 .tipo("Bearer")
-                .idUsuario(clienteGuardado.getIdPersona())
-                .email(clienteGuardado.getEmail())
-                .nombreCompleto(clienteGuardado.getNombres() + " " + clienteGuardado.getApellidos())
-                .rol(clienteGuardado.getRol().name())
+                .idUsuario(personaGuardada.getIdPersona())
+                .email(personaGuardada.getEmail())
+                .nombreCompleto(personaGuardada.getNombres() + " " + personaGuardada.getApellidos())
+                .rol(personaGuardada.getRol().name())
                 .expiracion(86400000L)
                 .build();
     }

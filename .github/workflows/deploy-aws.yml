@@ -1,9 +1,13 @@
 name: Deploy FastTicket to AWS Production
 
+# NOTA: Este workflow NO funciona con AWS Labs (credenciales temporales).
+# Usar despliegue manual con deploy.ps1
+
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -97,4 +101,3 @@ jobs:
           echo "Image: ${{ steps.build-image.outputs.image }}"
           echo "Service: ${{ env.ECS_SERVICE }}"
           echo "Cluster: ${{ env.ECS_CLUSTER }}"
-

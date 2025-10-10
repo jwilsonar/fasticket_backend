@@ -10,7 +10,7 @@ import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/zonas")
+@RequestMapping("api/v1/zonas")
 @CrossOrigin(origins = "http://localhost:4200")
 public class ZonaController {
 

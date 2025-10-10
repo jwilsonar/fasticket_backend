@@ -10,7 +10,7 @@ import pe.edu.pucp.fasticket.services.eventos.LocalServicio;
 import java.util.List;
 
 @RestController
-@RequestMapping("api/locales") //Cambiar esto a eventos, o tal vez no, no estoy seguro
+@RequestMapping("api/v1/locales") //Cambiar esto a eventos, o tal vez no, no estoy seguro
 @CrossOrigin(origins = "http://localhost:4200")
 public class LocalController {
 

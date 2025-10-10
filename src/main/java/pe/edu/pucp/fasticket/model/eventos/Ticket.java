@@ -77,9 +77,11 @@ public class Ticket {
     @JoinColumn(name = "id_tipo_ticket")
     private TipoTicket tipoTicket;
 
+    /*
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idItemCarrito", nullable = false)
     private ItemCarrito itemCarrito;
+     */
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idCliente")

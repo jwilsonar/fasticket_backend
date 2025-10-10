@@ -61,8 +61,14 @@ public class ItemCarrito {
     @JoinColumn(name = "idOrdenCompra")
     private OrdenCompra ordenCompra;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idTipoTicket", nullable = false)
+    private TipoTicket tipoTicket;
+
+    /*
     @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
+     */
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idTipoTicket")

@@ -17,6 +17,9 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
+import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
 @Data
 @NoArgsConstructor
@@ -71,10 +74,30 @@ public class Ticket {
     private Evento evento;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idTipoTicket")
+    @JoinColumn(name = "id_tipo_ticket")
     private TipoTicket tipoTicket;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idItemCarrito", nullable = false)
     private ItemCarrito itemCarrito;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idCliente")
+    private Cliente cliente;
+
+    @Column(name = "nombreAsistente", length = 100)
+    private String nombreAsistente;
+
+    @Column(name = "apellidoAsistente", length = 100)
+    private String apellidoAsistente;
+
+    @Column(name = "documentoAsistente", length = 20)
+    private String documentoAsistente;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipoDocumentoAsistente", length = 100)
+    private TipoDocumento tipoDocumentoAsistente;
+
+
+
 }

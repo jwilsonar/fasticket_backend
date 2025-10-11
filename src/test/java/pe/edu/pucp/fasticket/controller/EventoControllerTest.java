@@ -63,29 +63,37 @@ public class EventoControllerTest {
         // Este endpoint es público
         mockMvc.perform(get("/api/v1/eventos"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").exists())
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
     void testObtenerEventoPorId_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/eventos/" + eventoTest.getIdEvento()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.idEvento").value(eventoTest.getIdEvento()))
-                .andExpect(jsonPath("$.nombre").value("Concierto Test"));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").exists())
+                .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento()))
+                .andExpect(jsonPath("$.data.nombre").value("Concierto Test"));
     }
 
     @Test
     void testListarEventosProximos_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/eventos/proximos"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").exists())
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
     void testListarPorEstado_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/eventos/estado/ACTIVO"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").exists())
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
@@ -110,7 +118,9 @@ public class EventoControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(eventoJson))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nombre").value("Nuevo Evento Admin"));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Evento creado exitosamente"))
+                .andExpect(jsonPath("$.data.nombre").value("Nuevo Evento Admin"));
     }
 
     @Test
@@ -122,14 +132,18 @@ public class EventoControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(eventoJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Evento Actualizado"));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Evento actualizado exitosamente"))
+                .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado"));
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testEliminarEvento_Exitoso() throws Exception {
         mockMvc.perform(delete("/api/v1/eventos/" + eventoTest.getIdEvento()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Evento desactivado exitosamente"));
     }
 }
 

@@ -27,7 +27,7 @@ data "aws_iam_role" "lab_role" {
 }
 
 # ============================================================================
-# VPC SIMPLIFICADA (Solo subnets públicas para reducir costos)
+# VPC SIMPLIFICADA (Solo subnets públicas)
 # ============================================================================
 
 resource "aws_vpc" "main" {
@@ -36,7 +36,7 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
   
   tags = {
-    Name = "fasticket-vpc-prod"
+    Name = "fasticket-vpc"
   }
 }
 
@@ -44,11 +44,11 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   
   tags = {
-    Name = "fasticket-igw-prod"
+    Name = "fasticket-igw"
   }
 }
 
-# Subnets públicas (2 para alta disponibilidad del ALB)
+# Subnets públicas (2 para RDS que requiere multi-AZ)
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
@@ -56,7 +56,7 @@ resource "aws_subnet" "public_a" {
   map_public_ip_on_launch = true
   
   tags = {
-    Name = "fasticket-public-a"
+    Name = "fasticket-subnet-a"
   }
 }
 
@@ -67,7 +67,7 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
   
   tags = {
-    Name = "fasticket-public-b"
+    Name = "fasticket-subnet-b"
   }
 }
 
@@ -81,7 +81,7 @@ resource "aws_route_table" "public" {
   }
   
   tags = {
-    Name = "fasticket-public-rt"
+    Name = "fasticket-rt"
   }
 }
 
@@ -99,26 +99,22 @@ resource "aws_route_table_association" "public_b" {
 # SECURITY GROUPS
 # ============================================================================
 
-# Security Group para ALB
-resource "aws_security_group" "alb" {
-  name_prefix = "fasticket-alb-"
+# Security Group para ECS Tasks (Backend)
+resource "aws_security_group" "backend" {
+  name_prefix = "fasticket-backend-"
   vpc_id      = aws_vpc.main.id
-  description = "Security group for ALB"
+  description = "Security group for FastTicket backend"
   
+  # Permitir acceso HTTP desde Internet (ya que no hay ALB)
   ingress {
-    from_port   = 80
-    to_port     = 80
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP access to backend"
   }
   
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
+  # Permitir todo el tráfico de salida
   egress {
     from_port   = 0
     to_port     = 0
@@ -127,32 +123,7 @@ resource "aws_security_group" "alb" {
   }
   
   tags = {
-    Name = "fasticket-alb-sg"
-  }
-}
-
-# Security Group para ECS Tasks
-resource "aws_security_group" "ecs_tasks" {
-  name_prefix = "fasticket-ecs-"
-  vpc_id      = aws_vpc.main.id
-  description = "Security group for ECS tasks"
-  
-  ingress {
-    from_port       = 8080
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-  
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  tags = {
-    Name = "fasticket-ecs-sg"
+    Name = "fasticket-backend-sg"
   }
 }
 
@@ -160,29 +131,24 @@ resource "aws_security_group" "ecs_tasks" {
 resource "aws_security_group" "rds" {
   name_prefix = "fasticket-rds-"
   vpc_id      = aws_vpc.main.id
-  description = "Security group for RDS"
+  description = "Security group for RDS PostgreSQL"
   
+  # Permitir acceso desde el backend
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    security_groups = [aws_security_group.backend.id]
+    description     = "Allow access from backend"
   }
   
-  # Acceso temporal desde cualquier IP para pruebas
+  # Acceso temporal desde Internet para gestión (opcional - comentar en producción real)
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Acceso temporal para desarrollo - CAMBIAR en producción real"
-  }
-  
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "Temporary access for management - REMOVE in production"
   }
   
   tags = {
@@ -191,7 +157,7 @@ resource "aws_security_group" "rds" {
 }
 
 # ============================================================================
-# RDS POSTGRESQL (SIMPLIFICADO - Single-AZ para reducir costos)
+# RDS POSTGRESQL (SIMPLIFICADO)
 # ============================================================================
 
 resource "aws_db_subnet_group" "main" {
@@ -207,27 +173,27 @@ resource "aws_db_instance" "postgres" {
   identifier     = "fasticket-db"
   engine         = "postgres"
   engine_version = "16.4"
-  instance_class = "db.t3.micro"  # Cambiado a micro para reducir costos
+  instance_class = "db.t3.micro"
   
   db_name  = "fasticket"
   username = var.db_username
   password = var.db_password
   
   allocated_storage     = 20
-  max_allocated_storage = 50  # Reducido de 100 a 50
+  max_allocated_storage = 50
   storage_encrypted     = true
   
   multi_az               = false  # Single-AZ para reducir costos
-  publicly_accessible    = true   # Permite conexión directa para pruebas
+  publicly_accessible    = true   # Para permitir conexión directa
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   
-  backup_retention_period = 3  # Reducido de 7 a 3 días
+  backup_retention_period = 3
   backup_window          = "03:00-04:00"
   maintenance_window     = "mon:04:00-mon:05:00"
   
-  skip_final_snapshot       = true  # Para facilitar destrucción en desarrollo
-  delete_automated_backups  = true
+  skip_final_snapshot      = true
+  delete_automated_backups = true
   
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
   
@@ -243,7 +209,7 @@ resource "aws_db_instance" "postgres" {
 resource "aws_ecr_repository" "backend" {
   name                 = "fasticket-backend"
   image_tag_mutability = "MUTABLE"
-  force_delete         = true  # Permite eliminar el repositorio aunque contenga imágenes
+  force_delete         = true  # Permite eliminar aunque contenga imágenes
   
   image_scanning_configuration {
     scan_on_push = true
@@ -272,67 +238,12 @@ resource "aws_ecs_cluster" "main" {
 }
 
 # ============================================================================
-# APPLICATION LOAD BALANCER
-# ============================================================================
-
-resource "aws_lb" "main" {
-  name               = "fasticket-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-  
-  enable_deletion_protection = false
-  
-  tags = {
-    Name = "fasticket-alb"
-  }
-}
-
-resource "aws_lb_target_group" "backend" {
-  name        = "fasticket-tg"
-  port        = 8080
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-  
-  deregistration_delay = 30
-  
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/actuator/health"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 3
-  }
-  
-  tags = {
-    Name = "fasticket-tg"
-  }
-}
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
-  
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-}
-
-# ============================================================================
 # CLOUDWATCH LOGS
 # ============================================================================
 
 resource "aws_cloudwatch_log_group" "ecs" {
   name              = "/ecs/fasticket"
-  retention_in_days = 7  # Reducido de 30 a 7 días
+  retention_in_days = 7
   
   tags = {
     Name = "fasticket-logs"
@@ -340,7 +251,7 @@ resource "aws_cloudwatch_log_group" "ecs" {
 }
 
 # ============================================================================
-# ECS TASK DEFINITION (SIN REDIS)
+# ECS TASK DEFINITION
 # ============================================================================
 
 resource "aws_ecs_task_definition" "backend" {
@@ -356,7 +267,7 @@ resource "aws_ecs_task_definition" "backend" {
   container_definitions = jsonencode([
     {
       name  = "fasticket-backend"
-      image = "${aws_ecr_repository.backend.repository_url}:prod-latest"
+      image = "${aws_ecr_repository.backend.repository_url}:latest"
       
       essential = true
       
@@ -364,6 +275,7 @@ resource "aws_ecs_task_definition" "backend" {
         {
           containerPort = 8080
           protocol      = "tcp"
+          hostPort      = 8080
         }
       ]
       
@@ -404,34 +316,24 @@ resource "aws_ecs_task_definition" "backend" {
 }
 
 # ============================================================================
-# ECS SERVICE
+# ECS SERVICE (SIN LOAD BALANCER - IP PÚBLICA DIRECTA)
 # ============================================================================
 
 resource "aws_ecs_service" "backend" {
   name            = "fasticket-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 1  # Reducido de 2 a 1 para minimizar costos
+  desired_count   = 1
   launch_type     = "FARGATE"
   
-  deployment_minimum_healthy_percent = 50  # Reducido de 100 a 50
-  deployment_maximum_percent         = 200
-  
-  force_new_deployment = false
+  deployment_minimum_healthy_percent = 0   # Permite detener la tarea antes de iniciar otra
+  deployment_maximum_percent         = 100  # Solo una tarea a la vez
   
   network_configuration {
     subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-    security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true  # IMPORTANTE: Necesario en subnets públicas
+    security_groups  = [aws_security_group.backend.id]
+    assign_public_ip = true  # IMPORTANTE: Asignar IP pública para acceso directo
   }
-  
-  load_balancer {
-    target_group_arn = aws_lb_target_group.backend.arn
-    container_name   = "fasticket-backend"
-    container_port   = 8080
-  }
-  
-  depends_on = [aws_lb_listener.http]
   
   tags = {
     Name = "fasticket-service"
@@ -441,11 +343,6 @@ resource "aws_ecs_service" "backend" {
 # ============================================================================
 # OUTPUTS
 # ============================================================================
-
-output "alb_dns_name" {
-  description = "DNS del Application Load Balancer"
-  value       = aws_lb.main.dns_name
-}
 
 output "rds_endpoint" {
   description = "Endpoint de la base de datos RDS"
@@ -457,12 +354,16 @@ output "ecr_repository_url" {
   value       = aws_ecr_repository.backend.repository_url
 }
 
-output "api_url" {
-  description = "URL base de la API"
-  value       = "http://${aws_lb.main.dns_name}"
+output "ecs_cluster_name" {
+  description = "Nombre del cluster ECS"
+  value       = aws_ecs_cluster.main.name
 }
 
-output "swagger_url" {
-  description = "URL de Swagger UI"
-  value       = "http://${aws_lb.main.dns_name}/swagger-ui/index.html"
+output "api_access_info" {
+  description = "Información de acceso a la API"
+  value       = "La API estará disponible en la IP pública de la tarea ECS en el puerto 8080. Consulta la consola de ECS para obtener la IP."
 }
+
+# Para obtener la IP pública de la tarea ECS después del despliegue:
+# aws ecs list-tasks --cluster fasticket-cluster --service-name fasticket-service --region us-east-1
+# aws ecs describe-tasks --cluster fasticket-cluster --tasks <task-id> --region us-east-1

@@ -26,6 +26,6 @@ variable "frontend_url" {
 variable "swagger_enabled" {
   description = "Habilitar Swagger UI y API Docs en producción (true/false)"
   type        = string
-  default     = "false"
+  default     = "true"
 }
 

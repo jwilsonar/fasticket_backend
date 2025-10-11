@@ -16,6 +16,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 
 /**
  * Manejador global de excepciones para toda la aplicación.
@@ -46,7 +47,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 404 y detalles del error
      */
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleResourceNotFoundException(
             ResourceNotFoundException ex, 
             HttpServletRequest request) {
         
@@ -60,7 +61,8 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(StandardResponse.error(ex.getMessage(), error));
     }
 
     /**
@@ -71,7 +73,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 409 y detalles del error
      */
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ErrorResponse> handleBusinessException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleBusinessException(
             BusinessException ex, 
             HttpServletRequest request) {
         
@@ -85,7 +87,8 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(StandardResponse.error(ex.getMessage(), error));
     }
 
     /**
@@ -98,7 +101,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 400 y mapa de errores por campo
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationExceptions(
+    public ResponseEntity<StandardResponse<Map<String, Object>>> handleValidationExceptions(
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
         
@@ -111,15 +114,15 @@ public class GlobalExceptionHandler {
         
         log.error("Errores de validación: {}", fieldErrors);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", HttpStatus.BAD_REQUEST.value());
-        response.put("error", "Validation Error");
-        response.put("message", "Error en la validación de los datos de entrada");
-        response.put("path", request.getRequestURI());
-        response.put("errors", fieldErrors);
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
+        errorDetails.put("error", "Validation Error");
+        errorDetails.put("path", request.getRequestURI());
+        errorDetails.put("errors", fieldErrors);
         
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error en la validación de los datos de entrada", errorDetails));
     }
 
     /**
@@ -130,7 +133,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 400 y detalles del error
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleIllegalArgumentException(
             IllegalArgumentException ex,
             HttpServletRequest request) {
         
@@ -144,7 +147,8 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error(ex.getMessage(), error));
     }
 
     /**
@@ -155,7 +159,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 401 y detalles del error
      */
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentialsException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleBadCredentialsException(
             BadCredentialsException ex,
             HttpServletRequest request) {
         
@@ -169,7 +173,8 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(StandardResponse.error("Credenciales inválidas", error));
     }
 
     /**
@@ -180,7 +185,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 403 y detalles del error
      */
     @ExceptionHandler(AuthorizationDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAuthorizationDeniedException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleAuthorizationDeniedException(
             AuthorizationDeniedException ex,
             HttpServletRequest request) {
         
@@ -194,7 +199,8 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(StandardResponse.error("No tiene permisos para acceder a este recurso", error));
     }
 
     /**
@@ -205,7 +211,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 404 y detalles del error
      */
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleNoResourceFoundException(
             NoResourceFoundException ex,
             HttpServletRequest request) {
         
@@ -229,7 +235,8 @@ public class GlobalExceptionHandler {
                 .path(path)
                 .build();
         
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(StandardResponse.error(message, error));
     }
 
     /**
@@ -242,7 +249,7 @@ public class GlobalExceptionHandler {
      * @return ResponseEntity con código 500 y mensaje genérico
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleGenericException(
             Exception ex, 
             HttpServletRequest request) {
         
@@ -257,7 +264,8 @@ public class GlobalExceptionHandler {
                 .details(ex.getClass().getSimpleName())
                 .build();
         
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(StandardResponse.error("Ha ocurrido un error inesperado. Por favor, contacte al administrador.", error));
     }
 }
 

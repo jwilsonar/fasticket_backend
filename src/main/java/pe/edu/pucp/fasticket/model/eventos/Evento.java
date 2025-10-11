@@ -5,7 +5,20 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -53,6 +66,25 @@ public class Evento {
     @Column(name = "estadoEvento")
     @Enumerated(EnumType.STRING)
     private EstadoEvento estadoEvento;
+
+    /**
+     * RF-072: Edad mínima requerida para asistir al evento.
+     * Por ejemplo: 18 para eventos con restricción de edad, 0 para todos los públicos.
+     */
+    @Column(name = "edadMinima")
+    private Integer edadMinima = 0;
+
+    /**
+     * RF-072: Restricciones adicionales del evento (ej: "No se permite el ingreso de alimentos").
+     */
+    @Column(name = "restricciones", length = 1000)
+    private String restricciones;
+
+    /**
+     * RF-073: Políticas de devolución o cambio específicas del evento.
+     */
+    @Column(name = "politicasDevolucion", length = 1000)
+    private String politicasDevolucion;
 
     @Column(name = "activo")
     private Boolean activo = true;

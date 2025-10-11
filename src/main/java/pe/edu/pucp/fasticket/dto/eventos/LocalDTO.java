@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.geografia.DistritoFijo;
 
 import java.time.LocalDate;
 
@@ -12,7 +13,7 @@ import java.time.LocalDate;
 public class LocalDTO {
     private Integer idLocal, aforoTotal, usuarioCreacion, usuarioActualizacion;
     private String nombre, direccion;
-    private Distrito distrito;
+    private DistritoFijo distrito;
     private Boolean activo;
     private LocalDate fechaActualizacion, fechaCreacion;
 

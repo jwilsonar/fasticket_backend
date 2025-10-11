@@ -14,6 +14,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.geografia.DistritoFijo;
 
 @Data
 @NoArgsConstructor
@@ -52,7 +53,11 @@ public class Local {
     @Column(name = "fechaActualizacion")
     private java.time.LocalDate fechaActualizacion;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /*@ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idDistrito")
-    private Distrito distrito;
+    private Distrito distrito;*/
+
+    @Column(name = "distrito")
+    private DistritoFijo distrito;
+
 }

@@ -78,7 +78,7 @@ gradle-app.setting
 # Database
 *.db
 *.sqlite
-*.sql
+#*.sql
 
 # Documentation
 HELP.md

@@ -59,6 +59,9 @@ public class CarroCompras {
     @OneToOne(mappedBy = "carroCompras", fetch = FetchType.LAZY)
     private OrdenCompra ordenCompra;
 
+    @Column(name = "idEventoActual")
+    private Integer idEventoActual;
+
     public void addItem(ItemCarrito item) {
         items.add(item);
         item.setCarroCompra(this);

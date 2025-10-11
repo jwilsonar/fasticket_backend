@@ -35,6 +35,9 @@ public class Local {
     @Column(name = "direccion", length = 300)
     private String direccion;
 
+    //@Column(name = "urlMapa", length = 300)
+    //private String urlMapa;
+
     @Column(name = "aforoTotal")
     private Integer aforoTotal;
 

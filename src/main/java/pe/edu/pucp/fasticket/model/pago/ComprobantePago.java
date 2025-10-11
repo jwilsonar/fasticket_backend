@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.model.pago;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +38,7 @@ public class ComprobantePago {
     private String numeroSerie;
 
     @Column(name = "fecha_emision")
-    private LocalDate fechaEmision;
+    private LocalDateTime fechaEmision;
 
     @Column(name = "total")
     private Double total;

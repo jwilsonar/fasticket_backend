@@ -7,12 +7,6 @@ terraform {
       version = "~> 6.0"
     }
   }
-  
-  backend "s3" {
-    bucket = "fasticket-terraform-state-134045516016328028"
-    key    = "prod/terraform.tfstate"
-    region = "us-east-1"
-  }
 }
 
 provider "aws" {
@@ -27,28 +21,89 @@ provider "aws" {
   }
 }
 
-# VPC y Networking
-module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
-  
-  name = "fasticket-vpc-prod"
-  cidr = "10.0.0.0/16"
-  
-  azs             = ["us-east-1a", "us-east-1b"]
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
-  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
-  
-  enable_nat_gateway = true
-  single_nat_gateway = false  # 2 NAT Gateways para alta disponibilidad
-  
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+# Data source para LabRole (pre-existente en AWS Labs)
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
 }
 
-# Security Groups
+# ============================================================================
+# VPC SIMPLIFICADA (Solo subnets públicas para reducir costos)
+# ============================================================================
+
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  
+  tags = {
+    Name = "fasticket-vpc-prod"
+  }
+}
+
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  
+  tags = {
+    Name = "fasticket-igw-prod"
+  }
+}
+
+# Subnets públicas (2 para alta disponibilidad del ALB)
+resource "aws_subnet" "public_a" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "${var.aws_region}a"
+  map_public_ip_on_launch = true
+  
+  tags = {
+    Name = "fasticket-public-a"
+  }
+}
+
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "${var.aws_region}b"
+  map_public_ip_on_launch = true
+  
+  tags = {
+    Name = "fasticket-public-b"
+  }
+}
+
+# Route Table para subnets públicas
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+  
+  tags = {
+    Name = "fasticket-public-rt"
+  }
+}
+
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
+  route_table_id = aws_route_table.public.id
+}
+
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
+}
+
+# ============================================================================
+# SECURITY GROUPS
+# ============================================================================
+
+# Security Group para ALB
 resource "aws_security_group" "alb" {
-  name_prefix = "fasticket-alb-prod"
-  vpc_id      = module.vpc.vpc_id
+  name_prefix = "fasticket-alb-"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for ALB"
   
   ingress {
     from_port   = 80
@@ -70,11 +125,17 @@ resource "aws_security_group" "alb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  
+  tags = {
+    Name = "fasticket-alb-sg"
+  }
 }
 
+# Security Group para ECS Tasks
 resource "aws_security_group" "ecs_tasks" {
-  name_prefix = "fasticket-ecs-prod"
-  vpc_id      = module.vpc.vpc_id
+  name_prefix = "fasticket-ecs-"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for ECS tasks"
   
   ingress {
     from_port       = 8080
@@ -89,11 +150,17 @@ resource "aws_security_group" "ecs_tasks" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  
+  tags = {
+    Name = "fasticket-ecs-sg"
+  }
 }
 
+# Security Group para RDS
 resource "aws_security_group" "rds" {
-  name_prefix = "fasticket-rds-prod"
-  vpc_id      = module.vpc.vpc_id
+  name_prefix = "fasticket-rds-"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for RDS"
   
   ingress {
     from_port       = 5432
@@ -101,96 +168,96 @@ resource "aws_security_group" "rds" {
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_tasks.id]
   }
-}
-
-resource "aws_security_group" "redis" {
-  name_prefix = "fasticket-redis-prod"
-  vpc_id      = module.vpc.vpc_id
   
+  # Acceso temporal desde cualquier IP para pruebas
   ingress {
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Acceso temporal para desarrollo - CAMBIAR en producción real"
+  }
+  
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  tags = {
+    Name = "fasticket-rds-sg"
   }
 }
 
-# RDS PostgreSQL
+# ============================================================================
+# RDS POSTGRESQL (SIMPLIFICADO - Single-AZ para reducir costos)
+# ============================================================================
+
+resource "aws_db_subnet_group" "main" {
+  name       = "fasticket-db-subnet"
+  subnet_ids = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  
+  tags = {
+    Name = "fasticket-db-subnet"
+  }
+}
+
 resource "aws_db_instance" "postgres" {
-  identifier     = "fasticket-db-prod"
+  identifier     = "fasticket-db"
   engine         = "postgres"
   engine_version = "16.4"
-  instance_class = "db.t3.small"
-  
-  allocated_storage     = 20
-  max_allocated_storage = 100
-  storage_encrypted     = true
+  instance_class = "db.t3.micro"  # Cambiado a micro para reducir costos
   
   db_name  = "fasticket"
   username = var.db_username
   password = var.db_password
   
-  vpc_security_group_ids = [aws_security_group.rds.id]
-  db_subnet_group_name   = aws_db_subnet_group.main.name
+  allocated_storage     = 20
+  max_allocated_storage = 50  # Reducido de 100 a 50
+  storage_encrypted     = true
   
-  backup_retention_period = 7
+  multi_az               = false  # Single-AZ para reducir costos
+  publicly_accessible    = true   # Permite conexión directa para pruebas
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  
+  backup_retention_period = 3  # Reducido de 7 a 3 días
   backup_window          = "03:00-04:00"
   maintenance_window     = "mon:04:00-mon:05:00"
   
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "fasticket-db-final-snapshot"
-  
-  multi_az            = true
-  publicly_accessible = false
+  skip_final_snapshot       = true  # Para facilitar destrucción en desarrollo
+  delete_automated_backups  = true
   
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  
+  tags = {
+    Name = "fasticket-db"
+  }
 }
 
-resource "aws_db_subnet_group" "main" {
-  name       = "fasticket-db-subnet-prod"
-  subnet_ids = module.vpc.private_subnets
-}
+# ============================================================================
+# ECR REPOSITORY
+# ============================================================================
 
-# ElastiCache Redis
-resource "aws_elasticache_subnet_group" "main" {
-  name       = "fasticket-redis-subnet-prod"
-  subnet_ids = module.vpc.private_subnets
-}
-
-resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id = "fasticket-redis-prod"
-  description          = "FastTicket Redis Cluster Production"
-  
-  engine         = "redis"
-  engine_version = "7.0"
-  node_type      = "cache.t3.small"
-  
-  num_cache_clusters = 2
-  
-  subnet_group_name  = aws_elasticache_subnet_group.main.name
-  security_group_ids = [aws_security_group.redis.id]
-  
-  at_rest_encryption_enabled = true
-  transit_encryption_enabled = false
-  
-  automatic_failover_enabled = true
-  
-  snapshot_retention_limit = 5
-  snapshot_window         = "03:00-05:00"
-}
-
-# ECR Repository
 resource "aws_ecr_repository" "backend" {
-  name = "fasticket-backend"
+  name                 = "fasticket-backend"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true  # Permite eliminar el repositorio aunque contenga imágenes
   
   image_scanning_configuration {
     scan_on_push = true
   }
   
-  image_tag_mutability = "MUTABLE"
+  tags = {
+    Name = "fasticket-ecr"
+  }
 }
 
-# ECS Cluster
+# ============================================================================
+# ECS CLUSTER
+# ============================================================================
+
 resource "aws_ecs_cluster" "main" {
   name = "fasticket-cluster"
   
@@ -198,25 +265,35 @@ resource "aws_ecs_cluster" "main" {
     name  = "containerInsights"
     value = "enabled"
   }
+  
+  tags = {
+    Name = "fasticket-cluster"
+  }
 }
 
-# Application Load Balancer
+# ============================================================================
+# APPLICATION LOAD BALANCER
+# ============================================================================
+
 resource "aws_lb" "main" {
-  name               = "fasticket-alb-prod"
+  name               = "fasticket-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = module.vpc.public_subnets
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
   
   enable_deletion_protection = false
-  enable_http2              = true
+  
+  tags = {
+    Name = "fasticket-alb"
+  }
 }
 
 resource "aws_lb_target_group" "backend" {
-  name        = "fasticket-tg-prod"
+  name        = "fasticket-tg"
   port        = 8080
   protocol    = "HTTP"
-  vpc_id      = module.vpc.vpc_id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip"
   
   deregistration_delay = 30
@@ -232,6 +309,10 @@ resource "aws_lb_target_group" "backend" {
     timeout             = 5
     unhealthy_threshold = 3
   }
+  
+  tags = {
+    Name = "fasticket-tg"
+  }
 }
 
 resource "aws_lb_listener" "http" {
@@ -245,9 +326,25 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ECS Task Definition
+# ============================================================================
+# CLOUDWATCH LOGS
+# ============================================================================
+
+resource "aws_cloudwatch_log_group" "ecs" {
+  name              = "/ecs/fasticket"
+  retention_in_days = 7  # Reducido de 30 a 7 días
+  
+  tags = {
+    Name = "fasticket-logs"
+  }
+}
+
+# ============================================================================
+# ECS TASK DEFINITION (SIN REDIS)
+# ============================================================================
+
 resource "aws_ecs_task_definition" "backend" {
-  family                   = "fasticket-task-prod"
+  family                   = "fasticket-task"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "512"
@@ -277,8 +374,6 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_NAME", value = "fasticket" },
         { name = "DB_USERNAME", value = var.db_username },
         { name = "DB_PASSWORD", value = var.db_password },
-        { name = "REDIS_HOST", value = aws_elasticache_replication_group.redis.primary_endpoint_address },
-        { name = "REDIS_PORT", value = "6379" },
         { name = "FRONTEND_URL", value = var.frontend_url },
         { name = "SWAGGER_ENABLED", value = var.swagger_enabled },
         { name = "JAVA_OPTS", value = "-Xmx768m -Xms512m -XX:+UseG1GC" }
@@ -302,23 +397,32 @@ resource "aws_ecs_task_definition" "backend" {
       }
     }
   ])
+  
+  tags = {
+    Name = "fasticket-task"
+  }
 }
 
-# ECS Service
+# ============================================================================
+# ECS SERVICE
+# ============================================================================
+
 resource "aws_ecs_service" "backend" {
-  name            = "fasticket-service-prod"
+  name            = "fasticket-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 2
+  desired_count   = 1  # Reducido de 2 a 1 para minimizar costos
   launch_type     = "FARGATE"
   
-  deployment_minimum_healthy_percent = 100
+  deployment_minimum_healthy_percent = 50  # Reducido de 100 a 50
   deployment_maximum_percent         = 200
   
+  force_new_deployment = false
+  
   network_configuration {
+    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
     security_groups  = [aws_security_group.ecs_tasks.id]
-    subnets          = module.vpc.private_subnets
-    assign_public_ip = false
+    assign_public_ip = true  # IMPORTANTE: Necesario en subnets públicas
   }
   
   load_balancer {
@@ -328,33 +432,37 @@ resource "aws_ecs_service" "backend" {
   }
   
   depends_on = [aws_lb_listener.http]
+  
+  tags = {
+    Name = "fasticket-service"
+  }
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/fasticket"
-  retention_in_days = 30
-}
+# ============================================================================
+# OUTPUTS
+# ============================================================================
 
-# IAM Roles - Using existing LabRole (AWS Labs restriction)
-data "aws_iam_role" "lab_role" {
-  name = "LabRole"
-}
-
-# Outputs
 output "alb_dns_name" {
-  value = aws_lb.main.dns_name
-}
-
-output "ecr_repository_url" {
-  value = aws_ecr_repository.backend.repository_url
+  description = "DNS del Application Load Balancer"
+  value       = aws_lb.main.dns_name
 }
 
 output "rds_endpoint" {
-  value = aws_db_instance.postgres.endpoint
+  description = "Endpoint de la base de datos RDS"
+  value       = "${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}"
 }
 
-output "redis_endpoint" {
-  value = aws_elasticache_replication_group.redis.primary_endpoint_address
+output "ecr_repository_url" {
+  description = "URL del repositorio ECR"
+  value       = aws_ecr_repository.backend.repository_url
 }
 
+output "api_url" {
+  description = "URL base de la API"
+  value       = "http://${aws_lb.main.dns_name}"
+}
+
+output "swagger_url" {
+  description = "URL de Swagger UI"
+  value       = "http://${aws_lb.main.dns_name}/swagger-ui/index.html"
+}

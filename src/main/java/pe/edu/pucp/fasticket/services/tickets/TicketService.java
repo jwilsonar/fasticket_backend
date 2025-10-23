@@ -8,11 +8,8 @@ import pe.edu.pucp.fasticket.dto.tickets.TicketCreateDTO;
 import pe.edu.pucp.fasticket.dto.tickets.TicketDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
-import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.*;
 // import pe.edu.pucp.fasticket.model.eventos.TipoEstadoTiket; // <--- LÍNEA ELIMINADA (EL ERROR)
-import pe.edu.pucp.fasticket.model.eventos.Ticket;
-import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.ZonasRepositorio;
@@ -51,7 +48,7 @@ public class TicketService {
 
         // --- CORRECCIÓN AQUÍ ---
         // Cambiamos el ENUM por el String exacto de tu base de datos
-        nuevoTicket.setEstado("DISPONIBLE");
+        nuevoTicket.setEstado(EstadoTicket.DISPONIBLE);
         // --- FIN DE LA CORRECCIÓN ---
 
         nuevoTicket.setActivo(true);

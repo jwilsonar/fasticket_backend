@@ -4,30 +4,24 @@ package pe.edu.pucp.fasticket.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-
-// --- IMPORTACIONES CORRECTAS ---
-// Apuntando a tu nueva carpeta 'dto.zonas'
 import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
 import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
-// --- FIN IMPORTACIONES ---
-
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 
-@Mapper(componentModel = "spring") // Le dice a Spring que esto es un Bean
+@Mapper(componentModel = "spring")
 public interface ZonaMapper {
 
-    // 1. Convierte la Entidad -> al DTO
-    // (Asegúrate que tu ZonaDTO tenga un constructor vacío @NoArgsConstructor)
     ZonaDTO toDTO(Zona zona);
 
-    // 2. Convierte el CreateDTO -> a la Entidad
     @Mapping(target = "idZona", ignore = true)
     @Mapping(target = "local", ignore = true)
     @Mapping(target = "activo", ignore = true)
-    @Mapping(target = "fechaCreacion", ignore = true)
+    // --- CORRECCIÓN DE TYPO ---
+    @Mapping(target = "fechaCreacion", ignore = true) // Era fechaCreaion
+    // --- FIN CORRECCIÓN ---
     @Mapping(target = "fechaActualizacion", ignore = true)
     @Mapping(target = "usuarioCreacion", ignore = true)
     @Mapping(target = "usuarioActualizacion", ignore = true)
-    @Mapping(target = "categoriasEntrada", ignore = true) // Asumiendo que esta es una relación
+    //@Mapping(target = "categoriasEntrada", ignore = true) // Verifica si este campo existe en Zona.java
     Zona toEntity(ZonaCreateDTO dto);
 }

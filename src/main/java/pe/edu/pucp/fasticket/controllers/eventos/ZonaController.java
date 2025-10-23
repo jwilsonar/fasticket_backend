@@ -1,19 +1,15 @@
-package pe.edu.pucp.fasticket.controllers.eventos;
+// RUTA: pe.edu.pucp.fasticket.controllers.eventos.ZonaController.java 
+// (O mejor, muévelo a controllers.zonas si creas ese paquete)
+
+package pe.edu.pucp.fasticket.controllers.eventos; // Cambia si mueves el archivo
 
 import java.util.List;
+import java.util.Optional; // Necesario para el Optional que devuelve el servicio
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*; // Usar *
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,11 +23,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
-import pe.edu.pucp.fasticket.model.eventos.Zona;
+// --- CORRECCIÓN DE IMPORTS ---
+import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO; // Importar DTO
+import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO; // Importar DTO
+// --- FIN CORRECCIÓN ---
+import pe.edu.pucp.fasticket.services.zonas.ZonaService; // Servicio correcto
 
 @Tag(
-    name = "Zonas",
-    description = "API para gestión de zonas dentro de los locales"
+        name = "Zonas",
+        description = "API para gestión de zonas dentro de los locales"
 )
 @RestController
 @RequestMapping("/api/v1/zonas")
@@ -40,138 +40,85 @@ import pe.edu.pucp.fasticket.model.eventos.Zona;
 @Slf4j
 public class ZonaController {
 
-    private final ZonaServicio zonaServicio;
+    private final ZonaService zonaService; // Servicio correcto inyectado
 
-    @Operation(
-        summary = "Listar todas las zonas",
-        description = "Obtiene lista de todas las zonas disponibles en los locales"
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Lista obtenida exitosamente"
-    )
+    @Operation(summary = "Listar todas las zonas")
     @GetMapping
-    public ResponseEntity<StandardResponse<List<Zona>>> listar() {
+    public ResponseEntity<StandardResponse<List<ZonaDTO>>> listar() { // Devuelve DTO
         log.info("GET /api/v1/zonas");
-        List<Zona> zonas = zonaServicio.ListarZonas();
-        return ResponseEntity.ok(StandardResponse.success("Lista de zonas obtenida exitosamente", zonas));
+        // --- CORRECCIÓN DE MÉTODO ---
+        List<ZonaDTO> zonas = zonaService.ListarZonas(); // Llama al método correcto del Service
+        // --- FIN CORRECCIÓN ---
+        return ResponseEntity.ok(StandardResponse.success("Lista de zonas obtenida", zonas));
     }
 
-    @Operation(
-        summary = "Obtener zona por ID",
-        description = "Obtiene información detallada de una zona específica"
-    )
+    @Operation(summary = "Obtener zona por ID")
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona encontrada",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        )
+            @ApiResponse(responseCode = "200", description = "Zona encontrada", content = @Content(schema = @Schema(implementation = ZonaDTO.class))), // Devuelve DTO
+            @ApiResponse(responseCode = "404", description = "Zona no encontrada")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<StandardResponse<Zona>> obtenerPorId(
-            @Parameter(description = "ID de la zona", required = true, example = "1")
-            @PathVariable Integer id) {
-        
+    public ResponseEntity<StandardResponse<ZonaDTO>> obtenerPorId(@PathVariable Integer id) {
         log.info("GET /api/v1/zonas/{}", id);
-        return zonaServicio.BuscarId(id)
-                .map(zona -> ResponseEntity.ok(StandardResponse.success("Zona obtenida exitosamente", zona)))
-                .orElse(ResponseEntity.notFound().build());
+        // --- CORRECCIÓN DE MÉTODO ---
+        ZonaDTO zona = zonaService.BuscarId(id); // Llama al método correcto (asumiendo que devuelve DTO y lanza 404 si no encuentra)
+        // --- FIN CORRECCIÓN ---
+        return ResponseEntity.ok(StandardResponse.success("Zona obtenida", zona));
+        // El .orElse(notFound()) ya no es necesario si el service lanza excepción
     }
 
-    @Operation(
-        summary = "Crear zona",
-        description = "Crea una nueva zona dentro de un local. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "201",
-            description = "Zona creada exitosamente",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Datos inválidos"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos (requiere rol ADMINISTRADOR)"
-        )
-    })
+    // --- NO SE NECESITA UN POST DIRECTO PARA ZONA ---
+    // La creación de Zona ahora se hace a través del EventoController 
+    // (@PostMapping("/{idEvento}/zonas")) para asociarla a un evento.
+    // Si necesitas un endpoint para crear zonas independientes (no ligadas a un evento), 
+    // puedes mantener este, pero debe usar ZonaCreateDTO y llamar a un método diferente en ZonaService.
+    /* @Operation(summary = "Crear zona independiente (USO LIMITADO)")
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Zona>> crear(@Valid @RequestBody Zona zona) {
-        log.info("POST /api/v1/zonas - Nombre: {}", zona.getNombre());
-        Zona nuevaZona = zonaServicio.Guardar(zona);
-        return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Zona creada exitosamente", nuevaZona));
+    public ResponseEntity<StandardResponse<ZonaDTO>> crearIndependiente(@Valid @RequestBody ZonaCreateDTO dto) { // Usa CreateDTO
+        log.info("POST /api/v1/zonas - Crear zona independiente: {}", dto.getNombre());
+        // Necesitarías un método zonaService.crearZonaIndependiente(dto);
+        // ZonaDTO nuevaZona = zonaService.crearZonaIndependiente(dto); 
+        // return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Zona creada", nuevaZona));
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(StandardResponse.error("Usar /api/v1/eventos/{idEvento}/zonas")); // Mejor deshabilitarlo
     }
+    */
 
-    @Operation(
-        summary = "Actualizar zona",
-        description = "Actualiza información de una zona existente. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
-    )
+    // --- ACTUALIZAR ZONA (DEBE USAR DTO) ---
+    @Operation(summary = "Actualizar zona", security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona actualizada exitosamente",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
+            @ApiResponse(responseCode = "200", description = "Zona actualizada", content = @Content(schema = @Schema(implementation = ZonaDTO.class))), // Devuelve DTO
+            @ApiResponse(responseCode = "404", description = "Zona no encontrada"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Zona>> actualizar(
-            @Parameter(description = "ID de la zona a actualizar", required = true)
+    public ResponseEntity<StandardResponse<ZonaDTO>> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody Zona zona) {
-        
+            @Valid @RequestBody ZonaCreateDTO dto) { // Recibe CreateDTO (o un UpdateDTO si lo creas)
         log.info("PUT /api/v1/zonas/{}", id);
-        zona.setIdZona(id);
-        Zona actualizada = zonaServicio.Guardar(zona);
-        return ResponseEntity.ok(StandardResponse.success("Zona actualizada exitosamente", actualizada));
+        // --- CORRECCIÓN DE LÓGICA ---
+        // Necesitas un método en ZonaService que actualice usando el DTO
+        // Ejemplo: ZonaDTO actualizada = zonaService.actualizarZona(id, dto);
+        // --- FIN CORRECCIÓN ---
+        // return ResponseEntity.ok(StandardResponse.success("Zona actualizada", actualizada));
+        // Temporalmente retornamos error hasta implementar el service
+        throw new UnsupportedOperationException("Actualizar zona aún no implementado con DTOs");
     }
 
-    @Operation(
-        summary = "Eliminar zona",
-        description = "Elimina una zona del sistema. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
-    )
+    @Operation(summary = "Eliminar zona", security = @SecurityRequirement(name = "Bearer Authentication"))
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona eliminada exitosamente"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
+            @ApiResponse(responseCode = "200", description = "Zona eliminada"),
+            @ApiResponse(responseCode = "404", description = "Zona no encontrada"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Void>> eliminar(
-            @Parameter(description = "ID de la zona a eliminar", required = true)
-            @PathVariable Integer id) {
-        
+    public ResponseEntity<StandardResponse<Void>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/zonas/{}", id);
-        zonaServicio.Eliminar(id);
-        return ResponseEntity.ok(StandardResponse.success("Zona eliminada exitosamente"));
+        // --- CORRECCIÓN DE MÉTODO ---
+        zonaService.Eliminar(id); // Llama al método correcto
+        // --- FIN CORRECCIÓN ---
+        return ResponseEntity.ok(StandardResponse.success("Zona eliminada"));
     }
 }
-

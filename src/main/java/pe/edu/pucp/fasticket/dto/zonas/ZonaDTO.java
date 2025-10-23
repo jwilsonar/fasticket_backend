@@ -1,4 +1,4 @@
-package pe.edu.pucp.fasticket.dto.eventos;
+package pe.edu.pucp.fasticket.dto.zonas;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;

@@ -1,4 +1,4 @@
-package pe.edu.pucp.fasticket.dto.eventos;
+package pe.edu.pucp.fasticket.dto.tickets;
 
 import java.time.LocalDateTime;
 import java.util.List;

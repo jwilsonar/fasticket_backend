@@ -28,7 +28,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 
 @Tag(
     name = "Zonas",

@@ -6,4 +6,5 @@ import pe.edu.pucp.fasticket.model.eventos.Zona;
 
 @Repository
 public interface ZonasRepositorio extends JpaRepository<Zona, Integer> {
+    // Aquí puedes agregar consultas personalizadas si las necesitas
 }

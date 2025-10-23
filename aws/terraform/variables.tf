@@ -23,3 +23,9 @@ variable "frontend_url" {
   default     = "https://fasticket.com"
 }
 
+variable "swagger_enabled" {
+  description = "Habilitar Swagger UI y API Docs en producción (true/false)"
+  type        = string
+  default     = "true"
+}
+

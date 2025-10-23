@@ -1,8 +1,13 @@
 package pe.edu.pucp.fasticket.services;
 
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.stream.Collectors;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.ItemCarritoDTO;
@@ -10,15 +15,15 @@ import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
-import pe.edu.pucp.fasticket.repository.CarroComprasRepository;
-import pe.edu.pucp.fasticket.repository.ClienteRepository;
-import pe.edu.pucp.fasticket.repository.ItemCarritoRepository;
-import pe.edu.pucp.fasticket.repository.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
+import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.stream.Collectors;
-
+/**
+ * Implementación del servicio de carrito de compras.
+ * Implementa reglas de negocio RF-024, RF-076, RF-077.
+ */
 @Service
 @RequiredArgsConstructor
 public class CarroComprasServiceImpl implements CarroComprasService {
@@ -28,6 +33,17 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private final TipoTicketRepository tipoTicketRepository;
     private final ItemCarritoRepository itemCarritoRepository;
 
+    /**
+     * RF-024, RF-076: Límite máximo de tickets por cliente (configurable).
+     * Este límite puede ser configurado por evento o globalmente.
+     */
+    private static final int LIMITE_MAXIMO_TICKETS_POR_CLIENTE = 10;
+    
+    /**
+     * RF-077: Tiempo de reserva temporal en minutos (configurable).
+     */
+    private static final int TIEMPO_RESERVA_MINUTOS = 15;
+
     @Override
     @Transactional
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
@@ -35,6 +51,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         TipoTicket tipoTicket = tipoTicketRepository.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con ID: " + request.getIdTipoTicket()));
 
+        // RF-025: Validar stock disponible
         if (tipoTicket.getCantidadDisponible() < request.getCantidad()) {
             throw new RuntimeException("Stock insuficiente para el ticket: " + tipoTicket.getNombre());
         }
@@ -44,7 +61,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado con ID: " + request.getIdCliente()));
 
         // 3. Obtener el carrito del cliente o crear uno nuevo si no existe
-        CarroCompras carro = carroComprasRepository.findByClienteIdPersona(cliente.getIdPersona())
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
                 .orElseGet(() -> {
                     CarroCompras nuevoCarro = new CarroCompras();
                     nuevoCarro.setCliente(cliente);
@@ -59,6 +76,18 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         } else if (!carro.getIdEventoActual().equals(tipoTicket.getEvento().getIdEvento())) {
             // Si ya hay items, se valida que el nuevo item sea del mismo evento
             throw new RuntimeException("No puedes añadir tickets de diferentes eventos al mismo carrito. Vacía el carrito o finaliza tu compra actual.");
+        }
+
+        // RF-024, RF-076: Validar límite de tickets por cliente
+        int totalTicketsEnCarrito = carro.getItems().stream()
+                .mapToInt(ItemCarrito::getCantidad)
+                .sum();
+        
+        if (totalTicketsEnCarrito + request.getCantidad() > LIMITE_MAXIMO_TICKETS_POR_CLIENTE) {
+            throw new RuntimeException(
+                String.format("No puedes comprar más de %d tickets por evento. Actualmente tienes %d en tu carrito.", 
+                    LIMITE_MAXIMO_TICKETS_POR_CLIENTE, totalTicketsEnCarrito)
+            );
         }
 
         // 5. Crear el nuevo item y añadirlo al carrito
@@ -107,7 +136,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     @Override
     @Transactional(readOnly = true)
     public CarroComprasDTO verCarrito(Integer idCliente) {
-        return carroComprasRepository.findByClienteIdPersona(idCliente)
+        return carroComprasRepository.findByCliente_IdPersona(idCliente)
                 .map(this::convertirADTO) // Si encuentra el carrito, lo convierte a DTO
                 .orElseGet(() -> crearCarritoVacioDTO()); // Si no, devuelve un DTO de un carrito vacío
     }

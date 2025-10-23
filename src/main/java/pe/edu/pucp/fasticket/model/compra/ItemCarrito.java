@@ -65,10 +65,8 @@ public class ItemCarrito {
     @JoinColumn(name = "idTipoTicket", nullable = false)
     private TipoTicket tipoTicket;
 
-    /*
     @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
-     */
 
     public void calcularPrecioFinal() {
         this.precioFinal = (this.precio * this.cantidad) - this.descuento;

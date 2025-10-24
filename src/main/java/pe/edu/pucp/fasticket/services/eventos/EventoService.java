@@ -54,8 +54,23 @@ public class EventoService {
                 .collect(Collectors.toList());
     }
 
+    // In EventoService.java
+
     public List<EventoResponseDTO> listarPorEstado(EstadoEvento estado) {
-        return eventoRepository.findByEstadoEventoAndActivoTrue(estado).stream()
+        List<Evento> eventosEncontrados;
+
+        // --- CORRECCIÓN ---
+        // If searching for BORRADOR or CANCELADO, don't filter by activo=true
+        if (estado == EstadoEvento.BORRADOR || estado == EstadoEvento.CANCELADO) {
+            // Find by state only, regardless of active status
+            eventosEncontrados = eventoRepository.findByEstadoEvento(estado); // Requires this new repo method
+        } else {
+            // For other states (like PUBLICADO, FINALIZADO), find only active ones
+            eventosEncontrados = eventoRepository.findByEstadoEventoAndActivoTrue(estado);
+        }
+        // --- FIN CORRECCIÓN ---
+
+        return eventosEncontrados.stream()
                 .map(eventoMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }

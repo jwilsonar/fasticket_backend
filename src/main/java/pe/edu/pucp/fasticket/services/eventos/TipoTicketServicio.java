@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.services.eventos;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 
@@ -17,8 +18,8 @@ public class TipoTicketServicio {
         return repo_tipoTicket.findAll();
     }
 
-    public Optional<TipoTicket> BuscarId(Integer id){
-        return repo_tipoTicket.findById(id);
+    public TipoTicket BuscarId(Integer id){
+        return repo_tipoTicket.findById(id).orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
     }
 
     public TipoTicket Guardar(TipoTicket tipoTicket){

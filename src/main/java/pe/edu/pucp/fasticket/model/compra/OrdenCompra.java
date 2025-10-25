@@ -88,7 +88,7 @@ public class OrdenCompra {
     private List<ItemCarrito> items = new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idCarroCompra", nullable = false)
+    @JoinColumn(name = "idCarroCompra")
     private CarroCompras carroCompras;
 
     @Column(name = "fecha_expiracion")

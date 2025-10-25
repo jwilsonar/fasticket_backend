@@ -1,12 +1,14 @@
 package pe.edu.pucp.fasticket.services.compra;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.*;
 import pe.edu.pucp.fasticket.events.CompraAnuladaEvent;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
@@ -15,17 +17,15 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Servicio para gestión de órdenes de compra.
- * Implementa RF-077, RF-089, RF-090.
- */
 @Service
 @Slf4j
 public class OrdenServicio {
@@ -33,35 +33,38 @@ public class OrdenServicio {
     private final OrdenCompraRepositorio ordenCompraRepositorio;
     private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ClienteRepository clienteRepository;
+    private final TicketRepository ticketRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
             TipoTicketRepositorio tipoTicketRepositorio,
             ClienteRepository clienteRepository,
+            TicketRepository ticketRepository,
             ApplicationEventPublisher eventPublisher
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
         this.clienteRepository = clienteRepository;
+        this.ticketRepository = ticketRepository;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
     public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
-        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente()).orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
-        List<ItemCarrito> items = construirItemsDesdeDTO(datosOrden.getItems(),cliente);
-        OrdenCompra orden=new OrdenCompra();
+        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente()).orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+        List<ItemCarrito> items = construirItemsDesdeDTO(datosOrden.getItems(), cliente);
+        OrdenCompra orden = new OrdenCompra();
         orden.setCliente(cliente);
-        orden.setFechaCreacion(LocalDate.now());
+        orden.setFechaOrden(LocalDate.now());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setItems(items);
-
+        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         for (ItemCarrito item : items) {
             item.setOrdenCompra(orden);
         }
-
-        cliente.getOrdenesCompra().add(orden);
+        orden.calcularTotal();
+        log.info("Guardando nueva orden ID temporal {} para cliente ID {}", orden.hashCode(), cliente.getIdPersona());
         return ordenCompraRepositorio.save(orden);
     }
 
@@ -94,24 +97,20 @@ public class OrdenServicio {
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             validarItemYAsistentes(itemDTO);
-            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado"));
-            
-            // RF-072: Validar edad mínima del evento
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + itemDTO.getIdTipoTicket()));
             Integer edadCliente = cliente.calcularEdad();
             Integer edadMinima = tipoTicket.getEvento().getEdadMinima();
             if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
-                throw new IllegalArgumentException(
-                    String.format("El evento '%s' requiere una edad mínima de %d años. Tu edad actual es %d años.", 
-                        tipoTicket.getEvento().getNombre(), edadMinima, edadCliente)
-                );
+                throw new IllegalArgumentException("El evento '%s' requiere edad mínima...");
             }
-            
-            // RF-025: Validar stock disponible
-            if (tipoTicket.getCantidadDisponible() < itemDTO.getCantidad()) {
+            List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
+                    tipoTicket,
+                    EstadoTicket.DISPONIBLE,
+                    PageRequest.of(0, itemDTO.getCantidad())
+            );
+            if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
                 throw new RuntimeException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre());
             }
-            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - itemDTO.getCantidad());
-            tipoTicketRepositorio.save(tipoTicket);
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
             item.setPrecio(tipoTicket.getPrecio());
@@ -120,27 +119,24 @@ public class OrdenServicio {
             item.setFechaAgregado(LocalDate.now());
             item.setTipoTicket(tipoTicket);
             item.calcularPrecioFinal();
-            List<Ticket> tickets = new ArrayList<>();
-            for (DatosAsistenteDTO asistente : itemDTO.getAsistentes()) {
-                Ticket ticket = new Ticket();
-                ticket.setTipoTicket(tipoTicket);
-                ticket.setEvento(tipoTicket.getEvento());
-                ticket.setCliente(cliente);
-                ticket.setPrecio(tipoTicket.getPrecio());
-                ticket.setActivo(true);
+            if (ticketsDisponibles.size() != itemDTO.getAsistentes().size()) {
+                throw new IllegalStateException("Inconsistencia entre tickets encontrados y asistentes.");
+            }
+            for (int i = 0; i < ticketsDisponibles.size(); i++) {
+                Ticket ticket = ticketsDisponibles.get(i);
+                DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
                 ticket.setEstado(EstadoTicket.RESERVADA);
-                ticket.setFechaCreacion(LocalDate.now());
+                ticket.setItemCarrito(item);
+                ticket.setCliente(cliente);
                 ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
                 ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
                 ticket.setNombreAsistente(asistente.getNombres());
                 ticket.setApellidoAsistente(asistente.getApellidos());
-                ticket.setItemCarrito(item);
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
                 ticket.setQrImage(generarQrComoBytes(codigoQr));
-                tickets.add(ticket);
             }
-            item.setTickets(tickets);
+            item.setTickets(ticketsDisponibles);
             items.add(item);
         }
         return items;

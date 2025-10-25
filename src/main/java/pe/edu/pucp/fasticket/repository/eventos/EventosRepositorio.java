@@ -53,4 +53,6 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
      * RF-069: Lista eventos activos ordenados por fecha.
      */
     List<Evento> findByActivoTrueOrderByFechaEventoAsc();
+
+    List<Evento> findByEstadoEvento(EstadoEvento estado);
 }

@@ -10,9 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
+import pe.edu.pucp.fasticket.dto.eventos.*;
 import pe.edu.pucp.fasticket.events.EventoCanceladoEvent;
-import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
@@ -226,6 +225,59 @@ public class EventoService {
         } catch (Exception e) {
             log.error("⚠️ Error al publicar evento de cancelación (no crítico): {}", e.getMessage());
         }
+    }
+    @Transactional(readOnly = true) // Importante para cargar relaciones LAZY
+    public EventoDetalleDTO obtenerDetalleParaCompra(Integer id) {
+        log.info("Obteniendo detalles para compra del evento ID: {}", id);
+
+        // 1. Busca la entidad Evento (incluyendo Local y TiposTicket)
+        //    Usar findByIdAndActivoTrue para asegurar que solo se muestren eventos activos
+        Evento evento = eventoRepository.findByIdAndActivoTrue(id) // Asume que tienes este método en el repo
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado o inactivo con ID: " + id));
+
+        // 2. Mapea la entidad Evento al DTO EventoDetalleDTO
+        EventoDetalleDTO dto = new EventoDetalleDTO();
+        dto.setId(evento.getIdEvento());
+        dto.setNombre(evento.getNombre());
+        dto.setDescripcion(evento.getDescripcion()); // Asume que @Lob funciona bien o ajusta
+        dto.setFecha(evento.getFechaEvento());
+        dto.setHora(evento.getHoraInicio());
+        dto.setUrlImagen(evento.getImagenUrl());
+
+        // 3. Mapea el Local (usando LocalDetalleDTO)
+        if (evento.getLocal() != null) {
+            LocalDetalleDTO localDTO = new LocalDetalleDTO();
+            localDTO.setNombre(evento.getLocal().getNombre());
+            localDTO.setDireccion(evento.getLocal().getDireccion());
+            // localDTO.setUrlMapa(evento.getLocal().getUrlMapa()); // Si tienes este campo
+            // Mapea el Distrito si es necesario
+            // if(evento.getLocal().getDistrito() != null) {
+            //    DistritoDTO distritoDTO = new DistritoDTO();
+            //    distritoDTO.setNombre(evento.getLocal().getDistrito().getNombre());
+            //    localDTO.setDistrito(distritoDTO);
+            // }
+            dto.setLocal(localDTO);
+        } else {
+            log.warn("El evento {} no tiene un local asociado.", id);
+            // Considera lanzar un error si un evento para compra DEBE tener local
+            // throw new BusinessException("El evento no tiene un local configurado.");
+        }
+
+        // 4. Mapea la lista de tipos de ticket (usando TipoTicketDTO)
+        //    Filtra solo los tipos de ticket activos y con stock > 0
+        List<TipoTicketDTO> ticketsDTO = evento.getTiposTicket().stream()
+                .filter(tt -> tt.getActivo() && tt.getCantidadDisponible() > 0) // Filtra activos y con stock
+                .map(tipo -> {
+                    TipoTicketDTO ticketDTO = new TipoTicketDTO();
+                    ticketDTO.setIdTipoTicket(tipo.getIdTipoTicket());
+                    ticketDTO.setNombre(tipo.getNombre());
+                    ticketDTO.setPrecio(tipo.getPrecio());
+                    return ticketDTO;
+                })
+                .collect(Collectors.toList());
+        dto.setTiposDeTicket(ticketsDTO);
+
+        return dto;
     }
 }
 

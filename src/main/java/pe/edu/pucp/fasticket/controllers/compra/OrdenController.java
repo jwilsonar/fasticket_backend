@@ -63,6 +63,7 @@ public class OrdenController {
                 .status(HttpStatus.CREATED)
                 .body(StandardResponse.success("Proceso iniciado correctamente.", resumenDTO));
     }
+
     @Operation(
             summary = "Obtener resumen de una orden creada",
             description = "Obtiene los detalles de una orden ya existente.",
@@ -85,5 +86,50 @@ public class OrdenController {
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + id));
         OrdenResumenDTO resumen = new OrdenResumenDTO(orden);
         return ResponseEntity.ok(StandardResponse.success("Proceso iniciado correctamente.", resumen));
+    }
+
+    @Operation(
+            summary = "Cancelar una orden de compra",
+            description = "Permite cancelar una orden PENDIENTE antes del pago. Actualiza los tickets a estado DISPONIBLE.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Orden cancelada correctamente"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "No se puede cancelar una orden en este estado")
+    })
+    @PutMapping("/{id}/cancelar")
+    @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> cancelarOrden(
+            @Parameter(description = "ID de la orden a cancelar", required = true)
+            @PathVariable Integer id) {
+
+        log.info("PUT /api/v1/ordenes/{}/cancelar", id);
+
+        ordenServicio.cancelarOrden(id);
+
+        return ResponseEntity.ok(
+                StandardResponse.success("Orden cancelada correctamente.", null)
+        );
+    }
+    @Operation(
+            summary = "Confirmar pago de una orden",
+            description = "Confirma una orden tras un pago exitoso. Actualiza los tickets a estado VENDIDA.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Orden confirmada correctamente"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "No se puede confirmar una orden en este estado")
+    })
+    @PutMapping("/{id}/confirmar")
+    @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> confirmarOrden(
+            @Parameter(description = "ID de la orden a confirmar", required = true)
+            @PathVariable Integer id) {
+
+        log.info("PUT /api/v1/ordenes/{}/confirmar", id);
+        ordenServicio.confirmarPagoOrden(id);
+        return ResponseEntity.ok(StandardResponse.success("Orden confirmada correctamente.", null));
     }
 }

@@ -15,5 +15,5 @@ public class EventoDetalleDTO {
     private String urlImagen;
     private String descripcion;
     private LocalDetalleDTO local;
-    private List<TipoTicketDTO> tiposDeTicket;
+    private List<TipoTicketCompraDTO> tiposDeTicket;
 }

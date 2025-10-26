@@ -13,6 +13,7 @@ import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
@@ -24,7 +25,9 @@ import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -64,6 +67,7 @@ public class OrdenServicio {
             item.setOrdenCompra(orden);
         }
         orden.calcularTotal();
+
         log.info("Guardando nueva orden ID temporal {} para cliente ID {}", orden.hashCode(), cliente.getIdPersona());
         return ordenCompraRepositorio.save(orden);
     }
@@ -138,6 +142,9 @@ public class OrdenServicio {
             }
             item.setTickets(ticketsDisponibles);
             items.add(item);
+            int cantidadReservada = itemDTO.getCantidad();
+            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - cantidadReservada);
+            tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() + cantidadReservada);
         }
         return items;
     }
@@ -165,11 +172,27 @@ public class OrdenServicio {
 
     @Transactional
     public void confirmarPagoOrden(Integer idOrden) {
-        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden).orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
+                .orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+
         orden.setEstado(EstadoCompra.APROBADO);
+        Map<Evento, Integer> cantidadPorEvento = new HashMap<>();
+
         for (ItemCarrito item : orden.getItems()) {
             for (Ticket ticket : item.getTickets()) {
                 ticket.setEstado(EstadoTicket.VENDIDA);
+            }
+            // Obtener evento relacionado
+            Evento evento = item.getTipoTicket().getEvento();
+            cantidadPorEvento.merge(evento, item.getCantidad(), Integer::sum);
+        }
+        // Actualizar aforo de los eventos involucrados
+        for (Map.Entry<Evento, Integer> entry : cantidadPorEvento.entrySet()) {
+            Evento evento = entry.getKey();
+            Integer cantidadVendida = entry.getValue();
+
+            if (evento.getAforoDisponible() != null) {
+                evento.setAforoDisponible(Math.max(evento.getAforoDisponible() - cantidadVendida, 0));
             }
         }
         ordenCompraRepositorio.save(orden);

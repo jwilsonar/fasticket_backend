@@ -18,6 +18,7 @@ import pe.edu.pucp.fasticket.mapper.EventoMapper;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 
@@ -226,58 +227,65 @@ public class EventoService {
             log.error("⚠️ Error al publicar evento de cancelación (no crítico): {}", e.getMessage());
         }
     }
-    @Transactional(readOnly = true) // Importante para cargar relaciones LAZY
+    @Transactional(readOnly = true)
     public EventoDetalleDTO obtenerDetalleParaCompra(Integer id) {
-        log.info("Obteniendo detalles para compra del evento ID: {}", id);
+        log.info("INICIO: Obteniendo detalles para compra del evento ID: {}", id);
 
-        // 1. Busca la entidad Evento (incluyendo Local y TiposTicket)
-        //    Usar findByIdAndActivoTrue para asegurar que solo se muestren eventos activos
-        Evento evento = eventoRepository.findByIdAndActivoTrue(id) // Asume que tienes este método en el repo
-                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado o inactivo con ID: " + id));
+        // 1. Buscar el evento
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
 
-        // 2. Mapea la entidad Evento al DTO EventoDetalleDTO
+        if (Boolean.FALSE.equals(evento.getActivo())) {
+            throw new ResourceNotFoundException("Evento no disponible para compra con ID: " + id);
+        }
+
+        // 2. Mapeo básico del evento
         EventoDetalleDTO dto = new EventoDetalleDTO();
         dto.setId(evento.getIdEvento());
         dto.setNombre(evento.getNombre());
-        dto.setDescripcion(evento.getDescripcion()); // Asume que @Lob funciona bien o ajusta
         dto.setFecha(evento.getFechaEvento());
         dto.setHora(evento.getHoraInicio());
         dto.setUrlImagen(evento.getImagenUrl());
+        dto.setDescripcion(evento.getDescripcion());
 
-        // 3. Mapea el Local (usando LocalDetalleDTO)
-        if (evento.getLocal() != null) {
-            LocalDetalleDTO localDTO = new LocalDetalleDTO();
-            localDTO.setNombre(evento.getLocal().getNombre());
-            localDTO.setDireccion(evento.getLocal().getDireccion());
-            // localDTO.setUrlMapa(evento.getLocal().getUrlMapa()); // Si tienes este campo
-            // Mapea el Distrito si es necesario
-            // if(evento.getLocal().getDistrito() != null) {
-            //    DistritoDTO distritoDTO = new DistritoDTO();
-            //    distritoDTO.setNombre(evento.getLocal().getDistrito().getNombre());
-            //    localDTO.setDistrito(distritoDTO);
-            // }
-            dto.setLocal(localDTO);
-        } else {
-            log.warn("El evento {} no tiene un local asociado.", id);
-            // Considera lanzar un error si un evento para compra DEBE tener local
-            // throw new BusinessException("El evento no tiene un local configurado.");
+        // 3. Validar y mapear Local
+        Local local = evento.getLocal();
+        if (local == null || !Boolean.TRUE.equals(local.getActivo())) {
+            throw new BusinessException("El local del evento no está disponible para compras");
         }
 
-        // 4. Mapea la lista de tipos de ticket (usando TipoTicketDTO)
-        //    Filtra solo los tipos de ticket activos y con stock > 0
-        List<TipoTicketDTO> ticketsDTO = evento.getTiposTicket().stream()
-                .filter(tt -> tt.getActivo() && tt.getCantidadDisponible() > 0) // Filtra activos y con stock
-                .map(tipo -> {
-                    TipoTicketDTO ticketDTO = new TipoTicketDTO();
-                    ticketDTO.setIdTipoTicket(tipo.getIdTipoTicket());
-                    ticketDTO.setNombre(tipo.getNombre());
-                    ticketDTO.setPrecio(tipo.getPrecio());
-                    return ticketDTO;
+        LocalDetalleDTO localDTO = new LocalDetalleDTO();
+        localDTO.setNombre(local.getNombre());
+        localDTO.setDireccion(local.getDireccion());
+        localDTO.setUrlMapa(local.getUrlMapa());
+        localDTO.setDistrito(local.getDistrito());
+        dto.setLocal(localDTO);
+
+        // 4. Mapeo limpio de Tipos de Ticket
+        List<TipoTicketCompraDTO> tiposDTO = evento.getTiposTicket().stream()
+                .filter(tt -> Boolean.TRUE.equals(tt.getActivo()) && tt.getCantidadDisponible() > 0)
+                .map(tt -> {
+                    TipoTicketCompraDTO t = new TipoTicketCompraDTO();
+                    t.setIdTipoTicket(tt.getIdTipoTicket());
+                    t.setNombre(tt.getNombre());
+                    t.setDescripcion(tt.getDescripcion());
+                    t.setPrecio(tt.getPrecio());
+                    t.setCantidadDisponible(tt.getCantidadDisponible());
+                    return t;
                 })
                 .collect(Collectors.toList());
-        dto.setTiposDeTicket(ticketsDTO);
 
+        if (tiposDTO.isEmpty()) {
+            throw new BusinessException("El evento no tiene tickets disponibles actualmente");
+        }
+
+        dto.setTiposDeTicket(tiposDTO);
+
+        log.info("FIN: Detalle de evento {} mapeado correctamente.", id);
         return dto;
     }
+
+
+
 }
 

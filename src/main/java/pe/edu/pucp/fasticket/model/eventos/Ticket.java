@@ -77,7 +77,7 @@ public class Ticket {
     private TipoTicket tipoTicket;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idItemCarrito")
+    @JoinColumn(name = "idItemCarrito",nullable = true)
     private ItemCarrito itemCarrito;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -131,12 +131,14 @@ public class EventoControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearEvento_ConPermisoAdmin() throws Exception {
-        // Los administradores sí pueden crear eventos
-        String eventoJson = "{\"nombre\":\"Nuevo Evento Admin\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000}";
+        String eventoJson = String.format(
+                "{\"nombre\":\"Nuevo Evento Admin\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000,\"idLocal\":%d}",
+                localTest.getIdLocal()
+        );
 
         mockMvc.perform(post("/api/v1/eventos")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(eventoJson))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(eventoJson))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.mensaje").value("Evento creado exitosamente"))

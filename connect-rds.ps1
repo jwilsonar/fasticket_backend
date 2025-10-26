@@ -1,4 +1,25 @@
 # Script para obtener información de conexión a RDS
+# Este script NO contiene credenciales hardcodeadas por seguridad
+
+# Función para obtener la contraseña de forma segura
+function Get-DatabasePassword {
+    # Intenta obtener la contraseña desde variables de entorno
+    $password = $env:DB_PASS
+    if (-not $password) {
+        $password = $env:DATABASE_PASSWORD
+    }
+    if (-not $password) {
+        $password = $env:FASTICKET_DB_PASSWORD
+    }
+    
+    if ($password) {
+        return $password
+    } else {
+        Write-Host "  [ADVERTENCIA] No se encontró la contraseña en variables de entorno" -ForegroundColor Yellow
+        Write-Host "  Configura una de estas variables: DB_PASS, DATABASE_PASSWORD, o FASTICKET_DB_PASSWORD" -ForegroundColor Yellow
+        return $null
+    }
+}
 
 Write-Host "`n=== INFORMACIÓN DE CONEXIÓN RDS ===" -ForegroundColor Cyan
 
@@ -19,8 +40,14 @@ Write-Host "Host:     $dbHost" -ForegroundColor White
 Write-Host "Puerto:   5432" -ForegroundColor White
 Write-Host "Database: fasticket" -ForegroundColor White
 Write-Host "Usuario:  fasticket_admin" -ForegroundColor White
-# Write-Host "Password: DB_fasticket" -ForegroundColor White  <-- Comenta o elimina esta línea
-Write-Host "Password: <Obtener de variable de entorno DB_PASS o gestor de contraseñas>" -ForegroundColor Yellow # <-- Reemplazo
+
+# Obtener contraseña de forma segura
+$dbPassword = Get-DatabasePassword
+if ($dbPassword) {
+    Write-Host "Password: [CONFIGURADA DESDE VARIABLE DE ENTORNO]" -ForegroundColor Green
+} else {
+    Write-Host "Password: <Configurar variable de entorno DB_PASS>" -ForegroundColor Yellow
+}
 Write-Host "===========================" -ForegroundColor Green
 
 Write-Host "`n[2] Verificando conectividad..." -ForegroundColor Yellow
@@ -53,7 +80,7 @@ Write-Host "  DB_HOST: $dbHost" -ForegroundColor Gray
 Write-Host "  DB_PORT: 5432" -ForegroundColor Gray
 Write-Host "  DB_NAME: fasticket" -ForegroundColor Gray
 Write-Host "  DB_USER: fasticket_admin" -ForegroundColor Gray
-Write-Host "  DB_PASS: <Configurar como variable de entorno>" -ForegroundColor Yellow # <-- Reemplazo
+Write-Host "  DB_PASS: <Configurar como variable de entorno - NUNCA hardcodear>" -ForegroundColor Yellow
 
 Write-Host "`n[6] URL de conexión JDBC:" -ForegroundColor Yellow
 $jdbcUrl = "jdbc:postgresql://${dbHost}:5432/fasticket"
@@ -66,6 +93,12 @@ try {
 } catch {
     # Silenciar error si no hay clipboard disponible
 }
+
+Write-Host "`n[7] INSTRUCCIONES DE SEGURIDAD:" -ForegroundColor Red
+Write-Host "  - NUNCA hardcodees contraseñas en scripts" -ForegroundColor Yellow
+Write-Host "  - Usa variables de entorno para credenciales sensibles" -ForegroundColor Yellow
+Write-Host "  - Configura DB_PASS en tu perfil de PowerShell o .env" -ForegroundColor Yellow
+Write-Host "  - Ejemplo: `$env:DB_PASS = 'tu_contraseña_segura'" -ForegroundColor Gray
 
 Write-Host "`n[INFO] Consulta DBEAVER-RDS-CONNECTION.md para instrucciones detalladas" -ForegroundColor Cyan
 Write-Host ""

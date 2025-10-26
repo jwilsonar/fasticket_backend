@@ -97,6 +97,8 @@ public class Ticket {
     @Column(name = "tipoDocumentoAsistente", length = 100)
     private TipoDocumento tipoDocumentoAsistente;
 
-
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_zona") // <-- USA EL NOMBRE CORRECTO DE TU COLUMNA FK EN LA BD
+    private Zona zona; // <-- El nombre de la variable DEBE ser 'zona'
 
 }

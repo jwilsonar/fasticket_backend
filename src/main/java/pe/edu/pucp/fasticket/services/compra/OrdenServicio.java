@@ -15,7 +15,7 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 import java.time.LocalDate;
@@ -31,18 +31,18 @@ import java.util.List;
 public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;
-    private final TipoTicketRepositorio tipoTicketRepositorio;
+    private final TipoTicketRepository TipoTicketRepository;
     private final ClienteRepository clienteRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
-            TipoTicketRepositorio tipoTicketRepositorio,
+            TipoTicketRepository TipoTicketRepository,
             ClienteRepository clienteRepository,
             ApplicationEventPublisher eventPublisher
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
-        this.tipoTicketRepositorio = tipoTicketRepositorio;
+        this.TipoTicketRepository = TipoTicketRepository;
         this.clienteRepository = clienteRepository;
         this.eventPublisher = eventPublisher;
     }
@@ -94,7 +94,7 @@ public class OrdenServicio {
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             validarItemYAsistentes(itemDTO);
-            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado"));
+            TipoTicket tipoTicket = TipoTicketRepository.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado"));
             
             // RF-072: Validar edad mínima del evento
             Integer edadCliente = cliente.calcularEdad();
@@ -111,7 +111,7 @@ public class OrdenServicio {
                 throw new RuntimeException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre());
             }
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - itemDTO.getCantidad());
-            tipoTicketRepositorio.save(tipoTicket);
+            TipoTicketRepository.save(tipoTicket);
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
             item.setPrecio(tipoTicket.getPrecio());
@@ -151,7 +151,7 @@ public class OrdenServicio {
         double subtotal = 0.0;
 
         for (ItemSeleccionadoDTO item : datosOrden.getItems()) {
-            TipoTicket tipoTicket = tipoTicketRepositorio.findById(item.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
+            TipoTicket tipoTicket = TipoTicketRepository.findById(item.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
             ItemResumenDTO itemResumen = new ItemResumenDTO();
             itemResumen.setNombreTipoTicket(tipoTicket.getNombre());
             itemResumen.setCantidad(item.getCantidad());
@@ -190,7 +190,7 @@ public class OrdenServicio {
             }
             TipoTicket tipo = item.getTipoTicket();
             tipo.setCantidadDisponible(tipo.getCantidadDisponible() + item.getCantidad());
-            tipoTicketRepositorio.save(tipo);
+            TipoTicketRepository.save(tipo);
         }
         ordenCompraRepositorio.save(orden);
     }
@@ -268,7 +268,7 @@ public class OrdenServicio {
             TipoTicket tipoTicket = item.getTipoTicket();
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + item.getCantidad());
             tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() - item.getCantidad());
-            tipoTicketRepositorio.save(tipoTicket);
+            TipoTicketRepository.save(tipoTicket);
             
             log.info("Devueltos {} tickets del tipo '{}' al stock", item.getCantidad(), tipoTicket.getNombre());
         }

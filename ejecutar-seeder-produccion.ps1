@@ -51,31 +51,48 @@ foreach ($path in $possiblePaths) {
 
 if ($psqlPath) {
     Write-Host "  [OK] PostgreSQL encontrado en: $psqlPath" -ForegroundColor Green
-    
+
     Write-Host "`n[4] Ejecutando seeder en producción..." -ForegroundColor Yellow
-    $env:PGPASSWORD = 'DB_fasticket'
-    
+
+    # --- INICIO CORRECCIÓN DE CONTRASEÑA ---
+    # Obtener contraseña de forma segura (Variable de entorno o prompt)
+    $password = $env:DB_PASS # Intenta leer la variable de entorno DB_PASS
+    if (-not $password) {
+        Write-Warning "Variable de entorno DB_PASS no encontrada. Se solicitará la contraseña."
+        # Pide la contraseña interactivamente si la variable no existe
+        $password = Read-Host -Prompt "Introduce la contraseña para el usuario 'fasticket_admin' en '$dbHost'"
+    }
+    # Asignar la contraseña obtenida a la variable PGPASSWORD que usa psql
+    $env:PGPASSWORD = $password
+    # --- FIN CORRECCIÓN DE CONTRASEÑA ---
+
+    # Ejecutar psql (ahora usará la contraseña de forma segura)
     & $psqlPath -h $dbHost -U fasticket_admin -d fasticket -f "src/main/resources/db/seeder-postgres.sql"
-    
+
+    # Limpiar la variable de entorno de contraseña por seguridad
+    Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`n  [SUCCESS] Seeder ejecutado exitosamente en producción" -ForegroundColor Green
     } else {
         Write-Host "`n  [ERROR] Hubo un error al ejecutar el seeder" -ForegroundColor Red
         exit 1
     }
-    
+
 } else {
     Write-Host "  [INFO] PostgreSQL (psql) no encontrado en el sistema" -ForegroundColor Yellow
     Write-Host "`n  === OPCIONES ALTERNATIVAS ===" -ForegroundColor Cyan
-    
+
     Write-Host "`n  OPCIÓN 1: Usar Docker (Recomendado)" -ForegroundColor White
     Write-Host "  -----------------------------------------" -ForegroundColor Gray
     Write-Host "  docker run --rm -v `${PWD}/src/main/resources/db:/scripts postgres:15 \`" -ForegroundColor White
     Write-Host "    psql -h $dbHost \`" -ForegroundColor White
     Write-Host "    -U fasticket_admin -d fasticket \`" -ForegroundColor White
     Write-Host "    -f /scripts/seeder-postgres.sql" -ForegroundColor White
-    Write-Host "  Password: DB_fasticket`n" -ForegroundColor Yellow
-    
+    # --- CORRECCIÓN DE CONTRASEÑA (INSTRUCCIÓN) ---
+    Write-Host "  Password: <Obtener de variable DB_PASS o gestor>`n" -ForegroundColor Yellow
+    # --- FIN CORRECCIÓN ---
+
     Write-Host "  OPCIÓN 2: Usar DBeaver o pgAdmin" -ForegroundColor White
     Write-Host "  -----------------------------------------" -ForegroundColor Gray
     Write-Host "  1. Conecta a la base de datos con:" -ForegroundColor White
@@ -83,13 +100,14 @@ if ($psqlPath) {
     Write-Host "     Puerto: 5432" -ForegroundColor White
     Write-Host "     Database: fasticket" -ForegroundColor White
     Write-Host "     Usuario: fasticket_admin" -ForegroundColor White
-    Write-Host "     Password: DB_fasticket" -ForegroundColor White
+    # --- CORRECCIÓN DE CONTRASEÑA (INSTRUCCIÓN) ---
+    Write-Host "     Password: <Obtener de variable DB_PASS o gestor>" -ForegroundColor White
+    # --- FIN CORRECCIÓN ---
     Write-Host "  2. Abre y ejecuta: src/main/resources/db/seeder-postgres.sql`n" -ForegroundColor White
-    
+
     Write-Host "  OPCIÓN 3: Instalar PostgreSQL Client" -ForegroundColor White
     Write-Host "  -----------------------------------------" -ForegroundColor Gray
     Write-Host "  winget install PostgreSQL.PostgreSQL`n" -ForegroundColor White
 }
 
 Write-Host "`n=================================`n" -ForegroundColor Cyan
-

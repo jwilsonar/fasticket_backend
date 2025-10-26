@@ -19,7 +19,8 @@ Write-Host "Host:     $dbHost" -ForegroundColor White
 Write-Host "Puerto:   5432" -ForegroundColor White
 Write-Host "Database: fasticket" -ForegroundColor White
 Write-Host "Usuario:  fasticket_admin" -ForegroundColor White
-Write-Host "Password: DB_fasticket" -ForegroundColor White
+# Write-Host "Password: DB_fasticket" -ForegroundColor White  <-- Comenta o elimina esta línea
+Write-Host "Password: <Obtener de variable de entorno DB_PASS o gestor de contraseñas>" -ForegroundColor Yellow # <-- Reemplazo
 Write-Host "===========================" -ForegroundColor Green
 
 Write-Host "`n[2] Verificando conectividad..." -ForegroundColor Yellow
@@ -52,7 +53,8 @@ Write-Host "  DB_HOST: $dbHost" -ForegroundColor Gray
 Write-Host "  DB_PORT: 5432" -ForegroundColor Gray
 Write-Host "  DB_NAME: fasticket" -ForegroundColor Gray
 Write-Host "  DB_USER: fasticket_admin" -ForegroundColor Gray
-Write-Host "  DB_PASS: DB_fasticket" -ForegroundColor Gray
+# Write-Host "  DB_PASS: DB_fasticket" -ForegroundColor Gray <-- Comenta o elimina esta línea
+Write-Host "  DB_PASS: <Configurar como variable de entorno>" -ForegroundColor Yellow # <-- Reemplazo
 
 Write-Host "`n[6] URL de conexión JDBC:" -ForegroundColor Yellow
 $jdbcUrl = "jdbc:postgresql://${dbHost}:5432/fasticket"

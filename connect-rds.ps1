@@ -53,7 +53,6 @@ Write-Host "  DB_HOST: $dbHost" -ForegroundColor Gray
 Write-Host "  DB_PORT: 5432" -ForegroundColor Gray
 Write-Host "  DB_NAME: fasticket" -ForegroundColor Gray
 Write-Host "  DB_USER: fasticket_admin" -ForegroundColor Gray
-# Write-Host "  DB_PASS: DB_fasticket" -ForegroundColor Gray <-- Comenta o elimina esta línea
 Write-Host "  DB_PASS: <Configurar como variable de entorno>" -ForegroundColor Yellow # <-- Reemplazo
 
 Write-Host "`n[6] URL de conexión JDBC:" -ForegroundColor Yellow

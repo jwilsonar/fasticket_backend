@@ -20,10 +20,6 @@ import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class CarroComprasServiceImpl implements CarroComprasService {
@@ -61,7 +57,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado con ID: " + request.getIdCliente()));
 
         // 3. Obtener el carrito del cliente o crear uno nuevo si no existe
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
         CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
                 .orElseGet(() -> {
                     CarroCompras nuevoCarro = new CarroCompras();
@@ -137,7 +132,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     @Override
     @Transactional(readOnly = true)
     public CarroComprasDTO verCarrito(Integer idCliente) {
-        return carroComprasRepository.findByCliente_IdPersona(idCliente)
         return carroComprasRepository.findByCliente_IdPersona(idCliente)
                 .map(this::convertirADTO) // Si encuentra el carrito, lo convierte a DTO
                 .orElseGet(() -> crearCarritoVacioDTO()); // Si no, devuelve un DTO de un carrito vacío

@@ -19,13 +19,9 @@ import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
-import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"evento", "tipoTicket", "itemCarrito", "cliente"})
-@ToString(exclude = {"evento", "tipoTicket", "itemCarrito", "cliente"})
 @EqualsAndHashCode(exclude = {"evento", "tipoTicket", "itemCarrito", "cliente"})
 @ToString(exclude = {"evento", "tipoTicket", "itemCarrito", "cliente"})
 @Entity
@@ -81,7 +77,6 @@ public class Ticket {
     private TipoTicket tipoTicket;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idItemCarrito")
     @JoinColumn(name = "idItemCarrito")
     private ItemCarrito itemCarrito;
 

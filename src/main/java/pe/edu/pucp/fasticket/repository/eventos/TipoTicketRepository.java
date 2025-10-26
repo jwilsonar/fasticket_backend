@@ -1,21 +1,15 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-<<<<<<< HEAD
-=======
-import org.springframework.data.jpa.repository.Modifying; // Import Modifying
-import org.springframework.data.jpa.repository.Query; // Import Query
-import org.springframework.data.repository.query.Param; // Import Param
->>>>>>> main
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Repository
 public interface TipoTicketRepository extends JpaRepository<TipoTicket, Integer> {
-<<<<<<< HEAD
-}
-
-=======
 
     // --- PASTED METHOD FROM TipoTicketRepositorio ---
     @Modifying
@@ -25,4 +19,3 @@ public interface TipoTicketRepository extends JpaRepository<TipoTicket, Integer>
 
     // Add any other custom queries for TipoTicket here if needed
 }
->>>>>>> main

@@ -5,7 +5,20 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -13,8 +26,6 @@ import lombok.ToString;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"local", "tickets", "tiposTicket"})
-@ToString(exclude = {"local", "tickets", "tiposTicket"})
 @EqualsAndHashCode(exclude = {"local", "tickets", "tiposTicket"})
 @ToString(exclude = {"local", "tickets", "tiposTicket"})
 @Entity
@@ -95,10 +106,6 @@ public class Evento {
 
     @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TipoTicket> tiposTicket = new ArrayList<>();
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idLocal")
-    private Local local;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idLocal")

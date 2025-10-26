@@ -17,7 +17,7 @@ import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ClientePerfilDTO {
+public class ClientePerfilResponseDTO {
     
     @Schema(description = "ID del cliente", example = "1")
     private Integer idCliente;

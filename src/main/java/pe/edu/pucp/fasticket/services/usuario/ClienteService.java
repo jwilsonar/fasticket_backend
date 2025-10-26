@@ -1,18 +1,21 @@
 package pe.edu.pucp.fasticket.services.usuario;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.usuario.ActualizarPerfilDTO;
-import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
@@ -38,12 +41,13 @@ public class ClienteService {
      * @param email Email del cliente
      * @return Perfil del cliente
      */
-    public ClientePerfilDTO obtenerPerfilPorEmail(String email) {
+    public ClientePerfilResponseDTO obtenerPerfilPorEmail(String email) {
         log.info("Obteniendo perfil del cliente con email: {}", email);
         Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
         return convertirAPerfilDTO(cliente);
     }
+
 
     /**
      * RF-030: Obtiene el perfil del cliente por ID.
@@ -51,7 +55,7 @@ public class ClienteService {
      * @param id ID del cliente
      * @return Perfil del cliente
      */
-    public ClientePerfilDTO obtenerPerfilPorId(Integer id) {
+    public ClientePerfilResponseDTO obtenerPerfilPorId(Integer id) {
         log.info("Obteniendo perfil del cliente con ID: {}", id);
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));
@@ -66,7 +70,7 @@ public class ClienteService {
      * @return Perfil actualizado
      */
     @Transactional
-    public ClientePerfilDTO actualizarPerfil(String email, ActualizarPerfilDTO dto) {
+    public ClientePerfilResponseDTO actualizarPerfil(String email, ClientePerfilUpdateDTO dto) {
         log.info("Actualizando perfil del cliente: {}", email);
         
         Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
@@ -128,13 +132,30 @@ public class ClienteService {
     }
 
     /**
+     * RF-030: Obtiene los perfiles de clientes por Nivel.
+     * 
+     * @param nivel Nivel del cliente
+     * @return Lista de perfiles de clientes
+     */
+    public List<ClientePerfilResponseDTO> obtenerPerfilesPorNivel(TipoNivel nivel) {
+        log.info("Obteniendo perfiles de clientes con nivel: {}", nivel);
+        List<Cliente> clientes = clienteRepository.findByNivel(nivel);
+        return (clientes == null)
+            ? Collections.emptyList()
+            : clientes.stream()
+                    .map(this::convertirAPerfilDTO)
+                    .collect(Collectors.toList());
+    }
+
+
+    /**
      * Convierte una entidad Cliente a ClientePerfilDTO.
      * 
      * @param cliente Entidad cliente
      * @return DTO con información del perfil
      */
-    private ClientePerfilDTO convertirAPerfilDTO(Cliente cliente) {
-        ClientePerfilDTO dto = new ClientePerfilDTO();
+    private ClientePerfilResponseDTO convertirAPerfilDTO(Cliente cliente) {
+        ClientePerfilResponseDTO dto = new ClientePerfilResponseDTO();
         dto.setIdCliente(cliente.getIdPersona());
         dto.setTipoDocumento(cliente.getTipoDocumento());
         dto.setDocIdentidad(cliente.getDocIdentidad());

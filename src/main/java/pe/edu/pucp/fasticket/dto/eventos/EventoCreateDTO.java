@@ -47,7 +47,7 @@ public class EventoCreateDTO {
     @Size(max = 500, message = "La URL no puede exceder 500 caracteres")
     private String imagenUrl;
 
-    @Schema(description = "Tipo de evento", example = "CONCIERTO", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Tipo de evento", example = "ROCK", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "El tipo de evento es obligatorio")
     private TipoEvento tipoEvento;
 

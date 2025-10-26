@@ -2,6 +2,8 @@ package pe.edu.pucp.fasticket.model.usuario;
 
 import java.time.LocalDate;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -54,6 +56,19 @@ public class Persona {
     
     @Column(name = "direccion", length = 200)
     private String direccion;
+
+    /**
+     * Calcula la edad actual de la persona.
+     * Usado para validar RF-072: restricción de edad mínima en eventos.
+     * 
+     * @return Edad en años, o null si no tiene fecha de nacimiento
+     */
+    public Integer calcularEdad() {
+        if (fechaNacimiento == null) {
+            return null;
+        }
+        return java.time.Period.between(fechaNacimiento, LocalDate.now()).getYears();
+    }
     
     @Column(name = "contrasenia", nullable = false, length = 200)
     private String contrasena;
@@ -65,15 +80,19 @@ public class Persona {
     @Column(name = "activo")
     private Boolean activo = true;
     
+    @JsonProperty("usuario_creacion")
     @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
     
+    @JsonProperty("fecha_creacion")
     @Column(name = "fechaCreacion")
     private LocalDate fechaCreacion;
     
+    @JsonProperty("usuario_actualizacion")
     @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
     
+    @JsonProperty("fecha_actualizacion")
     @Column(name = "fechaActualizacion")
     private LocalDate fechaActualizacion;
     

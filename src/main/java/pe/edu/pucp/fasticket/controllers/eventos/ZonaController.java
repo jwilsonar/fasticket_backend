@@ -27,6 +27,10 @@ import java.util.List;
 @CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
+@RequestMapping("/api/v1/zonas")
+@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
+@RequiredArgsConstructor
+@Slf4j
 public class ZonaController {
 
     private final ZonaServicio zonaServicio;

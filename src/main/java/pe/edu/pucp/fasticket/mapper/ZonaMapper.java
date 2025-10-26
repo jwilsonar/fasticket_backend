@@ -1,0 +1,27 @@
+// RUTA: pe.edu.pucp.fasticket.mapper.ZonaMapper.java
+
+package pe.edu.pucp.fasticket.mapper;
+
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
+import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
+
+@Mapper(componentModel = "spring")
+public interface ZonaMapper {
+
+    ZonaDTO toDTO(Zona zona);
+
+    @Mapping(target = "idZona", ignore = true)
+    @Mapping(target = "local", ignore = true)
+    @Mapping(target = "activo", ignore = true)
+    // --- CORRECCIÓN DE TYPO ---
+    @Mapping(target = "fechaCreacion", ignore = true) // Era fechaCreaion
+    // --- FIN CORRECCIÓN ---
+    @Mapping(target = "fechaActualizacion", ignore = true)
+    @Mapping(target = "usuarioCreacion", ignore = true)
+    @Mapping(target = "usuarioActualizacion", ignore = true)
+    //@Mapping(target = "categoriasEntrada", ignore = true) // Verifica si este campo existe en Zona.java
+    Zona toEntity(ZonaCreateDTO dto);
+}

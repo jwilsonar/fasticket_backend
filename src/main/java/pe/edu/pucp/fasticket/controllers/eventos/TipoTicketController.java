@@ -30,8 +30,13 @@ import java.util.List;
 @CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
+@RequestMapping("/api/v1/tipos-ticket")
+@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
+@RequiredArgsConstructor
+@Slf4j
 public class TipoTicketController {
 
+    private final TipoTicketServicio tipoTicketServicio;
     private final TipoTicketServicio tipoTicketServicio;
 
     @Operation(
@@ -125,4 +130,5 @@ public class TipoTicketController {
         return ResponseEntity.noContent().build();
     }
 }
+
 

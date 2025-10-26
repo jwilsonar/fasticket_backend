@@ -1,3 +1,5 @@
+// RUTA: pe.edu.pucp.fasticket.controllers.eventos.EventoController.java
+
 package pe.edu.pucp.fasticket.controllers.eventos;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +32,10 @@ import java.util.List;
                   "pero crear/modificar requiere rol de administrador."
 )
 @RestController
+@RequestMapping("/api/v1/eventos")
+@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
+@RequiredArgsConstructor
+@Slf4j
 @RequestMapping("/api/v1/eventos")
 @CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor

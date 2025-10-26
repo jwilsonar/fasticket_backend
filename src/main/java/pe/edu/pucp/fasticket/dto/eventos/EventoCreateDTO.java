@@ -1,15 +1,19 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
-
-import java.time.LocalDate;
-import java.time.LocalTime;
 
 @Schema(description = "Datos para crear un nuevo evento")
 @Data

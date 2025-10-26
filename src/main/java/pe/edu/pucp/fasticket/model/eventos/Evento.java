@@ -15,6 +15,8 @@ import lombok.ToString;
 @NoArgsConstructor
 @EqualsAndHashCode(exclude = {"local", "tickets", "tiposTicket"})
 @ToString(exclude = {"local", "tickets", "tiposTicket"})
+@EqualsAndHashCode(exclude = {"local", "tickets", "tiposTicket"})
+@ToString(exclude = {"local", "tickets", "tiposTicket"})
 @Entity
 @Table(name = "Evento")
 public class Evento {
@@ -54,6 +56,25 @@ public class Evento {
     @Enumerated(EnumType.STRING)
     private EstadoEvento estadoEvento;
 
+    /**
+     * RF-072: Edad mínima requerida para asistir al evento.
+     * Por ejemplo: 18 para eventos con restricción de edad, 0 para todos los públicos.
+     */
+    @Column(name = "edadMinima")
+    private Integer edadMinima = 0;
+
+    /**
+     * RF-072: Restricciones adicionales del evento (ej: "No se permite el ingreso de alimentos").
+     */
+    @Column(name = "restricciones", length = 1000)
+    private String restricciones;
+
+    /**
+     * RF-073: Políticas de devolución o cambio específicas del evento.
+     */
+    @Column(name = "politicasDevolucion", length = 1000)
+    private String politicasDevolucion;
+
     @Column(name = "activo")
     private Boolean activo = true;
 
@@ -74,6 +95,10 @@ public class Evento {
 
     @OneToMany(mappedBy = "evento", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TipoTicket> tiposTicket = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idLocal")
+    private Local local;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idLocal")

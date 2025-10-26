@@ -1,0 +1,153 @@
+package pe.edu.pucp.fasticket.services.usuario;
+
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.usuario.ActualizarPerfilDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+
+/**
+ * Servicio para gestión de clientes.
+ * Implementa RF-030, RF-032, RF-060, RF-091.
+ * 
+ * @author Equipo Fasticket
+ * @version 1.0
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+@Transactional(readOnly = true)
+public class ClienteService {
+
+    private final ClienteRepository clienteRepository;
+    private final PersonasRepositorio personasRepositorio;
+
+    /**
+     * RF-030: Obtiene el perfil del cliente por email.
+     * 
+     * @param email Email del cliente
+     * @return Perfil del cliente
+     */
+    public ClientePerfilDTO obtenerPerfilPorEmail(String email) {
+        log.info("Obteniendo perfil del cliente con email: {}", email);
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
+        return convertirAPerfilDTO(cliente);
+    }
+
+    /**
+     * RF-030: Obtiene el perfil del cliente por ID.
+     * 
+     * @param id ID del cliente
+     * @return Perfil del cliente
+     */
+    public ClientePerfilDTO obtenerPerfilPorId(Integer id) {
+        log.info("Obteniendo perfil del cliente con ID: {}", id);
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));
+        return convertirAPerfilDTO(cliente);
+    }
+
+    /**
+     * RF-060: Actualiza el perfil del cliente.
+     * 
+     * @param email Email del cliente autenticado
+     * @param dto Datos a actualizar
+     * @return Perfil actualizado
+     */
+    @Transactional
+    public ClientePerfilDTO actualizarPerfil(String email, ActualizarPerfilDTO dto) {
+        log.info("Actualizando perfil del cliente: {}", email);
+        
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
+
+        // Actualizar campos si vienen en el DTO
+        if (dto.getNombres() != null && !dto.getNombres().isBlank()) {
+            cliente.setNombres(dto.getNombres());
+        }
+        if (dto.getApellidos() != null && !dto.getApellidos().isBlank()) {
+            cliente.setApellidos(dto.getApellidos());
+        }
+        if (dto.getTelefono() != null && !dto.getTelefono().isBlank()) {
+            cliente.setTelefono(dto.getTelefono());
+        }
+        if (dto.getDireccion() != null && !dto.getDireccion().isBlank()) {
+            cliente.setDireccion(dto.getDireccion());
+        }
+        
+        // Validar que el nuevo email no esté en uso por otro cliente
+        if (dto.getEmail() != null && !dto.getEmail().equals(cliente.getEmail())) {
+            if (personasRepositorio.existsByEmail(dto.getEmail())) {
+                throw new BusinessException("El email ya está registrado por otro usuario");
+            }
+            cliente.setEmail(dto.getEmail());
+        }
+
+        cliente.setFechaActualizacion(java.time.LocalDate.now());
+        Cliente clienteActualizado = clienteRepository.save(cliente);
+
+        log.info("Perfil actualizado exitosamente para: {}", email);
+        return convertirAPerfilDTO(clienteActualizado);
+    }
+
+    /**
+     * RF-032, RF-091: Obtiene el historial de compras del cliente por email.
+     * 
+     * @param email Email del cliente
+     * @return Lista de órdenes de compra
+     */
+    public List<OrdenCompra> obtenerHistorialCompras(String email) {
+        log.info("Obteniendo historial de compras para: {}", email);
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
+        return cliente.getOrdenesCompra();
+    }
+
+    /**
+     * RF-032, RF-091: Obtiene el historial de compras del cliente por ID.
+     * 
+     * @param id ID del cliente
+     * @return Lista de órdenes de compra
+     */
+    public List<OrdenCompra> obtenerHistorialComprasPorId(Integer id) {
+        log.info("Obteniendo historial de compras para cliente ID: {}", id);
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));
+        return cliente.getOrdenesCompra();
+    }
+
+    /**
+     * Convierte una entidad Cliente a ClientePerfilDTO.
+     * 
+     * @param cliente Entidad cliente
+     * @return DTO con información del perfil
+     */
+    private ClientePerfilDTO convertirAPerfilDTO(Cliente cliente) {
+        ClientePerfilDTO dto = new ClientePerfilDTO();
+        dto.setIdCliente(cliente.getIdPersona());
+        dto.setTipoDocumento(cliente.getTipoDocumento());
+        dto.setDocIdentidad(cliente.getDocIdentidad());
+        dto.setNombres(cliente.getNombres());
+        dto.setApellidos(cliente.getApellidos());
+        dto.setTelefono(cliente.getTelefono());
+        dto.setEmail(cliente.getEmail());
+        dto.setFechaNacimiento(cliente.getFechaNacimiento());
+        dto.setDireccion(cliente.getDireccion());
+        dto.setPuntosAcumulados(cliente.getPuntosAcumulados());
+        dto.setNivel(cliente.getNivel());
+        dto.setEdad(cliente.calcularEdad());
+        return dto;
+    }
+}
+

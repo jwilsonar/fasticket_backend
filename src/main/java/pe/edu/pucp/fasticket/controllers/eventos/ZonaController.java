@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 
@@ -43,10 +44,11 @@ public class ZonaController {
     @Operation(summary = "Listar todas las zonas")
     @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
-    public ResponseEntity<List<Zona>> listar() {
+    public ResponseEntity<StandardResponse<List<Zona>>> listar() {
         log.info("GET /api/v1/zonas");
         List<Zona> zonas = zonaServicio.listarTodas();
-        return ResponseEntity.ok(zonas);
+        StandardResponse<List<Zona>> response = StandardResponse.success("Zonas obtenidas exitosamente", zonas);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Obtener zona por ID")
@@ -55,13 +57,16 @@ public class ZonaController {
         @ApiResponse(responseCode = "404", description = "Zona no encontrada")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<Zona> obtenerPorId(
+    public ResponseEntity<StandardResponse<Zona>> obtenerPorId(
             @Parameter(description = "ID de la zona")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/zonas/{}", id);
         return zonaServicio.buscarPorId(id)
-                .map(ResponseEntity::ok)
+                .map(zona -> {
+                    StandardResponse<Zona> response = StandardResponse.success("Zona obtenida exitosamente", zona);
+                    return ResponseEntity.ok(response);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -73,10 +78,11 @@ public class ZonaController {
     @ApiResponse(responseCode = "201", description = "Zona creada")
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Zona> crear(@Valid @RequestBody Zona zona) {
+    public ResponseEntity<StandardResponse<Zona>> crear(@Valid @RequestBody Zona zona) {
         log.info("POST /api/v1/zonas - Nombre: {}", zona.getNombre());
         Zona nuevaZona = zonaServicio.crear(zona);
-        return ResponseEntity.status(HttpStatus.CREATED).body(nuevaZona);
+        StandardResponse<Zona> response = StandardResponse.success("Zona creada exitosamente", nuevaZona);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(
@@ -85,14 +91,15 @@ public class ZonaController {
     )
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Zona> actualizar(
+    public ResponseEntity<StandardResponse<Zona>> actualizar(
             @PathVariable Integer id,
             @Valid @RequestBody Zona zona) {
         
         log.info("PUT /api/v1/zonas/{}", id);
         zona.setIdZona(id);
         Zona actualizada = zonaServicio.actualizar(zona);
-        return ResponseEntity.ok(actualizada);
+        StandardResponse<Zona> response = StandardResponse.success("Zona actualizada exitosamente", actualizada);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -101,10 +108,11 @@ public class ZonaController {
     )
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/zonas/{}", id);
         zonaServicio.eliminar(id);
-        return ResponseEntity.noContent().build();
+        StandardResponse<String> response = StandardResponse.success("Zona eliminada exitosamente");
+        return ResponseEntity.ok(response);
     }
 }
 

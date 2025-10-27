@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
 
 @Tag(
@@ -46,13 +47,40 @@ public class CarritoController {
     })
     @GetMapping("/cliente/{idCliente}")
     @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<CarroComprasDTO> verCarrito(
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> verCarrito(
             @Parameter(description = "ID del cliente", required = true, example = "1")
             @PathVariable Integer idCliente) {
         
         log.info("GET /api/v1/carrito/cliente/{}", idCliente);
         CarroComprasDTO carrito = carroComprasService.verCarrito(idCliente);
-        return ResponseEntity.ok(carrito);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Carrito obtenido exitosamente", carrito);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+        summary = "Ver carrito del usuario autenticado",
+        description = "Obtiene el carrito de compras del usuario autenticado",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Carrito obtenido",
+            content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "404", description = "Carrito no encontrado")
+    })
+    @GetMapping("/items")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> verCarritoItems(
+            @Parameter(description = "ID del cliente", required = true)
+            @RequestParam Integer idCliente) {
+        
+        log.info("GET /api/v1/carrito/items - Cliente: {}", idCliente);
+        CarroComprasDTO carrito = carroComprasService.verCarrito(idCliente);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Items del carrito obtenidos exitosamente", carrito);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -71,11 +99,12 @@ public class CarritoController {
     })
     @PostMapping("/items")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<CarroComprasDTO> agregarItem(@RequestBody AddItemRequestDTO request) {
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(@RequestBody AddItemRequestDTO request) {
         log.info("POST /api/v1/carrito/items - Cliente: {}, Tipo Ticket: {}", 
                  request.getIdCliente(), request.getIdTipoTicket());
         CarroComprasDTO carritoActualizado = carroComprasService.agregarItemAlCarrito(request);
-        return ResponseEntity.ok(carritoActualizado);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Item agregado al carrito exitosamente", carritoActualizado);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -86,7 +115,7 @@ public class CarritoController {
     @ApiResponse(responseCode = "200", description = "Item eliminado")
     @DeleteMapping("/items/{idItemCarrito}")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<CarroComprasDTO> eliminarItem(
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> eliminarItem(
             @Parameter(description = "ID del item a eliminar")
             @PathVariable Integer idItemCarrito,
             @Parameter(description = "ID del cliente")
@@ -94,7 +123,8 @@ public class CarritoController {
         
         log.info("DELETE /api/v1/carrito/items/{} - Cliente: {}", idItemCarrito, idCliente);
         CarroComprasDTO carritoActualizado = carroComprasService.eliminarItemDelCarrito(idItemCarrito, idCliente);
-        return ResponseEntity.ok(carritoActualizado);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Item eliminado del carrito exitosamente", carritoActualizado);
+        return ResponseEntity.ok(response);
     }
 }
 

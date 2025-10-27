@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.auth.*;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -48,20 +49,23 @@ public class AuthController {
         )
     })
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
+    public ResponseEntity<StandardResponse<LoginResponseDTO>> login(@Valid @RequestBody LoginRequestDTO request) {
         log.info("POST /api/v1/auth/login - Email: {}", request.getEmail());
         LoginResponseDTO response = authService.login(request);
-        return ResponseEntity.ok(response);
+        StandardResponse<LoginResponseDTO> standardResponse = StandardResponse.success("Login exitoso", response);
+        return ResponseEntity.ok(standardResponse);
     }
 
     @Operation(
-        summary = "Registrar nuevo cliente",
-        description = "Crea una cuenta de cliente y devuelve un token JWT automáticamente"
+        summary = "Registrar nuevo usuario",
+        description = "Crea una cuenta de usuario (cliente o administrador) basado en el dominio del email. " +
+                     "Los emails @pucp.edu.pe se registran como administradores, otros como clientes. " +
+                     "Devuelve un token JWT automáticamente."
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "201",
-            description = "Cliente registrado exitosamente",
+            description = "Usuario registrado exitosamente",
             content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))
         ),
         @ApiResponse(
@@ -76,10 +80,16 @@ public class AuthController {
         )
     })
     @PostMapping("/registro")
-    public ResponseEntity<LoginResponseDTO> registrar(@Valid @RequestBody RegistroRequestDTO request) {
+    public ResponseEntity<StandardResponse<LoginResponseDTO>> registrar(@Valid @RequestBody RegistroRequestDTO request) {
         log.info("POST /api/v1/auth/registro - Email: {}", request.getEmail());
         LoginResponseDTO response = authService.registrarCliente(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        
+        String mensaje = response.getRol().equals("ADMINISTRADOR") 
+            ? "Administrador registrado exitosamente" 
+            : "Cliente registrado exitosamente";
+            
+        StandardResponse<LoginResponseDTO> standardResponse = StandardResponse.success(mensaje, response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(standardResponse);
     }
 
     @Operation(
@@ -102,7 +112,7 @@ public class AuthController {
         )
     })
     @PutMapping("/cambiar-contrasena")
-    public ResponseEntity<String> cambiarContrasena(
+    public ResponseEntity<StandardResponse<String>> cambiarContrasena(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CambioContrasenaDTO request) {
         
@@ -113,7 +123,8 @@ public class AuthController {
         
         authService.cambiarContrasena(persona.getIdPersona(), request);
         
-        return ResponseEntity.ok("Contraseña cambiada exitosamente");
+        StandardResponse<String> response = StandardResponse.success("Contraseña cambiada exitosamente");
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -122,8 +133,10 @@ public class AuthController {
     )
     @ApiResponse(responseCode = "200", description = "Token válido")
     @GetMapping("/verificar")
-    public ResponseEntity<String> verificarToken(@AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok("Token válido para: " + userDetails.getUsername());
+    public ResponseEntity<StandardResponse<String>> verificarToken(@AuthenticationPrincipal UserDetails userDetails) {
+        String message = "Token válido para: " + userDetails.getUsername();
+        StandardResponse<String> response = StandardResponse.success("Token verificado exitosamente", message);
+        return ResponseEntity.ok(response);
     }
 }
 

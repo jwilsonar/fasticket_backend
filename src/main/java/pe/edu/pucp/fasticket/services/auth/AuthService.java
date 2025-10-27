@@ -12,10 +12,12 @@ import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
@@ -35,10 +37,23 @@ public class AuthService {
 
     private final PersonasRepositorio personasRepositorio;
     private final ClienteRepository clienteRepository;
+    private final AdministradorRepository administradorRepository;
     private final DistritoRepository distritoRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+
+    /**
+     * Determina el rol del usuario basado en el dominio del email.
+     * Los emails que terminen en @pucp.edu.pe serán ADMINISTRADOR,
+     * todos los demás serán CLIENTE.
+     */
+    private Rol determinarRolPorEmail(String email) {
+        if (email != null && email.toLowerCase().endsWith("@pucp.edu.pe")) {
+            return Rol.ADMINISTRADOR;
+        }
+        return Rol.CLIENTE;
+    }
 
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO request) {
@@ -75,7 +90,7 @@ public class AuthService {
 
     @Transactional
     public LoginResponseDTO registrarCliente(RegistroRequestDTO request) {
-        log.info("Registro de nuevo cliente: {}", request.getEmail());
+        log.info("Registro de nuevo usuario: {}", request.getEmail());
 
         // Validaciones
         if (personasRepositorio.existsByEmail(request.getEmail())) {
@@ -86,6 +101,10 @@ public class AuthService {
             throw new BusinessException("El documento de identidad ya está registrado");
         }
 
+        // Determinar rol basado en el dominio del email
+        Rol rol = determinarRolPorEmail(request.getEmail());
+        log.info("Rol asignado para {}: {}", request.getEmail(), rol);
+
         // Buscar distrito si fue proporcionado
         Distrito distrito = null;
         if (request.getIdDistrito() != null) {
@@ -93,36 +112,57 @@ public class AuthService {
                     .orElse(null);
         }
 
-        // Crear cliente
-        Cliente cliente = new Cliente();
-        cliente.setTipoDocumento(request.getTipoDocumento());
-        cliente.setDocIdentidad(request.getDocIdentidad());
-        cliente.setNombres(request.getNombres());
-        cliente.setApellidos(request.getApellidos());
-        cliente.setEmail(request.getEmail());
-        cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
-        cliente.setTelefono(request.getTelefono());
-        cliente.setFechaNacimiento(request.getFechaNacimiento());
-        cliente.setDireccion(request.getDireccion());
-        cliente.setDistrito(distrito);
-        cliente.setRol(Rol.CLIENTE);
-        cliente.setActivo(true);
-        cliente.setFechaCreacion(LocalDate.now());
+        Persona personaGuardada;
+        
+        if (rol == Rol.ADMINISTRADOR) {
+            // Crear administrador
+            Administrador administrador = new Administrador();
+            administrador.setTipoDocumento(request.getTipoDocumento());
+            administrador.setDocIdentidad(request.getDocIdentidad());
+            administrador.setNombres(request.getNombres());
+            administrador.setApellidos(request.getApellidos());
+            administrador.setEmail(request.getEmail());
+            administrador.setContrasena(passwordEncoder.encode(request.getContrasena()));
+            administrador.setTelefono(request.getTelefono());
+            administrador.setFechaNacimiento(request.getFechaNacimiento());
+            administrador.setDireccion(request.getDireccion());
+            administrador.setDistrito(distrito);
+            administrador.setCargo("Administrador del Sistema"); // Cargo por defecto
+            administrador.setActivo(true);
+            administrador.setFechaCreacion(LocalDate.now());
 
-        Cliente clienteGuardado = clienteRepository.save(cliente);
+            personaGuardada = administradorRepository.save(administrador);
+            log.info("Administrador registrado exitosamente: {}", personaGuardada.getEmail());
+        } else {
+            // Crear cliente
+            Cliente cliente = new Cliente();
+            cliente.setTipoDocumento(request.getTipoDocumento());
+            cliente.setDocIdentidad(request.getDocIdentidad());
+            cliente.setNombres(request.getNombres());
+            cliente.setApellidos(request.getApellidos());
+            cliente.setEmail(request.getEmail());
+            cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
+            cliente.setTelefono(request.getTelefono());
+            cliente.setFechaNacimiento(request.getFechaNacimiento());
+            cliente.setDireccion(request.getDireccion());
+            cliente.setDistrito(distrito);
+            cliente.setActivo(true);
+            cliente.setFechaCreacion(LocalDate.now());
+
+            personaGuardada = clienteRepository.save(cliente);
+            log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
+        }
 
         // Generar token automáticamente
-        String token = jwtUtil.generateToken(clienteGuardado.getEmail(), clienteGuardado.getRol().name());
-
-        log.info("Cliente registrado exitosamente: {}", clienteGuardado.getEmail());
+        String token = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
 
         return LoginResponseDTO.builder()
                 .token(token)
                 .tipo("Bearer")
-                .idUsuario(clienteGuardado.getIdPersona())
-                .email(clienteGuardado.getEmail())
-                .nombreCompleto(clienteGuardado.getNombres() + " " + clienteGuardado.getApellidos())
-                .rol(clienteGuardado.getRol().name())
+                .idUsuario(personaGuardada.getIdPersona())
+                .email(personaGuardada.getEmail())
+                .nombreCompleto(personaGuardada.getNombres() + " " + personaGuardada.getApellidos())
+                .rol(personaGuardada.getRol().name())
                 .expiracion(86400000L)
                 .build();
     }

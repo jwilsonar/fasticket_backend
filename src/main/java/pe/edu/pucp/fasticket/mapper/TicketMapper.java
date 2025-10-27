@@ -8,7 +8,6 @@ import pe.edu.pucp.fasticket.dto.tickets.TicketDTO;
 import pe.edu.pucp.fasticket.dto.tickets.TicketCreateDTO;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
-import pe.edu.pucp.fasticket.model.eventos.Zona;
 // Remove unused imports if they cause issues
 // import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 // import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
@@ -17,8 +16,6 @@ import pe.edu.pucp.fasticket.model.eventos.Zona;
 public interface TicketMapper {
 
     // --- Método toDTO (Revisado) ---
-    // Make sure Zona has a 'nombre' field with a getter
-    @Mapping(source = "zona.nombre", target = "nombreZona")
     // MapStruct should handle enum-to-string conversion if types match (String <-> String)
     // If TicketDTO.estado is String and Ticket.estado is EstadoTicket (enum),
     // you might need a custom mapping method or @ValueMapping. Let's assume String for now.
@@ -58,7 +55,6 @@ public interface TicketMapper {
     // REMOVED: @Mapping(target = "stock", ...)  // 'stock' NO existe en Ticket.java
     @Mapping(target = "precio", source = "dto.precio")   // 'precio' SÍ existe
     @Mapping(target = "evento", source = "evento")     // Viene del parámetro
-    @Mapping(target = "zona", source = "zona")       // Viene del parámetro
-    Ticket toEntity(TicketCreateDTO dto, Evento evento, Zona zona);
+    Ticket toEntity(TicketCreateDTO dto, Evento evento);
     // --- FIN CORRECCIÓN ---
 }

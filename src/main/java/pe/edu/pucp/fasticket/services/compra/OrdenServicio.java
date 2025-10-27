@@ -1,12 +1,8 @@
 package pe.edu.pucp.fasticket.services.compra;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
-
-import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.*;
-import pe.edu.pucp.fasticket.events.CompraAnuladaEvent;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
@@ -15,36 +11,28 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Servicio para gestión de órdenes de compra.
- * Implementa RF-077, RF-089, RF-090.
- */
 @Service
-@Slf4j
 public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;
-    private final TipoTicketRepository TipoTicketRepository;
+    private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ClienteRepository clienteRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
-            TipoTicketRepository TipoTicketRepository,
-            ClienteRepository clienteRepository,
-            ApplicationEventPublisher eventPublisher
+            TipoTicketRepositorio tipoTicketRepositorio,
+            ClienteRepository clienteRepository
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
-        this.TipoTicketRepository = TipoTicketRepository;
+        this.tipoTicketRepositorio = tipoTicketRepositorio;
         this.clienteRepository = clienteRepository;
-        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -94,24 +82,12 @@ public class OrdenServicio {
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             validarItemYAsistentes(itemDTO);
-            TipoTicket tipoTicket = TipoTicketRepository.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado"));
-            
-            // RF-072: Validar edad mínima del evento
-            Integer edadCliente = cliente.calcularEdad();
-            Integer edadMinima = tipoTicket.getEvento().getEdadMinima();
-            if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
-                throw new IllegalArgumentException(
-                    String.format("El evento '%s' requiere una edad mínima de %d años. Tu edad actual es %d años.", 
-                        tipoTicket.getEvento().getNombre(), edadMinima, edadCliente)
-                );
-            }
-            
-            // RF-025: Validar stock disponible
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado"));
             if (tipoTicket.getCantidadDisponible() < itemDTO.getCantidad()) {
                 throw new RuntimeException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre());
             }
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - itemDTO.getCantidad());
-            TipoTicketRepository.save(tipoTicket);
+            tipoTicketRepositorio.save(tipoTicket);
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
             item.setPrecio(tipoTicket.getPrecio());
@@ -151,7 +127,7 @@ public class OrdenServicio {
         double subtotal = 0.0;
 
         for (ItemSeleccionadoDTO item : datosOrden.getItems()) {
-            TipoTicket tipoTicket = TipoTicketRepository.findById(item.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(item.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
             ItemResumenDTO itemResumen = new ItemResumenDTO();
             itemResumen.setNombreTipoTicket(tipoTicket.getNombre());
             itemResumen.setCantidad(item.getCantidad());
@@ -190,7 +166,7 @@ public class OrdenServicio {
             }
             TipoTicket tipo = item.getTipoTicket();
             tipo.setCantidadDisponible(tipo.getCantidadDisponible() + item.getCantidad());
-            TipoTicketRepository.save(tipo);
+            tipoTicketRepositorio.save(tipo);
         }
         ordenCompraRepositorio.save(orden);
     }
@@ -234,58 +210,5 @@ public class OrdenServicio {
         }
     }
 
-    /**
-     * RF-089: Permite al administrador anular una compra.
-     * RF-090: Revierte los cupos al stock al anular la compra.
-     * 
-     * @param idOrden ID de la orden a anular
-     */
-    @Transactional
-    public void anularCompra(Integer idOrden) {
-        log.info("Anulando compra ID: {}", idOrden);
-        
-        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
-                .orElseThrow(() -> new RuntimeException("Orden no encontrada con ID: " + idOrden));
-
-        // Validar que la orden esté en un estado que permita anulación
-        if (orden.getEstado() == EstadoCompra.RECHAZADO || orden.getEstado() == EstadoCompra.ANULADO) {
-            throw new IllegalArgumentException("La orden ya está rechazada o anulada");
-        }
-
-        // Cambiar estado de la orden
-        orden.setEstado(EstadoCompra.ANULADO);
-        orden.setFechaActualizacion(LocalDate.now());
-
-        // RF-090: Revertir cupos al stock
-        for (ItemCarrito item : orden.getItems()) {
-            // Invalidar todos los tickets
-            for (Ticket ticket : item.getTickets()) {
-                ticket.setEstado(EstadoTicket.ANULADA);
-                ticket.setActivo(false);
-            }
-            
-            // Devolver stock
-            TipoTicket tipoTicket = item.getTipoTicket();
-            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + item.getCantidad());
-            tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() - item.getCantidad());
-            TipoTicketRepository.save(tipoTicket);
-            
-            log.info("Devueltos {} tickets del tipo '{}' al stock", item.getCantidad(), tipoTicket.getNombre());
-        }
-
-        ordenCompraRepositorio.save(orden);
-        log.info("Compra anulada exitosamente. Orden ID: {}", idOrden);
-        
-        // RF-089: Publicar evento para notificar al cliente (Patrón Observer)
-        try {
-            String emailCliente = orden.getCliente().getEmail();
-            String motivo = "Anulación solicitada por el administrador del sistema";
-            
-            log.info("📢 Publicando evento CompraAnuladaEvent para orden #{}", idOrden);
-            eventPublisher.publishEvent(new CompraAnuladaEvent(orden, emailCliente, motivo));
-        } catch (Exception e) {
-            log.error("⚠️ Error al publicar evento de compra anulada (no crítico): {}", e.getMessage());
-        }
-    }
 
 }

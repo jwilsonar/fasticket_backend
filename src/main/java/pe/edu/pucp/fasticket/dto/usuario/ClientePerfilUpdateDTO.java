@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ActualizarPerfilDTO {
+public class ClientePerfilUpdateDTO {
     
     @Schema(description = "Nombres del cliente", example = "Juan Carlos")
     @Size(min = 2, max = 100, message = "Los nombres deben tener entre 2 y 100 caracteres")

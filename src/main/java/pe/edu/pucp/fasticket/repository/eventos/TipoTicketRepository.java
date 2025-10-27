@@ -1,10 +1,11 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying; // Import Modifying
-import org.springframework.data.jpa.repository.Query; // Import Query
-import org.springframework.data.repository.query.Param; // Import Param
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Repository

@@ -2,6 +2,9 @@ package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.util.List;
 
+import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -53,9 +56,9 @@ public class TipoTicketController {
             description = "Lista obtenida exitosamente"
     )
     @GetMapping
-    public ResponseEntity<StandardResponse<List<TipoTicket>>> listar() {
+    public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
-        List<TipoTicket> tiposTicket = tipoTicketServicio.ListarTiposTicket();
+        List<TipoTicketDTO> tiposTicket = tipoTicketServicio.ListarTiposTicket();
         return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
     }
 
@@ -76,17 +79,11 @@ public class TipoTicketController {
             )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<StandardResponse<TipoTicket>> obtenerPorId(
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> obtenerPorId(
             @Parameter(description = "ID del tipo de ticket", required = true, example = "1")
             @PathVariable Integer id) {
-
         log.info("GET /api/v1/tipos-ticket/{}", id);
-
-        // --- CORRECCIÓN APLICADA ---
-        // Llama al servicio. Si no lo encuentra, el servicio debe lanzar
-        // una excepción (ej. ResourceNotFoundException) que será capturada
-        // por el GlobalExceptionHandler.
-        TipoTicket tipoTicket = tipoTicketServicio.BuscarId(id);
+        TipoTicketDTO tipoTicket = tipoTicketServicio.BuscarId(id);
 
         // Si lo encuentra, envuelve la respuesta exitosa.
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket));
@@ -120,9 +117,9 @@ public class TipoTicketController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<TipoTicket>> crear(@Valid @RequestBody TipoTicket tipoTicket) {
-        log.info("POST /api/v1/tipos-ticket - Nombre: {}", tipoTicket.getNombre());
-        TipoTicket nuevoTipoTicket = tipoTicketServicio.Guardar(tipoTicket);
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> crear(@Valid @RequestBody CrearTipoTicketRequestDTO requestDTO) {
+        log.info("POST /api/v1/tipos-ticket - Nombre: {}", requestDTO.getNombre());
+        TipoTicketDTO nuevoTipoTicket = tipoTicketServicio.crearTipoTicket(requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Tipo de ticket creado exitosamente", nuevoTipoTicket));
     }
 
@@ -149,14 +146,13 @@ public class TipoTicketController {
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<TipoTicket>> actualizar(
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> actualizar(
             @Parameter(description = "ID del tipo de ticket a actualizar", required = true)
             @PathVariable Integer id,
-            @Valid @RequestBody TipoTicket tipoTicket) {
+            @Valid @RequestBody ActualizarTipoTicketRequestDTO updateDTO) {
 
         log.info("PUT /api/v1/tipos-ticket/{}", id);
-        tipoTicket.setIdTipoTicket(id); // Ensure the ID from path is used
-        TipoTicket actualizado = tipoTicketServicio.Guardar(tipoTicket); // Assuming Guardar handles create/update
+        TipoTicketDTO actualizado = tipoTicketServicio.actualizarTipoTicket(id,updateDTO);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket actualizado exitosamente", actualizado));
     }
 
@@ -186,7 +182,7 @@ public class TipoTicketController {
             @PathVariable Integer id) {
 
         log.info("DELETE /api/v1/tipos-ticket/{}", id);
-        tipoTicketServicio.Eliminar(id); // Service should throw exception if not found
+        tipoTicketServicio.Eliminar(id);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
     }
 }

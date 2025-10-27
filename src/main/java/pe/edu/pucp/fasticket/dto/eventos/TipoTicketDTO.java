@@ -18,10 +18,8 @@ public class TipoTicketDTO {
     private Double precio;
     private LocalDateTime fechaInicioVenta, fechaFinVenta;
     private Boolean activo;
-    private Evento evento;
-    private List<Ticket> tickets;
-    private List<Promocion> promocionesAplicables;
-
+    private Integer idEvento;
+    private String nombreEvento;
     public TipoTicketDTO(TipoTicket p_tipoTicket){
         this.idTipoTicket = p_tipoTicket.getIdTipoTicket();
         this.stock = p_tipoTicket.getStock();
@@ -33,8 +31,10 @@ public class TipoTicketDTO {
         this.fechaInicioVenta = p_tipoTicket.getFechaInicioVenta();
         this.fechaFinVenta = p_tipoTicket.getFechaFinVenta();
         this.activo = p_tipoTicket.getActivo();
-        this.evento = p_tipoTicket.getEvento();
-        this.tickets = p_tipoTicket.getTickets();
-        this.promocionesAplicables = p_tipoTicket.getPromocionesAplicables();
+
+        if (p_tipoTicket.getEvento() != null) {
+            this.idEvento = p_tipoTicket.getEvento().getIdEvento();
+            this.nombreEvento = p_tipoTicket.getEvento().getNombre();
+        }
     }
 }

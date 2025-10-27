@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.dto.RegistroResponse;
 import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
@@ -15,21 +15,19 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
+import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
 import pe.edu.pucp.fasticket.security.JwtUtil;
 
 import java.time.LocalDate;
-import java.util.UUID;
-
-import org.springframework.context.ApplicationEventPublisher;
-
-import pe.edu.pucp.fasticket.events.ClienteRegistradoEvent;
 
 /**
  * Servicio de autenticación y autorización.
  * Maneja login, registro y cambio de contraseña.
- * Implementa RF-048, RF-054, RF-055, RF-056, RF-062.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,18 +36,31 @@ import pe.edu.pucp.fasticket.events.ClienteRegistradoEvent;
 public class AuthService {
 
     private final PersonasRepositorio personasRepositorio;
+    private final ClienteRepository clienteRepository;
+    private final AdministradorRepository administradorRepository;
     private final DistritoRepository distritoRepository;
     private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
-    private final ApplicationEventPublisher eventPublisher;
+    private final AuthenticationManager authenticationManager;
+
+    /**
+     * Determina el rol del usuario basado en el dominio del email.
+     * Los emails que terminen en @pucp.edu.pe serán ADMINISTRADOR,
+     * todos los demás serán CLIENTE.
+     */
+    private Rol determinarRolPorEmail(String email) {
+        if (email != null && email.toLowerCase().endsWith("@pucp.edu.pe")) {
+            return Rol.ADMINISTRADOR;
+        }
+        return Rol.CLIENTE;
+    }
 
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO request) {
         log.info("Intento de login para email: {}", request.getEmail());
 
         // Autenticar con Spring Security
-        authenticationManager.authenticate(
+        Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getContrasena())
         );
 
@@ -61,12 +72,11 @@ public class AuthService {
             throw new BusinessException("La cuenta está desactivada");
         }
 
-        // Generar token JWT
+        // Generar token
         String token = jwtUtil.generateToken(persona.getEmail(), persona.getRol().name());
 
-        log.info("Login exitoso para: {} con rol: {}", persona.getEmail(), persona.getRol());
+        log.info("Login exitoso para: {}", persona.getEmail());
 
-        // Construir respuesta con token
         return LoginResponseDTO.builder()
                 .token(token)
                 .tipo("Bearer")
@@ -74,13 +84,13 @@ public class AuthService {
                 .email(persona.getEmail())
                 .nombreCompleto(persona.getNombres() + " " + persona.getApellidos())
                 .rol(persona.getRol().name())
-                .expiracion(86400000L) // 24 horas en milisegundos
+                .expiracion(86400000L) // 24 horas
                 .build();
     }
 
     @Transactional
-    public RegistroResponse registrarCliente(RegistroRequestDTO request) {
-        log.info("Registro de nuevo cliente: {}", request.getEmail());
+    public LoginResponseDTO registrarCliente(RegistroRequestDTO request) {
+        log.info("Registro de nuevo usuario: {}", request.getEmail());
 
         // Validaciones
         if (personasRepositorio.existsByEmail(request.getEmail())) {
@@ -91,6 +101,10 @@ public class AuthService {
             throw new BusinessException("El documento de identidad ya está registrado");
         }
 
+        // Determinar rol basado en el dominio del email
+        Rol rol = determinarRolPorEmail(request.getEmail());
+        log.info("Rol asignado para {}: {}", request.getEmail(), rol);
+
         // Buscar distrito si fue proporcionado
         Distrito distrito = null;
         if (request.getIdDistrito() != null) {
@@ -98,15 +112,11 @@ public class AuthService {
                     .orElse(null);
         }
 
-        // Crear instancia según el dominio del email y configurar
         Persona personaGuardada;
         
-        if (request.getEmail().toLowerCase().endsWith("@pucp.edu.pe")) {
-            // Crear y configurar Administrador
-            log.info("Registrando usuario con rol ADMINISTRADOR (email PUCP): {}", request.getEmail());
+        if (rol == Rol.ADMINISTRADOR) {
+            // Crear administrador
             Administrador administrador = new Administrador();
-            
-            // Configurar datos comunes (de Persona)
             administrador.setTipoDocumento(request.getTipoDocumento());
             administrador.setDocIdentidad(request.getDocIdentidad());
             administrador.setNombres(request.getNombres());
@@ -117,18 +127,15 @@ public class AuthService {
             administrador.setFechaNacimiento(request.getFechaNacimiento());
             administrador.setDireccion(request.getDireccion());
             administrador.setDistrito(distrito);
+            administrador.setCargo("Administrador del Sistema"); // Cargo por defecto
             administrador.setActivo(true);
             administrador.setFechaCreacion(LocalDate.now());
-            
-            // Configurar datos específicos de Administrador
-            administrador.setCargo("Administrador");
-            
-            personaGuardada = personasRepositorio.save(administrador);
+
+            personaGuardada = administradorRepository.save(administrador);
+            log.info("Administrador registrado exitosamente: {}", personaGuardada.getEmail());
         } else {
-            // Crear y configurar Cliente
+            // Crear cliente
             Cliente cliente = new Cliente();
-            
-            // Configurar datos comunes (de Persona)
             cliente.setTipoDocumento(request.getTipoDocumento());
             cliente.setDocIdentidad(request.getDocIdentidad());
             cliente.setNombres(request.getNombres());
@@ -141,28 +148,23 @@ public class AuthService {
             cliente.setDistrito(distrito);
             cliente.setActivo(true);
             cliente.setFechaCreacion(LocalDate.now());
-            
-            personaGuardada = personasRepositorio.save(cliente);
+
+            personaGuardada = clienteRepository.save(cliente);
+            log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
         }
 
-        log.info("Usuario registrado exitosamente: {} con rol {}", personaGuardada.getEmail(), personaGuardada.getRol());
+        // Generar token automáticamente
+        String token = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
 
-        // RF-048: Publicar evento para enviar email de verificación (Patrón Observer)
-        if (personaGuardada instanceof Cliente) {
-            try {
-                String tokenVerificacion = UUID.randomUUID().toString();
-                String nombreCompleto = personaGuardada.getNombres() + " " + personaGuardada.getApellidos();
-                
-                log.info("📢 Publicando evento ClienteRegistradoEvent para: {}", personaGuardada.getEmail());
-                eventPublisher.publishEvent(
-                    new ClienteRegistradoEvent(personaGuardada.getEmail(), nombreCompleto, tokenVerificacion)
-                );
-            } catch (Exception e) {
-                log.error("⚠️ Error al publicar evento de registro (no crítico): {}", e.getMessage());
-            }
-        }
-
-        return new RegistroResponse(personaGuardada.getEmail(), "Usuario registrado exitosamente", true);
+        return LoginResponseDTO.builder()
+                .token(token)
+                .tipo("Bearer")
+                .idUsuario(personaGuardada.getIdPersona())
+                .email(personaGuardada.getEmail())
+                .nombreCompleto(personaGuardada.getNombres() + " " + personaGuardada.getApellidos())
+                .rol(personaGuardada.getRol().name())
+                .expiracion(86400000L)
+                .build();
     }
 
     @Transactional

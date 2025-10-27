@@ -20,10 +20,6 @@ import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
-/**
- * Implementación del servicio de carrito de compras.
- * Implementa reglas de negocio RF-024, RF-076, RF-077.
- */
 @Service
 @RequiredArgsConstructor
 public class CarroComprasServiceImpl implements CarroComprasService {

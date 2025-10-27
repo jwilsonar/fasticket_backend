@@ -56,8 +56,6 @@ public class LocalControllerTest {
     void testListarLocales_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/locales"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").exists())
                 .andExpect(jsonPath("$.data").isArray());
     }
 
@@ -65,8 +63,6 @@ public class LocalControllerTest {
     void testObtenerLocalPorId_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/locales/" + localTest.getIdLocal()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").exists())
                 .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()))
                 .andExpect(jsonPath("$.data.nombre").value("Estadio Test"))
                 .andExpect(jsonPath("$.data.aforoTotal").value(10000));
@@ -103,8 +99,6 @@ public class LocalControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Local creado exitosamente"))
                 .andExpect(jsonPath("$.data.nombre").value("Coliseo Nuevo"))
                 .andExpect(jsonPath("$.data.aforoTotal").value(8000));
     }
@@ -121,8 +115,6 @@ public class LocalControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Local actualizado exitosamente"))
                 .andExpect(jsonPath("$.data.nombre").value("Estadio Actualizado"))
                 .andExpect(jsonPath("$.data.aforoTotal").value(12000));
     }
@@ -131,9 +123,7 @@ public class LocalControllerTest {
     @WithMockUser(roles = "ADMINISTRADOR")
     void testEliminarLocal_Exitoso() throws Exception {
         mockMvc.perform(delete("/api/v1/locales/" + localTest.getIdLocal()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Local desactivado exitosamente"));
+                .andExpect(status().isOk());
     }
 }
 

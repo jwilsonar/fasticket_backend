@@ -13,9 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.pago.ComprobanteDTO;
 import pe.edu.pucp.fasticket.dto.pago.RegistrarPagoDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.services.pago.PagoServicio;
 
@@ -55,7 +55,8 @@ public class PagoController {
     public ResponseEntity<StandardResponse<ComprobanteDTO>> registrarPago(@Valid @RequestBody RegistrarPagoDTO dto) {
         log.info("POST /api/v1/pagos/registrar - Orden: {}", dto.getIdOrden());
         ComprobanteDTO comprobante = pagoServicio.registrarPagoFinal(dto);
-        return ResponseEntity.ok(StandardResponse.success("Pago procesado exitosamente", comprobante));
+        StandardResponse<ComprobanteDTO> response = StandardResponse.success("Pago registrado exitosamente", comprobante);
+        return ResponseEntity.ok(response);
     }
 }
 

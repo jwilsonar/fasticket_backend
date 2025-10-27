@@ -1,10 +1,7 @@
 package pe.edu.pucp.fasticket.services.pago;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-
-import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
@@ -27,14 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import pe.edu.pucp.fasticket.events.CompraConfirmadaEvent;
-
-/**
- * Servicio para procesamiento de pagos.
- * Implementa RF-082, RF-084, RF-086, RF-049.
- */
 @Service
-@Slf4j
 public class PagoServicio {
 
     @Autowired
@@ -49,8 +39,6 @@ public class PagoServicio {
     private PersonasRepositorio personaRepositorio;
     @Autowired
     private BoletaRepositorio boletaRepositorio;
-    @Autowired
-    private ApplicationEventPublisher eventPublisher;
 
     public ComprobanteDTO registrarPagoFinal(RegistrarPagoDTO dto) {
         var orden = ordenRepository.findById(dto.getIdOrden())
@@ -71,15 +59,6 @@ public class PagoServicio {
         pago.setOrdenCompra(orden);
         pagoRepository.save(pago);
         ordenServicio.confirmarPagoOrden(orden.getIdOrdenCompra());
-        
-        // RF-049, RF-086: Publicar evento para enviar confirmación de compra (Patrón Observer)
-        try {
-            log.info("📢 Publicando evento CompraConfirmadaEvent para orden #{}", orden.getIdOrdenCompra());
-            eventPublisher.publishEvent(new CompraConfirmadaEvent(orden, usuario.getEmail()));
-        } catch (Exception e) {
-            log.error("⚠️ Error al publicar evento de compra confirmada (no crítico): {}", e.getMessage());
-        }
-        
         ComprobantePago comprobante = new ComprobantePago();
         comprobante.setNumeroSerie(String.format("CP-%05d", pago.getIdPago()));
         comprobante.setFechaEmision(LocalDateTime.now());

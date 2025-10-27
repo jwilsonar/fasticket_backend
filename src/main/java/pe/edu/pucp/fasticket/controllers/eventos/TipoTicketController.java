@@ -46,12 +46,9 @@ public class TipoTicketController {
 
     @Operation(
         summary = "Listar tipos de ticket",
-        description = "Obtiene lista de todos los tipos de ticket disponibles"
+        description = "Obtiene lista de todos los tipos de ticket"
     )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Lista obtenida exitosamente"
-    )
+    @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
     public ResponseEntity<StandardResponse<List<TipoTicket>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
@@ -61,13 +58,12 @@ public class TipoTicketController {
 
     @Operation(
         summary = "Obtener tipo de ticket por ID",
-        description = "Obtiene información detallada de un tipo de ticket específico"
+        description = "Obtiene información de un tipo de ticket específico"
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Tipo de ticket encontrado",
-            content = @Content(schema = @Schema(implementation = TipoTicket.class))
+            description = "Tipo de ticket encontrado"
         ),
         @ApiResponse(
             responseCode = "404",
@@ -88,28 +84,13 @@ public class TipoTicketController {
 
     @Operation(
         summary = "Crear tipo de ticket",
-        description = "Crea un nuevo tipo de ticket para un evento (ej: VIP, General, Platea). Solo administradores.",
+        description = "Crea un nuevo tipo de ticket para un evento. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "201",
-            description = "Tipo de ticket creado exitosamente",
-            content = @Content(schema = @Schema(implementation = TipoTicket.class))
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Datos inválidos",
-            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "No autenticado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos (requiere rol ADMINISTRADOR)"
-        )
+        @ApiResponse(responseCode = "201", description = "Tipo de ticket creado"),
+        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+        @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -125,20 +106,8 @@ public class TipoTicketController {
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Tipo de ticket actualizado exitosamente",
-            content = @Content(schema = @Schema(implementation = TipoTicket.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Tipo de ticket no encontrado",
-            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
+        @ApiResponse(responseCode = "200", description = "Tipo de ticket actualizado"),
+        @ApiResponse(responseCode = "404", description = "Tipo de ticket no encontrado")
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
@@ -155,23 +124,10 @@ public class TipoTicketController {
 
     @Operation(
         summary = "Eliminar tipo de ticket",
-        description = "Elimina un tipo de ticket del sistema. Solo administradores.",
+        description = "Elimina un tipo de ticket. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Tipo de ticket eliminado exitosamente"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Tipo de ticket no encontrado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
-    })
+    @ApiResponse(responseCode = "204", description = "Tipo de ticket eliminado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> eliminar(
@@ -183,4 +139,5 @@ public class TipoTicketController {
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
     }
 }
+
 

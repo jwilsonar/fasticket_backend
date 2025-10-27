@@ -44,7 +44,7 @@ public class TicketService {
             throw new BusinessException("El stock (" + ticketDTO.getStock() + ") no puede superar el aforo de la zona '" + zona.getNombre() + "' (" + zona.getAforoMax() + ")");
         }
 
-        Ticket nuevoTicket = ticketMapper.toEntity(ticketDTO, evento, zona);
+        Ticket nuevoTicket = ticketMapper.toEntity(ticketDTO, evento);
 
         // --- CORRECCIÓN AQUÍ ---
         // Cambiamos el ENUM por el String exacto de tu base de datos

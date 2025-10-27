@@ -13,5 +13,6 @@ public interface CarroComprasRepository extends JpaRepository<CarroCompras, Inte
     Optional<CarroCompras> findByCliente(Cliente cliente);
     
     Optional<CarroCompras> findByCliente_IdPersona(Integer idCliente);
+    Optional<CarroCompras> findByCliente_IdPersonaAndActivoTrue(Integer idCliente);
 }
 

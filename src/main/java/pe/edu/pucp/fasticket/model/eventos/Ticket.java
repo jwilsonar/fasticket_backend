@@ -17,6 +17,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
+import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
@@ -79,6 +80,10 @@ public class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idItemCarrito",nullable = true)
     private ItemCarrito itemCarrito;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_orden_compra")
+    private OrdenCompra ordenCompra;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idCliente")

@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.*;
 import pe.edu.pucp.fasticket.events.CompraAnuladaEvent;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
@@ -17,6 +19,8 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
+import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
@@ -28,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -38,38 +43,50 @@ public class OrdenServicio {
     private final ClienteRepository clienteRepository;
     private final TicketRepository ticketRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ItemCarritoRepository itemCarritoRepositorio;
+    private final CarroComprasRepository carroComprasRepository;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
             TipoTicketRepositorio tipoTicketRepositorio,
             ClienteRepository clienteRepository,
             TicketRepository ticketRepository,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            ItemCarritoRepository itemCarritoRepositorio,
+            CarroComprasRepository carroComprasRepository
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
         this.clienteRepository = clienteRepository;
         this.ticketRepository = ticketRepository;
         this.eventPublisher = eventPublisher;
+        this.itemCarritoRepositorio = itemCarritoRepositorio;
+        this.carroComprasRepository = carroComprasRepository;
     }
 
     @Transactional
     public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
-        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente()).orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+
         List<ItemCarrito> items = construirItemsDesdeDTO(datosOrden.getItems(), cliente);
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(cliente);
         orden.setFechaOrden(LocalDate.now());
         orden.setEstado(EstadoCompra.PENDIENTE);
-        orden.setItems(items);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         for (ItemCarrito item : items) {
             item.setOrdenCompra(orden);
+            for (Ticket ticket : item.getTickets()) {
+                ticket.setItemCarrito(item);
+                ticket.setEstado(EstadoTicket.RESERVADA);
+            }
         }
+        orden.setItems(items);
         orden.calcularTotal();
-
-        log.info("Guardando nueva orden ID temporal {} para cliente ID {}", orden.hashCode(), cliente.getIdPersona());
-        return ordenCompraRepositorio.save(orden);
+        OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
+        return ordenGuardada;
     }
 
     protected OrdenCompra registrarOrdenCompra(Cliente cliente, List<ItemCarrito> itemsCarrito) {
@@ -101,16 +118,15 @@ public class OrdenServicio {
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             validarItemYAsistentes(itemDTO);
-            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket()).orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + itemDTO.getIdTipoTicket()));
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + itemDTO.getIdTipoTicket()));
             Integer edadCliente = cliente.calcularEdad();
             Integer edadMinima = tipoTicket.getEvento().getEdadMinima();
             if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
                 throw new IllegalArgumentException("El evento '%s' requiere edad mínima...");
             }
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
-                    tipoTicket,
-                    EstadoTicket.DISPONIBLE,
-                    PageRequest.of(0, itemDTO.getCantidad())
+                    tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
                 throw new RuntimeException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre());
@@ -126,6 +142,7 @@ public class OrdenServicio {
             if (ticketsDisponibles.size() != itemDTO.getAsistentes().size()) {
                 throw new IllegalStateException("Inconsistencia entre tickets encontrados y asistentes.");
             }
+            List<Ticket> tickets = new ArrayList<>();
             for (int i = 0; i < ticketsDisponibles.size(); i++) {
                 Ticket ticket = ticketsDisponibles.get(i);
                 DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
@@ -139,8 +156,9 @@ public class OrdenServicio {
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
                 ticket.setQrImage(generarQrComoBytes(codigoQr));
+                tickets.add(ticket);
             }
-            item.setTickets(ticketsDisponibles);
+            item.setTickets(tickets);
             items.add(item);
             int cantidadReservada = itemDTO.getCantidad();
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - cantidadReservada);
@@ -148,6 +166,7 @@ public class OrdenServicio {
         }
         return items;
     }
+
 
     public OrdenResumenDTO generarResumenOrden(CrearOrdenDTO datosOrden) {
         List<ItemResumenDTO> resumenItems = new ArrayList<>();
@@ -307,4 +326,101 @@ public class OrdenServicio {
         }
     }
 
+    private List<DatosAsistenteDTO> obtenerAsistentesParaItem(ItemCarrito itemCarrito) {
+        // Si los datos se guardan en los Ticket asociados al ItemCarrito del Carrito:
+        if (itemCarrito.getTickets() == null || itemCarrito.getTickets().isEmpty()) {
+            log.warn("El ItemCarrito ID {} del carrito no tiene tickets asociados.", itemCarrito.getIdItemCarrito());
+            return new ArrayList<>(); // O lanzar error si esto no debería pasar
+        }
+
+        return itemCarrito.getTickets().stream()
+                .map(ticket -> {
+                    DatosAsistenteDTO dto = new DatosAsistenteDTO();
+                    // Asegúrate que tu entidad Ticket tenga getters para estos campos
+                    dto.setTipoDocumento(ticket.getTipoDocumentoAsistente());
+                    dto.setNumeroDocumento(ticket.getDocumentoAsistente());
+                    dto.setNombres(ticket.getNombreAsistente());
+                    dto.setApellidos(ticket.getApellidoAsistente());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public OrdenCompra comprarDesdeCarrito(Integer idCarrito) {
+        log.info("Iniciando conversión de carrito ID: {}", idCarrito);
+
+        // 1. Buscar Carrito (asegúrate de que cargue sus items)
+        CarroCompras carrito = carroComprasRepository.findById(idCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado con ID: " + idCarrito));
+
+        // 2. Validar que el carrito esté listo para comprar
+        if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
+            throw new BusinessException("El carrito está inactivo o vacío y no puede ser comprado.");
+        }
+
+        // 3. Crear la nueva OrdenCompra
+        OrdenCompra orden = new OrdenCompra();
+        orden.setCliente(carrito.getCliente());
+        orden.setFechaOrden(LocalDate.now());
+        orden.setEstado(EstadoCompra.PENDIENTE); // Nace PENDIENTE de pago
+        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15)); // Asigna tiempo para pagar
+        orden.setCarroCompras(carrito); // Asocia el carrito con la orden
+
+        // 4. Mover los Items del Carrito a la Orden
+        // Iteramos sobre una copia de la lista para evitar errores al modificarla
+        for (ItemCarrito item : new ArrayList<>(carrito.getItems())) {
+
+            // Verifica que los tickets estén realmente reservados (seguridad extra)
+            if (item.getTickets().stream().anyMatch(t -> t.getEstado() != EstadoTicket.RESERVADA)) {
+                throw new BusinessException("Error de consistencia: El item " + item.getIdItemCarrito() + " no tiene todos sus tickets reservados.");
+            }
+
+            // Usa tus métodos helper para mover el item
+            carrito.removeItem(item); // Asume que esto hace item.setCarroCompra(null)
+            orden.addItem(item);    // Asume que esto hace item.setOrdenCompra(orden)
+        }
+
+        // 5. Calcular total de la orden y desactivar el carrito
+        orden.calcularTotal();
+        carrito.setActivo(false); // Marca el carrito como "completado"
+        carrito.setFechaActualizacion(LocalDateTime.now());
+        log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona()); // Ajusta getter
+        return ordenCompraRepositorio.save(orden);
+    }
+
+    @Transactional
+    public void registrarAsistentes(Integer idOrden, RegistrarParticipantesDTO dto) {
+        log.info("Registrando asistentes para orden ID: {}", idOrden);
+        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrden));
+        if (orden.getEstado() != EstadoCompra.PENDIENTE) {
+            throw new BusinessException("Solo se pueden registrar asistentes en órdenes pendientes.");
+        }
+        Map<Integer, Ticket> ticketsDeLaOrden = orden.getItems().stream()
+                .flatMap(item -> item.getTickets().stream())
+                .filter(ticket -> ticket.getEstado() == EstadoTicket.RESERVADA)
+                .collect(Collectors.toMap(Ticket::getIdTicket, ticket -> ticket));
+        if (dto.getParticipantes().size() != ticketsDeLaOrden.size()) {
+            throw new IllegalArgumentException(
+                    String.format("La cantidad de participantes enviados (%d) no coincide con los tickets reservados (%d) de la orden.",
+                            dto.getParticipantes().size(), ticketsDeLaOrden.size())
+            );
+        }
+        for (DatosAsistenteDTO participante : dto.getParticipantes()) {
+            Ticket ticket = ticketsDeLaOrden.get(participante.getIdTicket());
+            if (ticket == null) {
+                log.warn("Se intentó registrar asistente para ticket ID {} que no pertenece o no está reservado en la orden {}",
+                        participante.getIdTicket(), idOrden);
+                throw new IllegalArgumentException("Ticket ID " + participante.getIdTicket() + " inválido para esta orden.");
+            }
+            ticket.setNombreAsistente(participante.getNombres());
+            ticket.setApellidoAsistente(participante.getApellidos());
+            ticket.setTipoDocumentoAsistente(participante.getTipoDocumento());
+            ticket.setDocumentoAsistente(participante.getNumeroDocumento());
+        }
+
+        orden.setFechaActualizacion(LocalDate.now());
+        log.info("Asistentes registrados correctamente para orden ID: {}", idOrden);
+    }
 }

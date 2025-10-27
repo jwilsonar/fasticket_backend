@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
@@ -131,5 +132,56 @@ public class OrdenController {
         log.info("PUT /api/v1/ordenes/{}/confirmar", id);
         ordenServicio.confirmarPagoOrden(id);
         return ResponseEntity.ok(StandardResponse.success("Orden confirmada correctamente.", null));
+    }
+
+    @Operation(
+            summary = "Comprar el carrito de un cliente",
+            description = "Convierte los ítems del carrito en una nueva orden de compra y devuelve el resumen.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Carrito comprado correctamente"),
+            @ApiResponse(responseCode = "404", description = "Carrito no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "El carrito no puede ser comprado (vacío o inactivo)")
+    })
+    @PostMapping("/comprar-carrito/{idCarrito}")
+    @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<OrdenResumenDTO>> comprarCarrito(
+            @Parameter(description = "ID del carrito a comprar", required = true)
+            @PathVariable Integer idCarrito) {
+
+        log.info("POST /api/v1/ordenes/comprar-carrito/{}", idCarrito);
+
+        OrdenCompra orden = ordenServicio.comprarDesdeCarrito(idCarrito);
+
+        OrdenResumenDTO resumen = new OrdenResumenDTO(orden);
+
+        return ResponseEntity.ok(StandardResponse.success(
+                "Carrito comprado correctamente.",
+                resumen
+        ));
+    }
+
+    @Operation(
+            summary = "Registrar asistentes para una orden pendiente",
+            description = "Guarda los datos de los asistentes (nombre, DNI, etc.) en los tickets reservados de una orden.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Asistentes registrados correctamente"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o la orden no está pendiente", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/{id}/asistentes")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> registrarAsistentes(
+            @Parameter(description = "ID de la orden pendiente", required = true)
+            @PathVariable Integer id,
+            @Valid @RequestBody RegistrarParticipantesDTO dto) {
+
+        log.info("PUT /api/v1/ordenes/{}/asistentes", id);
+
+        ordenServicio.registrarAsistentes(id, dto);
+        return ResponseEntity.ok(StandardResponse.success("Asistentes registrados correctamente."));
     }
 }

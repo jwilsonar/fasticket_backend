@@ -17,23 +17,49 @@ public class PersonaServicio {
     @Autowired
     private PersonasRepositorio repo_personas;
 
+    /**
+     * @return Lista de personas
+     */
     public List<Persona> ListarPersonas(){
         return repo_personas.findAll();
     }
 
+    /**
+     * @param id Identificador de la persona
+     * @return Persona encontrada como Optional
+     */
     public Optional<Persona> BuscarId(Integer id){
         return repo_personas.findById(id);
     }
 
+    /**
+     * @param persona Entidad persona a guardar
+     * @return Persona guardada
+     */
     public Persona Guardar(Persona persona){
         return (Persona) repo_personas.save(persona);
     }
 
+    /**
+     * @param id Identificador de la persona a eliminar
+     */
     public void Eliminar(Integer id){
         repo_personas.deleteById(id);
     }
 
-    // Método para login
+    /**
+     * @param activo Estado activo para filtrar
+     * @return Lista de personas filtrada por activo
+     */
+    public List<Persona> BuscarPorActivo(Boolean activo){
+        return repo_personas.findByActivo(activo);
+    }
+
+    /**
+     * @param email Email del usuario
+     * @param contrasena Contraseña del usuario
+     * @return Resultado del login
+     */
     public LoginResponse login(String email, String contrasena) {
         try {
             // Buscar persona por email
@@ -63,7 +89,10 @@ public class PersonaServicio {
         }
     }
 
-    // Método para registrar cliente
+    /**
+     * @param request Datos para registrar un nuevo cliente
+     * @return Resultado del registro
+     */
     public RegistroResponse registrarCliente(RegistroRequest request) {
         try {
             // Verificar si el email ya existe

@@ -26,10 +26,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
-import pe.edu.pucp.fasticket.dto.usuario.ActualizarPerfilDTO;
-import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
@@ -61,7 +62,7 @@ public class ClienteController {
         @ApiResponse(
             responseCode = "200",
             description = "Perfil obtenido exitosamente",
-            content = @Content(schema = @Schema(implementation = ClientePerfilDTO.class))
+            content = @Content(schema = @Schema(implementation = ClientePerfilResponseDTO.class))
         ),
         @ApiResponse(
             responseCode = "401",
@@ -75,11 +76,11 @@ public class ClienteController {
     })
     @GetMapping("/perfil")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<ClientePerfilDTO>> obtenerPerfil(
+    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> obtenerPerfil( // por email
             @AuthenticationPrincipal UserDetails userDetails) {
         
         log.info("GET /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
-        ClientePerfilDTO perfil = clienteService.obtenerPerfilPorEmail(userDetails.getUsername());
+        ClientePerfilResponseDTO perfil = clienteService.obtenerPerfilPorEmail(userDetails.getUsername());
         return ResponseEntity.ok(StandardResponse.success("Perfil obtenido exitosamente", perfil));
     }
 
@@ -104,12 +105,12 @@ public class ClienteController {
     })
     @GetMapping("/{id}/perfil")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<ClientePerfilDTO>> obtenerPerfilPorId(
+    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> obtenerPerfilPorId(
             @Parameter(description = "ID del cliente", required = true, example = "1")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/clientes/{}/perfil", id);
-        ClientePerfilDTO perfil = clienteService.obtenerPerfilPorId(id);
+        ClientePerfilResponseDTO perfil = clienteService.obtenerPerfilPorId(id);
         return ResponseEntity.ok(StandardResponse.success("Perfil obtenido exitosamente", perfil));
     }
 
@@ -134,12 +135,12 @@ public class ClienteController {
     })
     @PutMapping("/perfil")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<ClientePerfilDTO>> actualizarPerfil(
+    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> actualizarPerfil(
             @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody ActualizarPerfilDTO dto) {
+            @Valid @RequestBody ClientePerfilUpdateDTO dto) {
         
         log.info("PUT /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
-        ClientePerfilDTO perfilActualizado = clienteService.actualizarPerfil(userDetails.getUsername(), dto);
+        ClientePerfilResponseDTO perfilActualizado = clienteService.actualizarPerfil(userDetails.getUsername(), dto);
         return ResponseEntity.ok(StandardResponse.success("Perfil actualizado exitosamente", perfilActualizado));
     }
 
@@ -196,6 +197,28 @@ public class ClienteController {
         log.info("GET /api/v1/clientes/{}/historial-compras", id);
         List<OrdenCompra> historial = clienteService.obtenerHistorialComprasPorId(id);
         return ResponseEntity.ok(StandardResponse.success("Historial de compras obtenido exitosamente", historial));
+    }
+
+    @Operation(
+        summary = "Obtener clientes por nivel",
+        description = "Devuelve los perfiles de clientes filtrados por su nivel. Solo administradores.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Perfiles obtenidos exitosamente",
+                content = @Content(schema = @Schema(implementation = ClientePerfilResponseDTO.class))),
+        @ApiResponse(responseCode = "404", description = "No se encontraron clientes para el nivel especificado"),
+        @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    @GetMapping("/nivel/{nivel}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<ClientePerfilResponseDTO>>> obtenerClientesPerfilPorNivel(
+            @Parameter(description = "Nivel del cliente (ej: CLASICO, ORO, PLATINO)", required = true, example = "CLASICO")
+            @PathVariable TipoNivel nivel) {
+
+        log.info("GET /api/v1/clientes/nivel/{} - Obtener clientes por nivel", nivel);
+        List<ClientePerfilResponseDTO> perfiles = clienteService.obtenerPerfilesPorNivel(nivel);
+        return ResponseEntity.ok(StandardResponse.success("Perfiles obtenidos exitosamente", perfiles));
     }
 }
 

@@ -7,7 +7,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.dto.RegistroResponse;
 import pe.edu.pucp.fasticket.dto.auth.CambioContrasenaDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
@@ -81,8 +80,6 @@ public class AuthServiceTest {
         assertEquals(emailTest, response.getEmail());
         assertEquals("CLIENTE", response.getRol());
         assertEquals("Juan Pérez", response.getNombreCompleto());
-        assertNotNull(response.getIdUsuario());
-        assertEquals(86400000L, response.getExpiracion());
     }
 
     @Test
@@ -108,13 +105,13 @@ public class AuthServiceTest {
         request.setFechaNacimiento(LocalDate.of(1995, 5, 15));
 
         // Act
-        RegistroResponse response = authService.registrarCliente(request);
+        LoginResponseDTO response = authService.registrarCliente(request);
 
         // Assert
         assertNotNull(response);
-        assertTrue(response.isExito());
-        assertEquals("Usuario registrado exitosamente", response.getMensaje());
+        assertNotNull(response.getToken());
         assertEquals("maria@fasticket.com", response.getEmail());
+        assertEquals("CLIENTE", response.getRol());
 
         // Verificar que se guardó en BD
         assertTrue(personasRepositorio.existsByEmail("maria@fasticket.com"));

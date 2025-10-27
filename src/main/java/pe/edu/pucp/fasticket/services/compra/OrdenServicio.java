@@ -4,8 +4,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
-
-import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.*;
 import pe.edu.pucp.fasticket.events.CompraAnuladaEvent;
 import pe.edu.pucp.fasticket.exception.BusinessException;
@@ -35,7 +33,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@Slf4j
 public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;
@@ -272,71 +269,16 @@ public class OrdenServicio {
         }
     }
 
-    /**
-     * RF-089: Permite al administrador anular una compra.
-     * RF-090: Revierte los cupos al stock al anular la compra.
-     * 
-     * @param idOrden ID de la orden a anular
-     */
-    @Transactional
-    public void anularCompra(Integer idOrden) {
-        log.info("Anulando compra ID: {}", idOrden);
-        
-        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
-                .orElseThrow(() -> new RuntimeException("Orden no encontrada con ID: " + idOrden));
-
-        // Validar que la orden esté en un estado que permita anulación
-        if (orden.getEstado() == EstadoCompra.RECHAZADO || orden.getEstado() == EstadoCompra.ANULADO) {
-            throw new IllegalArgumentException("La orden ya está rechazada o anulada");
-        }
-
-        // Cambiar estado de la orden
-        orden.setEstado(EstadoCompra.ANULADO);
-        orden.setFechaActualizacion(LocalDate.now());
-
-        // RF-090: Revertir cupos al stock
-        for (ItemCarrito item : orden.getItems()) {
-            // Invalidar todos los tickets
-            for (Ticket ticket : item.getTickets()) {
-                ticket.setEstado(EstadoTicket.ANULADA);
-                ticket.setActivo(false);
-            }
-            
-            // Devolver stock
-            TipoTicket tipoTicket = item.getTipoTicket();
-            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + item.getCantidad());
-            tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() - item.getCantidad());
-            tipoTicketRepositorio.save(tipoTicket);
-            
-            log.info("Devueltos {} tickets del tipo '{}' al stock", item.getCantidad(), tipoTicket.getNombre());
-        }
-
-        ordenCompraRepositorio.save(orden);
-        log.info("Compra anulada exitosamente. Orden ID: {}", idOrden);
-        
-        // RF-089: Publicar evento para notificar al cliente (Patrón Observer)
-        try {
-            String emailCliente = orden.getCliente().getEmail();
-            String motivo = "Anulación solicitada por el administrador del sistema";
-            
-            log.info("📢 Publicando evento CompraAnuladaEvent para orden #{}", idOrden);
-            eventPublisher.publishEvent(new CompraAnuladaEvent(orden, emailCliente, motivo));
-        } catch (Exception e) {
-            log.error("⚠️ Error al publicar evento de compra anulada (no crítico): {}", e.getMessage());
-        }
-    }
 
     private List<DatosAsistenteDTO> obtenerAsistentesParaItem(ItemCarrito itemCarrito) {
-        // Si los datos se guardan en los Ticket asociados al ItemCarrito del Carrito:
         if (itemCarrito.getTickets() == null || itemCarrito.getTickets().isEmpty()) {
             log.warn("El ItemCarrito ID {} del carrito no tiene tickets asociados.", itemCarrito.getIdItemCarrito());
-            return new ArrayList<>(); // O lanzar error si esto no debería pasar
+            return new ArrayList<>(); 
         }
 
         return itemCarrito.getTickets().stream()
                 .map(ticket -> {
                     DatosAsistenteDTO dto = new DatosAsistenteDTO();
-                    // Asegúrate que tu entidad Ticket tenga getters para estos campos
                     dto.setTipoDocumento(ticket.getTipoDocumentoAsistente());
                     dto.setNumeroDocumento(ticket.getDocumentoAsistente());
                     dto.setNombres(ticket.getNombreAsistente());
@@ -349,43 +291,28 @@ public class OrdenServicio {
     @Transactional
     public OrdenCompra comprarDesdeCarrito(Integer idCarrito) {
         log.info("Iniciando conversión de carrito ID: {}", idCarrito);
-
-        // 1. Buscar Carrito (asegúrate de que cargue sus items)
         CarroCompras carrito = carroComprasRepository.findById(idCarrito)
                 .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado con ID: " + idCarrito));
-
-        // 2. Validar que el carrito esté listo para comprar
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
             throw new BusinessException("El carrito está inactivo o vacío y no puede ser comprado.");
         }
-
-        // 3. Crear la nueva OrdenCompra
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(carrito.getCliente());
         orden.setFechaOrden(LocalDate.now());
-        orden.setEstado(EstadoCompra.PENDIENTE); // Nace PENDIENTE de pago
-        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15)); // Asigna tiempo para pagar
-        orden.setCarroCompras(carrito); // Asocia el carrito con la orden
-
-        // 4. Mover los Items del Carrito a la Orden
-        // Iteramos sobre una copia de la lista para evitar errores al modificarla
+        orden.setEstado(EstadoCompra.PENDIENTE);
+        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
+        orden.setCarroCompras(carrito);
         for (ItemCarrito item : new ArrayList<>(carrito.getItems())) {
-
-            // Verifica que los tickets estén realmente reservados (seguridad extra)
             if (item.getTickets().stream().anyMatch(t -> t.getEstado() != EstadoTicket.RESERVADA)) {
                 throw new BusinessException("Error de consistencia: El item " + item.getIdItemCarrito() + " no tiene todos sus tickets reservados.");
             }
-
-            // Usa tus métodos helper para mover el item
-            carrito.removeItem(item); // Asume que esto hace item.setCarroCompra(null)
-            orden.addItem(item);    // Asume que esto hace item.setOrdenCompra(orden)
+            carrito.removeItem(item);
+            orden.addItem(item);
         }
-
-        // 5. Calcular total de la orden y desactivar el carrito
         orden.calcularTotal();
-        carrito.setActivo(false); // Marca el carrito como "completado"
+        carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
-        log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona()); // Ajusta getter
+        log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona());
         return ordenCompraRepositorio.save(orden);
     }
 

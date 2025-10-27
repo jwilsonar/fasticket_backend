@@ -53,8 +53,7 @@ public class TipoTicketController {
     )
     @ApiResponse(
             responseCode = "200",
-            description = "Lista obtenida exitosamente"
-    )
+            description = "Lista obtenida exitosamente")
     @GetMapping
     public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
@@ -84,10 +83,7 @@ public class TipoTicketController {
             @PathVariable Integer id) {
         log.info("GET /api/v1/tipos-ticket/{}", id);
         TipoTicketDTO tipoTicket = tipoTicketServicio.BuscarId(id);
-
-        // Si lo encuentra, envuelve la respuesta exitosa.
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket));
-        // --- FIN CORRECCIÓN ---
     }
 
     @Operation(
@@ -175,6 +171,11 @@ public class TipoTicketController {
                     description = "Sin permisos"
             )
     })
+        summary = "Eliminar tipo de ticket",
+        description = "Elimina un tipo de ticket. Solo administradores.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponse(responseCode = "204", description = "Tipo de ticket eliminado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> eliminar(
@@ -186,3 +187,4 @@ public class TipoTicketController {
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
     }
 }
+

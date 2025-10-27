@@ -1,3 +1,5 @@
+// RUTA: pe.edu.pucp.fasticket.controllers.eventos.EventoController.java
+
 package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.util.List;
@@ -27,9 +29,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
@@ -51,59 +53,49 @@ public class EventoController {
 
     @Operation(
         summary = "Listar todos los eventos",
-        description = "Obtiene lista completa de eventos activos o todos según el parámetro. Endpoint público."
+        description = "Obtiene lista de eventos. Endpoint público."
     )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Lista obtenida exitosamente"
-    )
+    @ApiResponse(responseCode = "200", description = "Lista obtenida exitosamente")
     @GetMapping
     public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listar(
-            @Parameter(description = "Mostrar solo eventos activos", example = "true")
+            @Parameter(description = "Mostrar solo activos")
             @RequestParam(defaultValue = "true") boolean soloActivos) {
         
         log.info("GET /api/v1/eventos?soloActivos={}", soloActivos);
         List<EventoResponseDTO> eventos = soloActivos 
             ? eventoService.listarActivos() 
             : eventoService.listarTodos();
-        return ResponseEntity.ok(StandardResponse.success("Lista de eventos obtenida exitosamente", eventos));
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Listar eventos próximos",
-        description = "Obtiene eventos futuros ordenados por fecha de inicio. Endpoint público."
+        description = "Obtiene eventos futuros ordenados por fecha. Endpoint público."
     )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos próximos obtenidos exitosamente"
-    )
+    @ApiResponse(responseCode = "200", description = "Eventos próximos")
     @GetMapping("/proximos")
     public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarProximos() {
         log.info("GET /api/v1/eventos/proximos");
         List<EventoResponseDTO> eventos = eventoService.listarProximos();
-        return ResponseEntity.ok(StandardResponse.success("Eventos próximos obtenidos exitosamente", eventos));
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos próximos obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Listar eventos por estado",
-        description = "Filtra eventos por su estado (ACTIVO, CANCELADO, FINALIZADO). Endpoint público."
+        description = "Filtra eventos por su estado (ACTIVO, CANCELADO, FINALIZADO)"
     )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos filtrados exitosamente"
-    )
+    @ApiResponse(responseCode = "200", description = "Eventos filtrados")
     @GetMapping("/estado/{estado}")
     public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarPorEstado(
-            @Parameter(
-                description = "Estado del evento", 
-                required = true,
-                example = "ACTIVO"
-            )
+            @Parameter(description = "Estado del evento", example = "ACTIVO")
             @PathVariable EstadoEvento estado) {
         
         log.info("GET /api/v1/eventos/estado/{}", estado);
         List<EventoResponseDTO> eventos = eventoService.listarPorEstado(estado);
-        return ResponseEntity.ok(StandardResponse.success("Eventos filtrados por estado obtenidos exitosamente", eventos));
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos filtrados por estado obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -129,204 +121,68 @@ public class EventoController {
         
         log.info("GET /api/v1/eventos/{}", id);
         EventoResponseDTO evento = eventoService.obtenerPorId(id);
-        return ResponseEntity.ok(StandardResponse.success("Evento obtenido exitosamente", evento));
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento obtenido exitosamente", evento);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Crear nuevo evento",
-        description = "Crea un nuevo evento con sus fechas, local y configuración. Solo administradores.",
+        description = "Crea un evento. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "201",
-            description = "Evento creado exitosamente",
+            description = "Evento creado",
             content = @Content(schema = @Schema(implementation = EventoResponseDTO.class))
         ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Datos inválidos o fechas incorrectas"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "No autenticado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos (requiere rol ADMINISTRADOR)"
-        )
+        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+        @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> crear(@Valid @RequestBody EventoCreateDTO dto) {
         log.info("POST /api/v1/eventos - Crear: {}", dto.getNombre());
-        EventoResponseDTO response = eventoService.crear(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Evento creado exitosamente", response));
+        EventoResponseDTO evento = eventoService.crear(dto);
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(
         summary = "Actualizar evento",
-        description = "Actualiza información de un evento existente. Solo administradores.",
+        description = "Actualiza un evento existente. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Evento actualizado exitosamente",
-            content = @Content(schema = @Schema(implementation = EventoResponseDTO.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Evento no encontrado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
+        @ApiResponse(responseCode = "200", description = "Evento actualizado"),
+        @ApiResponse(responseCode = "404", description = "Evento no encontrado"),
+        @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizar(
-            @Parameter(description = "ID del evento a actualizar", required = true, example = "1")
             @PathVariable Integer id,
             @Valid @RequestBody EventoCreateDTO dto) {
         
         log.info("PUT /api/v1/eventos/{}", id);
-        EventoResponseDTO response = eventoService.actualizar(id, dto);
-        return ResponseEntity.ok(StandardResponse.success("Evento actualizado exitosamente", response));
+        EventoResponseDTO evento = eventoService.actualizar(id, dto);
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Desactivar evento",
-        description = "Eliminación lógica del evento (no se elimina físicamente). Solo administradores.",
+        description = "Eliminación lógica del evento. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Evento desactivado exitosamente"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Evento no encontrado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
-    })
+    @ApiResponse(responseCode = "204", description = "Evento desactivado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Void>> eliminar(
-            @Parameter(description = "ID del evento a desactivar", required = true, example = "1")
-            @PathVariable Integer id) {
-        
+    public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/eventos/{}", id);
         eventoService.eliminarLogico(id);
-        return ResponseEntity.ok(StandardResponse.success("Evento desactivado exitosamente"));
-    }
-
-    @Operation(
-        summary = "Filtrar eventos por tipo/categoría",
-        description = "RF-065: Filtra eventos por tipo (CONCIERTO, TEATRO, DEPORTIVO, etc.). Endpoint público."
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos filtrados exitosamente"
-    )
-    @GetMapping("/tipo/{tipoEvento}")
-    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarPorTipo(
-            @Parameter(description = "Tipo de evento", required = true, example = "CONCIERTO")
-            @PathVariable String tipoEvento) {
-        
-        log.info("GET /api/v1/eventos/tipo/{}", tipoEvento);
-        List<EventoResponseDTO> eventos = eventoService.listarPorTipo(tipoEvento);
-        return ResponseEntity.ok(StandardResponse.success("Eventos filtrados por tipo exitosamente", eventos));
-    }
-
-    @Operation(
-        summary = "Filtrar eventos por rango de fechas",
-        description = "RF-066: Filtra eventos por rango de fechas. Endpoint público."
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos encontrados en el rango"
-    )
-    @GetMapping("/fechas")
-    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarPorRangoFechas(
-            @Parameter(description = "Fecha de inicio (formato: yyyy-MM-dd)", required = true, example = "2025-01-01")
-            @RequestParam String fechaInicio,
-            @Parameter(description = "Fecha de fin (formato: yyyy-MM-dd)", required = true, example = "2025-12-31")
-            @RequestParam String fechaFin) {
-        
-        log.info("GET /api/v1/eventos/fechas?fechaInicio={}&fechaFin={}", fechaInicio, fechaFin);
-        java.time.LocalDate inicio = java.time.LocalDate.parse(fechaInicio);
-        java.time.LocalDate fin = java.time.LocalDate.parse(fechaFin);
-        List<EventoResponseDTO> eventos = eventoService.listarPorRangoFechas(inicio, fin);
-        return ResponseEntity.ok(StandardResponse.success("Eventos filtrados por fecha exitosamente", eventos));
-    }
-
-    @Operation(
-        summary = "Filtrar eventos por distrito",
-        description = "RF-067: Filtra eventos por ubicación (distrito del local). Endpoint público."
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos encontrados en el distrito"
-    )
-    @GetMapping("/distrito/{idDistrito}")
-    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarPorDistrito(
-            @Parameter(description = "ID del distrito", required = true, example = "1")
-            @PathVariable Integer idDistrito) {
-        
-        log.info("GET /api/v1/eventos/distrito/{}", idDistrito);
-        List<EventoResponseDTO> eventos = eventoService.listarPorDistrito(idDistrito);
-        return ResponseEntity.ok(StandardResponse.success("Eventos filtrados por distrito exitosamente", eventos));
-    }
-
-    @Operation(
-        summary = "Listar eventos ordenados por fecha",
-        description = "RF-069: Obtiene eventos ordenados por fecha de inicio ascendente. Endpoint público."
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Eventos ordenados exitosamente"
-    )
-    @GetMapping("/ordenados")
-    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarOrdenadosPorFecha() {
-        log.info("GET /api/v1/eventos/ordenados");
-        List<EventoResponseDTO> eventos = eventoService.listarOrdenadosPorFecha();
-        return ResponseEntity.ok(StandardResponse.success("Eventos ordenados por fecha exitosamente", eventos));
-    }
-
-    @Operation(
-        summary = "Cancelar evento",
-        description = "RF-016: Cancela un evento y genera acciones de comunicación. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Evento cancelado exitosamente"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Evento no encontrado"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
-    })
-    @PutMapping("/{id}/cancelar")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Void>> cancelarEvento(
-            @Parameter(description = "ID del evento a cancelar", required = true, example = "1")
-            @PathVariable Integer id) {
-        
-        log.info("PUT /api/v1/eventos/{}/cancelar", id);
-        eventoService.cancelarEvento(id);
-        return ResponseEntity.ok(StandardResponse.success("Evento cancelado exitosamente"));
+        StandardResponse<String> response = StandardResponse.success("Evento eliminado exitosamente");
+        return ResponseEntity.ok(response);
     }
     @Operation(
             summary = "Obtener detalle de evento para proceso de compra",

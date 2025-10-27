@@ -1,17 +1,13 @@
 package pe.edu.pucp.fasticket.services.eventos;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.*;
 import pe.edu.pucp.fasticket.events.EventoCanceladoEvent;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
@@ -22,9 +18,10 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 
-/**
- * Servicio completo para la gestión de eventos.
- */
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -34,7 +31,6 @@ public class EventoService {
     private final EventosRepositorio eventoRepository;
     private final LocalesRepositorio localRepository;
     private final EventoMapper eventoMapper;
-    private final ApplicationEventPublisher eventPublisher;
 
     public List<EventoResponseDTO> listarTodos() {
         return eventoRepository.findAll().stream()
@@ -75,16 +71,11 @@ public class EventoService {
             throw new BusinessException("La fecha del evento debe ser futura");
         }
 
-        // Obtener y validar local
+        // Obtener local
         Local local = null;
         if (dto.getIdLocal() != null) {
             local = localRepository.findById(dto.getIdLocal())
                     .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + dto.getIdLocal()));
-            
-            // RF-006: Impedir asociar eventos a locales inactivos
-            if (!local.getActivo()) {
-                throw new BusinessException("No se puede asociar un evento a un local inactivo");
-            }
         }
 
         // Crear y guardar
@@ -102,16 +93,11 @@ public class EventoService {
         Evento evento = eventoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
 
-        // Obtener y validar local
+        // Obtener local
         Local local = null;
         if (dto.getIdLocal() != null) {
             local = localRepository.findById(dto.getIdLocal())
                     .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + dto.getIdLocal()));
-            
-            // RF-006: Impedir asociar eventos a locales inactivos
-            if (!local.getActivo()) {
-                throw new BusinessException("No se puede asociar un evento a un local inactivo");
-            }
         }
 
         // Actualizar
@@ -135,7 +121,6 @@ public class EventoService {
 
         log.info("Evento desactivado: {}", id);
     }
-
     /**
      * RF-065: Filtra eventos por tipo/categoría.
      * 
@@ -284,8 +269,5 @@ public class EventoService {
         log.info("FIN: Detalle de evento {} mapeado correctamente.", id);
         return dto;
     }
-
-
-
 }
 

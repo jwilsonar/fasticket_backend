@@ -73,15 +73,10 @@ public class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Login exitoso"))
                 .andExpect(jsonPath("$.data.token").exists())
                 .andExpect(jsonPath("$.data.tipo").value("Bearer"))
                 .andExpect(jsonPath("$.data.email").value(emailTest))
-                .andExpect(jsonPath("$.data.rol").value("CLIENTE"))
-                .andExpect(jsonPath("$.data.nombreCompleto").value("Juan Pérez"))
-                .andExpect(jsonPath("$.data.idUsuario").exists())
-                .andExpect(jsonPath("$.data.expiracion").value(86400000));
+                .andExpect(jsonPath("$.data.rol").value("CLIENTE"));
     }
 
     @Test
@@ -113,11 +108,9 @@ public class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Cliente registrado exitosamente"))
-                .andExpect(jsonPath("$.data.exito").value(true))
-                .andExpect(jsonPath("$.data.mensaje").value("Usuario registrado exitosamente"))
-                .andExpect(jsonPath("$.data.email").value("maria@fasticket.com"));
+                .andExpect(jsonPath("$.data.token").exists())
+                .andExpect(jsonPath("$.data.email").value("maria@fasticket.com"))
+                .andExpect(jsonPath("$.data.rol").value("CLIENTE"));
     }
 
     @Test

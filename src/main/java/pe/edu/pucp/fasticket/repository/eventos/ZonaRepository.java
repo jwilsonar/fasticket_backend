@@ -4,7 +4,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 
+import java.util.List;
+
 @Repository
-public interface ZonasRepositorio extends JpaRepository<Zona, Integer> {
-    // Aquí puedes agregar consultas personalizadas si las necesitas
+public interface ZonaRepository extends JpaRepository<Zona, Integer> {
+    
+    List<Zona> findByLocal_IdLocal(Integer idLocal);
+    
+    List<Zona> findByActivoTrue();
 }

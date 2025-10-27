@@ -1,10 +1,5 @@
 package pe.edu.pucp.fasticket.controllers.compra;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,12 +11,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
@@ -108,7 +107,6 @@ public class OrdenController {
         log.info("PUT /api/v1/ordenes/{}/cancelar", id);
 
         ordenServicio.cancelarOrden(id);
-
         return ResponseEntity.ok(
                 StandardResponse.success("Orden cancelada correctamente.", null)
         );

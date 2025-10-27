@@ -1,7 +1,7 @@
-package pe.edu.pucp.fasticket.services; // O donde esté tu servicio
+package pe.edu.pucp.fasticket.services;
 
-import org.springframework.context.ApplicationEventPublisher; // Importar
-import org.springframework.data.domain.PageRequest; // Importar
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TicketRepository; // Añadido
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
@@ -131,8 +131,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
 
         CarroCompras carro = item.getCarroCompra();
-
-        // --- LÓGICA DE LIBERACIÓN DE INVENTARIO (NUEVA) ---
         TipoTicket tipoTicket = item.getTipoTicket();
         int cantidadLiberada = 0;
 
@@ -156,7 +154,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         return convertirADTO(carroGuardado);
     }
 
-    private void validarItemYAsistentes(AddItemRequestDTO item) { // Adaptado para AddItemRequestDTO
+    private void validarItemYAsistentes(AddItemRequestDTO item) {
         if (item.getAsistentes() == null || item.getAsistentes().size() != item.getCantidad()) {
             throw new IllegalArgumentException("La cantidad de asistentes no coincide con la cantidad solicitada");
         }

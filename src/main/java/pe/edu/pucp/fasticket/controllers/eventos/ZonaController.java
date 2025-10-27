@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -43,136 +41,78 @@ public class ZonaController {
 
     private final ZonaServicio zonaServicio;
 
-    @Operation(
-        summary = "Listar todas las zonas",
-        description = "Obtiene lista de todas las zonas disponibles en los locales"
-    )
-    @ApiResponse(
-        responseCode = "200",
-        description = "Lista obtenida exitosamente"
-    )
+    @Operation(summary = "Listar todas las zonas")
+    @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
     public ResponseEntity<StandardResponse<List<Zona>>> listar() {
         log.info("GET /api/v1/zonas");
-        List<Zona> zonas = zonaServicio.ListarZonas();
-        return ResponseEntity.ok(StandardResponse.success("Lista de zonas obtenida exitosamente", zonas));
+        List<Zona> zonas = zonaServicio.listarTodas();
+        StandardResponse<List<Zona>> response = StandardResponse.success("Zonas obtenidas exitosamente", zonas);
+        return ResponseEntity.ok(response);
     }
 
-    @Operation(
-        summary = "Obtener zona por ID",
-        description = "Obtiene información detallada de una zona específica"
-    )
+    @Operation(summary = "Obtener zona por ID")
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona encontrada",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        )
+        @ApiResponse(responseCode = "200", description = "Zona encontrada"),
+        @ApiResponse(responseCode = "404", description = "Zona no encontrada")
     })
     @GetMapping("/{id}")
     public ResponseEntity<StandardResponse<Zona>> obtenerPorId(
-            @Parameter(description = "ID de la zona", required = true, example = "1")
+            @Parameter(description = "ID de la zona")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/zonas/{}", id);
-        return zonaServicio.BuscarId(id)
-                .map(zona -> ResponseEntity.ok(StandardResponse.success("Zona obtenida exitosamente", zona)))
+        return zonaServicio.buscarPorId(id)
+                .map(zona -> {
+                    StandardResponse<Zona> response = StandardResponse.success("Zona obtenida exitosamente", zona);
+                    return ResponseEntity.ok(response);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @Operation(
         summary = "Crear zona",
-        description = "Crea una nueva zona dentro de un local. Solo administradores.",
+        description = "Crea una nueva zona. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "201",
-            description = "Zona creada exitosamente",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Datos inválidos"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos (requiere rol ADMINISTRADOR)"
-        )
-    })
+    @ApiResponse(responseCode = "201", description = "Zona creada")
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Zona>> crear(@Valid @RequestBody Zona zona) {
         log.info("POST /api/v1/zonas - Nombre: {}", zona.getNombre());
-        Zona nuevaZona = zonaServicio.Guardar(zona);
-        return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Zona creada exitosamente", nuevaZona));
+        Zona nuevaZona = zonaServicio.crear(zona);
+        StandardResponse<Zona> response = StandardResponse.success("Zona creada exitosamente", nuevaZona);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(
         summary = "Actualizar zona",
-        description = "Actualiza información de una zona existente. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona actualizada exitosamente",
-            content = @Content(schema = @Schema(implementation = Zona.class))
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
-    })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Zona>> actualizar(
-            @Parameter(description = "ID de la zona a actualizar", required = true)
             @PathVariable Integer id,
             @Valid @RequestBody Zona zona) {
         
         log.info("PUT /api/v1/zonas/{}", id);
         zona.setIdZona(id);
-        Zona actualizada = zonaServicio.Guardar(zona);
-        return ResponseEntity.ok(StandardResponse.success("Zona actualizada exitosamente", actualizada));
+        Zona actualizada = zonaServicio.actualizar(zona);
+        StandardResponse<Zona> response = StandardResponse.success("Zona actualizada exitosamente", actualizada);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Eliminar zona",
-        description = "Elimina una zona del sistema. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Zona eliminada exitosamente"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Zona no encontrada"
-        ),
-        @ApiResponse(
-            responseCode = "403",
-            description = "Sin permisos"
-        )
-    })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Void>> eliminar(
-            @Parameter(description = "ID de la zona a eliminar", required = true)
-            @PathVariable Integer id) {
-        
+    public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/zonas/{}", id);
-        zonaServicio.Eliminar(id);
-        return ResponseEntity.ok(StandardResponse.success("Zona eliminada exitosamente"));
+        zonaServicio.eliminar(id);
+        StandardResponse<String> response = StandardResponse.success("Zona eliminada exitosamente");
+        return ResponseEntity.ok(response);
     }
 }
 

@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Data
 @Builder
@@ -24,8 +25,6 @@ public class TipoTicketDTO {
     private Integer idZona;
     private String nombreZona;
     private Boolean activo;
-    private Integer idEvento;
-    private String nombreEvento;
     public TipoTicketDTO(TipoTicket p_tipoTicket){
         this.idTipoTicket = p_tipoTicket.getIdTipoTicket();
         this.stock = p_tipoTicket.getStock();

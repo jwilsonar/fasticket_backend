@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
@@ -49,7 +50,7 @@ public class TipoTicketController {
     )
     @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
-    public ResponseEntity<List<TipoTicket>> listar() {
+    public ResponseEntity<StandardResponse<List<TipoTicket>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
         List<TipoTicket> tiposTicket = tipoTicketServicio.ListarTiposTicket();
         return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
@@ -93,7 +94,7 @@ public class TipoTicketController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<TipoTicket> crear(@Valid @RequestBody TipoTicket tipoTicket) {
+    public ResponseEntity<StandardResponse<TipoTicket>> crear(@Valid @RequestBody TipoTicket tipoTicket) {
         log.info("POST /api/v1/tipos-ticket - Nombre: {}", tipoTicket.getNombre());
         TipoTicket nuevoTipoTicket = tipoTicketServicio.Guardar(tipoTicket);
         return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Tipo de ticket creado exitosamente", nuevoTipoTicket));

@@ -12,6 +12,7 @@ import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.model.usuario.Rol;

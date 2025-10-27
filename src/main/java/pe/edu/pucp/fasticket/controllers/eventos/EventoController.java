@@ -75,7 +75,7 @@ public class EventoController {
     )
     @ApiResponse(responseCode = "200", description = "Eventos próximos")
     @GetMapping("/proximos")
-    public ResponseEntity<List<EventoResponseDTO>> listarProximos() {
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarProximos() {
         log.info("GET /api/v1/eventos/proximos");
         List<EventoResponseDTO> eventos = eventoService.listarProximos();
         StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos próximos obtenidos exitosamente", eventos);
@@ -115,7 +115,7 @@ public class EventoController {
         )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<EventoResponseDTO> obtenerPorId(
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> obtenerPorId(
             @Parameter(description = "ID del evento", required = true, example = "1")
             @PathVariable Integer id) {
         

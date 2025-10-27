@@ -133,10 +133,10 @@ public class AuthController {
     )
     @ApiResponse(responseCode = "200", description = "Token válido")
     @GetMapping("/verificar")
-    public ResponseEntity<StandardResponse<String>> verificarToken(@AuthenticationPrincipal UserDetails userDetails) {
-        String message = "Token válido para: " + userDetails.getUsername();
-        StandardResponse<String> response = StandardResponse.success("Token verificado exitosamente", message);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<String>> verificarToken(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Token válido", userDetails.getUsername()));
     }
 }
 

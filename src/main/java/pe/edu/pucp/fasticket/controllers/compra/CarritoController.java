@@ -15,7 +15,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
 
 @Tag(
@@ -47,7 +46,7 @@ public class CarritoController {
     })
     @GetMapping("/cliente/{idCliente}")
     @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> verCarrito(
+    public ResponseEntity<CarroComprasDTO> verCarrito(
             @Parameter(description = "ID del cliente", required = true, example = "1")
             @PathVariable Integer idCliente) {
         
@@ -99,7 +98,7 @@ public class CarritoController {
     })
     @PostMapping("/items")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(@RequestBody AddItemRequestDTO request) {
+    public ResponseEntity<CarroComprasDTO> agregarItem(@RequestBody AddItemRequestDTO request) {
         log.info("POST /api/v1/carrito/items - Cliente: {}, Tipo Ticket: {}", 
                  request.getIdCliente(), request.getIdTipoTicket());
         CarroComprasDTO carritoActualizado = carroComprasService.agregarItemAlCarrito(request);

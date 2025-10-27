@@ -52,7 +52,7 @@ public class PagoController {
     })
     @PostMapping("/registrar")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<ComprobanteDTO>> registrarPago(@Valid @RequestBody RegistrarPagoDTO dto) {
+    public ResponseEntity<ComprobanteDTO> registrarPago(@Valid @RequestBody RegistrarPagoDTO dto) {
         log.info("POST /api/v1/pagos/registrar - Orden: {}", dto.getIdOrden());
         ComprobanteDTO comprobante = pagoServicio.registrarPagoFinal(dto);
         StandardResponse<ComprobanteDTO> response = StandardResponse.success("Pago registrado exitosamente", comprobante);

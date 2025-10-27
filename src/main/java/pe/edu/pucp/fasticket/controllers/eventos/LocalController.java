@@ -75,7 +75,7 @@ public class LocalController {
         )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<StandardResponse<LocalResponseDTO>> obtenerPorId(
+    public ResponseEntity<LocalResponseDTO> obtenerPorId(
             @Parameter(description = "ID del local", required = true, example = "1")
             @PathVariable Integer id) {
         
@@ -117,7 +117,7 @@ public class LocalController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<LocalResponseDTO>> crear(@Valid @RequestBody LocalCreateDTO dto) {
+    public ResponseEntity<LocalResponseDTO> crear(@Valid @RequestBody LocalCreateDTO dto) {
         log.info("POST /api/v1/locales - Crear: {}", dto.getNombre());
         LocalResponseDTO local = localService.crear(dto);
         StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local creado exitosamente", local);
@@ -146,7 +146,7 @@ public class LocalController {
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<LocalResponseDTO>> actualizar(
+    public ResponseEntity<LocalResponseDTO> actualizar(
             @Parameter(description = "ID del local a actualizar")
             @PathVariable Integer id,
             @Valid @RequestBody LocalCreateDTO dto) {

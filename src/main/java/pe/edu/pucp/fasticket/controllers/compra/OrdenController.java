@@ -50,7 +50,7 @@ public class OrdenController {
     })
     @PostMapping("/crear")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenCompra>> crearOrden(@Valid @RequestBody CrearOrdenDTO dto) {
+    public ResponseEntity<OrdenCompra> crearOrden(@Valid @RequestBody CrearOrdenDTO dto) {
         log.info("POST /api/v1/ordenes/crear - Cliente: {}", dto.getIdCliente());
         OrdenCompra orden = ordenServicio.crearOrden(dto);
         StandardResponse<OrdenCompra> response = StandardResponse.success("Orden creada exitosamente", orden);
@@ -69,7 +69,7 @@ public class OrdenController {
     )
     @PostMapping("/resumen")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenResumenDTO>> generarResumen(@Valid @RequestBody CrearOrdenDTO dto) {
+    public ResponseEntity<OrdenResumenDTO> generarResumen(@Valid @RequestBody CrearOrdenDTO dto) {
         log.info("POST /api/v1/ordenes/resumen - Cliente: {}", dto.getIdCliente());
         OrdenResumenDTO resumen = ordenServicio.generarResumenOrden(dto);
         StandardResponse<OrdenResumenDTO> response = StandardResponse.success("Resumen de orden generado exitosamente", resumen);

@@ -239,6 +239,7 @@ public class GlobalExceptionHandler {
                 .body(StandardResponse.error(message, error));
     }
 
+
     /**
      * Maneja cualquier excepción no capturada específicamente.
      * 

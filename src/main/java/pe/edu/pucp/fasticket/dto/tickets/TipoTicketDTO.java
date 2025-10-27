@@ -3,6 +3,9 @@ package pe.edu.pucp.fasticket.dto.tickets;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.eventos.Evento;

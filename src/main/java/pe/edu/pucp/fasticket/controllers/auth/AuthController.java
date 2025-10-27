@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-import pe.edu.pucp.fasticket.dto.RegistroResponse;
 import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
@@ -35,7 +33,7 @@ public class AuthController {
 
     @Operation(
         summary = "Iniciar sesión",
-        description = "Autentica un usuario y devuelve un token JWT con los datos del usuario"
+        description = "Autentica un usuario y devuelve un token JWT válido por 24 horas"
     )
     @ApiResponses({
         @ApiResponse(
@@ -50,21 +48,21 @@ public class AuthController {
         )
     })
     @PostMapping("/login")
-    public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<LoginResponseDTO>> login(@Valid @RequestBody LoginRequestDTO request) {
+    public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         log.info("POST /api/v1/auth/login - Email: {}", request.getEmail());
         LoginResponseDTO response = authService.login(request);
-        return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Login exitoso", response));
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
         summary = "Registrar nuevo cliente",
-        description = "Crea una cuenta de cliente y devuelve confirmación con email"
+        description = "Crea una cuenta de cliente y devuelve un token JWT automáticamente"
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "201",
             description = "Cliente registrado exitosamente",
-            content = @Content(schema = @Schema(implementation = RegistroResponse.class))
+            content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))
         ),
         @ApiResponse(
             responseCode = "400",
@@ -78,10 +76,10 @@ public class AuthController {
         )
     })
     @PostMapping("/registro")
-    public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<RegistroResponse>> registrar(@Valid @RequestBody RegistroRequestDTO request) {
+    public ResponseEntity<LoginResponseDTO> registrar(@Valid @RequestBody RegistroRequestDTO request) {
         log.info("POST /api/v1/auth/registro - Email: {}", request.getEmail());
-        RegistroResponse response = authService.registrarCliente(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(pe.edu.pucp.fasticket.dto.StandardResponse.success("Cliente registrado exitosamente", response));
+        LoginResponseDTO response = authService.registrarCliente(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(
@@ -104,7 +102,7 @@ public class AuthController {
         )
     })
     @PutMapping("/cambiar-contrasena")
-    public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<Void>> cambiarContrasena(
+    public ResponseEntity<String> cambiarContrasena(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CambioContrasenaDTO request) {
         
@@ -115,29 +113,17 @@ public class AuthController {
         
         authService.cambiarContrasena(persona.getIdPersona(), request);
         
-        return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Contraseña cambiada exitosamente"));
+        return ResponseEntity.ok("Contraseña cambiada exitosamente");
     }
 
     @Operation(
         summary = "Verificar token",
-        description = "Valida si el token JWT actual es válido y devuelve el email del usuario",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+        description = "Valida si el token JWT actual es válido"
     )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Token válido"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Token inválido o expirado"
-        )
-    })
+    @ApiResponse(responseCode = "200", description = "Token válido")
     @GetMapping("/verificar")
-    public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<String>> verificarToken(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        
-        return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Token válido", userDetails.getUsername()));
+    public ResponseEntity<String> verificarToken(@AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok("Token válido para: " + userDetails.getUsername());
     }
 }
 

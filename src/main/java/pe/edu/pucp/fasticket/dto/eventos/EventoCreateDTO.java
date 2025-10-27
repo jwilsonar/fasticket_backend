@@ -5,8 +5,6 @@ import java.time.LocalTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -60,18 +58,5 @@ public class EventoCreateDTO {
 
     @Schema(description = "ID del local", example = "1")
     private Integer idLocal;
-
-    @Schema(description = "RF-072: Edad mínima para asistir al evento", example = "18")
-    @Min(value = 0, message = "La edad mínima no puede ser negativa")
-    @Max(value = 100, message = "La edad mínima no puede exceder 100 años")
-    private Integer edadMinima = 0;
-
-    @Schema(description = "RF-072: Restricciones del evento", example = "No se permite el ingreso de alimentos ni bebidas")
-    @Size(max = 1000, message = "Las restricciones no pueden exceder 1000 caracteres")
-    private String restricciones;
-
-    @Schema(description = "RF-073: Políticas de devolución/cambio", example = "No se permiten devoluciones después de 24 horas")
-    @Size(max = 1000, message = "Las políticas no pueden exceder 1000 caracteres")
-    private String politicasDevolucion;
 }
 

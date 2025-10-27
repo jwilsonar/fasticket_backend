@@ -1,14 +1,9 @@
 package pe.edu.pucp.fasticket.services.eventos;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.dto.eventos.LocalCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.LocalResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
@@ -18,6 +13,10 @@ import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Servicio para la gestión de locales.
@@ -116,48 +115,6 @@ public class LocalService {
         localRepository.save(local);
 
         log.info("Local desactivado: {}", id);
-    }
-
-    /**
-     * RF-005: Buscar y filtrar locales por nombre.
-     * 
-     * @param nombre Nombre del local (búsqueda parcial)
-     * @return Lista de locales que coinciden con el nombre
-     */
-    public List<LocalResponseDTO> buscarPorNombre(String nombre) {
-        log.info("Buscando locales por nombre: {}", nombre);
-        return localRepository.findByNombreContainingIgnoreCaseAndActivoTrue(nombre).stream()
-                .map(localMapper::toResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * RF-005: Buscar y filtrar locales por distrito.
-     * 
-     * @param idDistrito ID del distrito
-     * @return Lista de locales en el distrito especificado
-     */
-    public List<LocalResponseDTO> buscarPorDistrito(Integer idDistrito) {
-        log.info("Buscando locales por distrito ID: {}", idDistrito);
-        return localRepository.findByDistritoIdDistritoAndActivoTrue(idDistrito).stream()
-                .map(localMapper::toResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * RF-003: Valida que la suma de aforos de las zonas no exceda el aforo total del local.
-     * 
-     * @param local Local a validar
-     * @throws BusinessException si la suma de aforos excede el aforo total
-     */
-    public void validarAforosZonas(Local local) {
-        Integer sumaAforos = local.getSumaAforosZonas();
-        if (sumaAforos > local.getAforoTotal()) {
-            throw new BusinessException(
-                String.format("La suma de aforos de las zonas (%d) excede el aforo total del local (%d)", 
-                    sumaAforos, local.getAforoTotal())
-            );
-        }
     }
 }
 

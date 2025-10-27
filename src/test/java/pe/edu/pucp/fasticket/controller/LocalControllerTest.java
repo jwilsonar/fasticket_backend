@@ -56,16 +56,16 @@ public class LocalControllerTest {
     void testListarLocales_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/locales"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
     void testObtenerLocalPorId_Publico() throws Exception {
         mockMvc.perform(get("/api/v1/locales/" + localTest.getIdLocal()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.idLocal").value(localTest.getIdLocal()))
-                .andExpect(jsonPath("$.nombre").value("Estadio Test"))
-                .andExpect(jsonPath("$.aforoTotal").value(10000));
+                .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()))
+                .andExpect(jsonPath("$.data.nombre").value("Estadio Test"))
+                .andExpect(jsonPath("$.data.aforoTotal").value(10000));
     }
 
     @Test
@@ -99,8 +99,8 @@ public class LocalControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nombre").value("Coliseo Nuevo"))
-                .andExpect(jsonPath("$.aforoTotal").value(8000));
+                .andExpect(jsonPath("$.data.nombre").value("Coliseo Nuevo"))
+                .andExpect(jsonPath("$.data.aforoTotal").value(8000));
     }
 
     @Test
@@ -115,15 +115,15 @@ public class LocalControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Estadio Actualizado"))
-                .andExpect(jsonPath("$.aforoTotal").value(12000));
+                .andExpect(jsonPath("$.data.nombre").value("Estadio Actualizado"))
+                .andExpect(jsonPath("$.data.aforoTotal").value(12000));
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testEliminarLocal_Exitoso() throws Exception {
         mockMvc.perform(delete("/api/v1/locales/" + localTest.getIdLocal()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 }
 

@@ -73,10 +73,10 @@ public class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").exists())
-                .andExpect(jsonPath("$.tipo").value("Bearer"))
-                .andExpect(jsonPath("$.email").value(emailTest))
-                .andExpect(jsonPath("$.rol").value("CLIENTE"));
+                .andExpect(jsonPath("$.data.token").exists())
+                .andExpect(jsonPath("$.data.tipo").value("Bearer"))
+                .andExpect(jsonPath("$.data.email").value(emailTest))
+                .andExpect(jsonPath("$.data.rol").value("CLIENTE"));
     }
 
     @Test
@@ -108,9 +108,9 @@ public class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.token").exists())
-                .andExpect(jsonPath("$.email").value("maria@fasticket.com"))
-                .andExpect(jsonPath("$.rol").value("CLIENTE"));
+                .andExpect(jsonPath("$.data.token").exists())
+                .andExpect(jsonPath("$.data.email").value("maria@fasticket.com"))
+                .andExpect(jsonPath("$.data.rol").value("CLIENTE"));
     }
 
     @Test

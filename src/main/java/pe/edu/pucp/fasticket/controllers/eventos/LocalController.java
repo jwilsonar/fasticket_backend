@@ -17,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.eventos.LocalCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.LocalResponseDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.services.eventos.LocalService;
 
@@ -45,7 +46,7 @@ public class LocalController {
         description = "Lista obtenida exitosamente"
     )
     @GetMapping
-    public ResponseEntity<List<LocalResponseDTO>> listar(
+    public ResponseEntity<StandardResponse<List<LocalResponseDTO>>> listar(
             @Parameter(description = "Mostrar solo activos")
             @RequestParam(defaultValue = "true") boolean soloActivos) {
         
@@ -53,7 +54,8 @@ public class LocalController {
         List<LocalResponseDTO> locales = soloActivos 
             ? localService.listarActivos() 
             : localService.listarTodos();
-        return ResponseEntity.ok(locales);
+        StandardResponse<List<LocalResponseDTO>> response = StandardResponse.success("Locales obtenidos exitosamente", locales);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -73,13 +75,14 @@ public class LocalController {
         )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<LocalResponseDTO> obtenerPorId(
+    public ResponseEntity<StandardResponse<LocalResponseDTO>> obtenerPorId(
             @Parameter(description = "ID del local", required = true, example = "1")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/locales/{}", id);
         LocalResponseDTO local = localService.obtenerPorId(id);
-        return ResponseEntity.ok(local);
+        StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local obtenido exitosamente", local);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -114,9 +117,10 @@ public class LocalController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<LocalResponseDTO> crear(@Valid @RequestBody LocalCreateDTO dto) {
+    public ResponseEntity<StandardResponse<LocalResponseDTO>> crear(@Valid @RequestBody LocalCreateDTO dto) {
         log.info("POST /api/v1/locales - Crear: {}", dto.getNombre());
-        LocalResponseDTO response = localService.crear(dto);
+        LocalResponseDTO local = localService.crear(dto);
+        StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local creado exitosamente", local);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -142,13 +146,14 @@ public class LocalController {
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<LocalResponseDTO> actualizar(
+    public ResponseEntity<StandardResponse<LocalResponseDTO>> actualizar(
             @Parameter(description = "ID del local a actualizar")
             @PathVariable Integer id,
             @Valid @RequestBody LocalCreateDTO dto) {
         
         log.info("PUT /api/v1/locales/{}", id);
-        LocalResponseDTO response = localService.actualizar(id, dto);
+        LocalResponseDTO local = localService.actualizar(id, dto);
+        StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local actualizado exitosamente", local);
         return ResponseEntity.ok(response);
     }
 
@@ -160,10 +165,11 @@ public class LocalController {
     @ApiResponse(responseCode = "204", description = "Local desactivado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/locales/{}", id);
         localService.eliminarLogico(id);
-        return ResponseEntity.noContent().build();
+        StandardResponse<String> response = StandardResponse.success("Local eliminado exitosamente");
+        return ResponseEntity.ok(response);
     }
 }
 

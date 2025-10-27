@@ -17,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 
@@ -49,10 +50,11 @@ public class OrdenController {
     })
     @PostMapping("/crear")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<OrdenCompra> crearOrden(@Valid @RequestBody CrearOrdenDTO dto) {
+    public ResponseEntity<StandardResponse<OrdenCompra>> crearOrden(@Valid @RequestBody CrearOrdenDTO dto) {
         log.info("POST /api/v1/ordenes/crear - Cliente: {}", dto.getIdCliente());
         OrdenCompra orden = ordenServicio.crearOrden(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(orden);
+        StandardResponse<OrdenCompra> response = StandardResponse.success("Orden creada exitosamente", orden);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Operation(
@@ -67,10 +69,11 @@ public class OrdenController {
     )
     @PostMapping("/resumen")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<OrdenResumenDTO> generarResumen(@Valid @RequestBody CrearOrdenDTO dto) {
+    public ResponseEntity<StandardResponse<OrdenResumenDTO>> generarResumen(@Valid @RequestBody CrearOrdenDTO dto) {
         log.info("POST /api/v1/ordenes/resumen - Cliente: {}", dto.getIdCliente());
         OrdenResumenDTO resumen = ordenServicio.generarResumenOrden(dto);
-        return ResponseEntity.ok(resumen);
+        StandardResponse<OrdenResumenDTO> response = StandardResponse.success("Resumen de orden generado exitosamente", resumen);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -81,13 +84,14 @@ public class OrdenController {
     @ApiResponse(responseCode = "200", description = "Pago confirmado")
     @PutMapping("/{id}/confirmar")
     @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<Void> confirmarPago(
+    public ResponseEntity<StandardResponse<String>> confirmarPago(
             @Parameter(description = "ID de la orden")
             @PathVariable Integer id) {
         
         log.info("PUT /api/v1/ordenes/{}/confirmar", id);
         ordenServicio.confirmarPagoOrden(id);
-        return ResponseEntity.ok().build();
+        StandardResponse<String> response = StandardResponse.success("Pago confirmado exitosamente");
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -98,12 +102,13 @@ public class OrdenController {
     @ApiResponse(responseCode = "200", description = "Orden cancelada")
     @PutMapping("/{id}/cancelar")
     @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<Void> cancelarOrden(
+    public ResponseEntity<StandardResponse<String>> cancelarOrden(
             @Parameter(description = "ID de la orden")
             @PathVariable Integer id) {
         
         log.info("PUT /api/v1/ordenes/{}/cancelar", id);
         ordenServicio.cancelarOrden(id);
-        return ResponseEntity.ok().build();
+        StandardResponse<String> response = StandardResponse.success("Orden cancelada exitosamente");
+        return ResponseEntity.ok(response);
     }
 }

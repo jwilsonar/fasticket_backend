@@ -114,6 +114,9 @@ public class GlobalExceptionHandler {
         
         log.error("Errores de validación: {}", fieldErrors);
         
+        // Obtener el primer error para mostrarlo en el mensaje principal
+        String firstErrorMessage = fieldErrors.values().iterator().next();
+        
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", LocalDateTime.now());
         errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
@@ -122,7 +125,7 @@ public class GlobalExceptionHandler {
         errorDetails.put("errors", fieldErrors);
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(StandardResponse.error("Error en la validación de los datos de entrada", errorDetails));
+                .body(StandardResponse.error(firstErrorMessage, errorDetails));
     }
 
     /**

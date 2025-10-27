@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
@@ -49,10 +50,10 @@ public class TipoTicketController {
     )
     @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
-    public ResponseEntity<List<TipoTicket>> listar() {
+    public ResponseEntity<StandardResponse<List<TipoTicket>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
         List<TipoTicket> tiposTicket = tipoTicketServicio.ListarTiposTicket();
-        return ResponseEntity.ok(tiposTicket);
+        return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
     }
 
     @Operation(
@@ -71,13 +72,13 @@ public class TipoTicketController {
         )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<TipoTicket> obtenerPorId(
-            @Parameter(description = "ID del tipo de ticket", required = true)
+    public ResponseEntity<StandardResponse<TipoTicket>> obtenerPorId(
+            @Parameter(description = "ID del tipo de ticket", required = true, example = "1")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/tipos-ticket/{}", id);
         return tipoTicketServicio.BuscarId(id)
-                .map(ResponseEntity::ok)
+                .map(tipoTicket -> ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -93,10 +94,10 @@ public class TipoTicketController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<TipoTicket> crear(@Valid @RequestBody TipoTicket tipoTicket) {
+    public ResponseEntity<StandardResponse<TipoTicket>> crear(@Valid @RequestBody TipoTicket tipoTicket) {
         log.info("POST /api/v1/tipos-ticket - Nombre: {}", tipoTicket.getNombre());
         TipoTicket nuevoTipoTicket = tipoTicketServicio.Guardar(tipoTicket);
-        return ResponseEntity.status(HttpStatus.CREATED).body(nuevoTipoTicket);
+        return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Tipo de ticket creado exitosamente", nuevoTipoTicket));
     }
 
     @Operation(
@@ -110,14 +111,15 @@ public class TipoTicketController {
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<TipoTicket> actualizar(
+    public ResponseEntity<StandardResponse<TipoTicket>> actualizar(
+            @Parameter(description = "ID del tipo de ticket a actualizar", required = true)
             @PathVariable Integer id,
             @Valid @RequestBody TipoTicket tipoTicket) {
         
         log.info("PUT /api/v1/tipos-ticket/{}", id);
         tipoTicket.setIdTipoTicket(id);
         TipoTicket actualizado = tipoTicketServicio.Guardar(tipoTicket);
-        return ResponseEntity.ok(actualizado);
+        return ResponseEntity.ok(StandardResponse.success("Tipo de ticket actualizado exitosamente", actualizado));
     }
 
     @Operation(
@@ -128,10 +130,13 @@ public class TipoTicketController {
     @ApiResponse(responseCode = "204", description = "Tipo de ticket eliminado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<StandardResponse<Void>> eliminar(
+            @Parameter(description = "ID del tipo de ticket a eliminar", required = true)
+            @PathVariable Integer id) {
+        
         log.info("DELETE /api/v1/tipos-ticket/{}", id);
         tipoTicketServicio.Eliminar(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
     }
 }
 

@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
@@ -56,7 +57,7 @@ public class EventoController {
     )
     @ApiResponse(responseCode = "200", description = "Lista obtenida exitosamente")
     @GetMapping
-    public ResponseEntity<List<EventoResponseDTO>> listar(
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listar(
             @Parameter(description = "Mostrar solo activos")
             @RequestParam(defaultValue = "true") boolean soloActivos) {
         
@@ -64,7 +65,8 @@ public class EventoController {
         List<EventoResponseDTO> eventos = soloActivos 
             ? eventoService.listarActivos() 
             : eventoService.listarTodos();
-        return ResponseEntity.ok(eventos);
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -73,10 +75,11 @@ public class EventoController {
     )
     @ApiResponse(responseCode = "200", description = "Eventos próximos")
     @GetMapping("/proximos")
-    public ResponseEntity<List<EventoResponseDTO>> listarProximos() {
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarProximos() {
         log.info("GET /api/v1/eventos/proximos");
         List<EventoResponseDTO> eventos = eventoService.listarProximos();
-        return ResponseEntity.ok(eventos);
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos próximos obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -85,13 +88,14 @@ public class EventoController {
     )
     @ApiResponse(responseCode = "200", description = "Eventos filtrados")
     @GetMapping("/estado/{estado}")
-    public ResponseEntity<List<EventoResponseDTO>> listarPorEstado(
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarPorEstado(
             @Parameter(description = "Estado del evento", example = "ACTIVO")
             @PathVariable EstadoEvento estado) {
         
         log.info("GET /api/v1/eventos/estado/{}", estado);
         List<EventoResponseDTO> eventos = eventoService.listarPorEstado(estado);
-        return ResponseEntity.ok(eventos);
+        StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Eventos filtrados por estado obtenidos exitosamente", eventos);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -111,13 +115,14 @@ public class EventoController {
         )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<EventoResponseDTO> obtenerPorId(
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> obtenerPorId(
             @Parameter(description = "ID del evento", required = true, example = "1")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/eventos/{}", id);
         EventoResponseDTO evento = eventoService.obtenerPorId(id);
-        return ResponseEntity.ok(evento);
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento obtenido exitosamente", evento);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -136,9 +141,10 @@ public class EventoController {
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<EventoResponseDTO> crear(@Valid @RequestBody EventoCreateDTO dto) {
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> crear(@Valid @RequestBody EventoCreateDTO dto) {
         log.info("POST /api/v1/eventos - Crear: {}", dto.getNombre());
-        EventoResponseDTO response = eventoService.crear(dto);
+        EventoResponseDTO evento = eventoService.crear(dto);
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -154,12 +160,13 @@ public class EventoController {
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<EventoResponseDTO> actualizar(
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizar(
             @PathVariable Integer id,
             @Valid @RequestBody EventoCreateDTO dto) {
         
         log.info("PUT /api/v1/eventos/{}", id);
-        EventoResponseDTO response = eventoService.actualizar(id, dto);
+        EventoResponseDTO evento = eventoService.actualizar(id, dto);
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
         return ResponseEntity.ok(response);
     }
 
@@ -171,10 +178,11 @@ public class EventoController {
     @ApiResponse(responseCode = "204", description = "Evento desactivado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {
         log.info("DELETE /api/v1/eventos/{}", id);
         eventoService.eliminarLogico(id);
-        return ResponseEntity.noContent().build();
+        StandardResponse<String> response = StandardResponse.success("Evento eliminado exitosamente");
+        return ResponseEntity.ok(response);
     }
 }
 

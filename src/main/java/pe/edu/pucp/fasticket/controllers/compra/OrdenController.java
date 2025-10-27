@@ -1,4 +1,4 @@
-package pe.edu.pucp.fasticket.controllers.compra; // Or controllers.ordenes
+package pe.edu.pucp.fasticket.controllers.compra;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -88,6 +88,9 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                     String.format("No puedes tener más de %d tickets en el carrito.", LIMITE_MAXIMO_TICKETS_POR_CLIENTE)
             );
         }
+        
+        // Validar límite por persona para este tipo de ticket
+        validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
         List<Ticket> ticketsReservados = reservarTickets(tipoTicket, request.getCantidad());
         ItemCarrito nuevoItem = new ItemCarrito();
         nuevoItem.setTipoTicket(tipoTicket);
@@ -184,6 +187,17 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     private String generarCodigoQrUnico() {
         return java.util.UUID.randomUUID().toString();
+    }
+    
+    private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
+        if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
+            // Verificar cuántos tickets de este tipo ha comprado el cliente
+            Integer ticketsComprados = ticketRepository.countTicketsByClienteAndTipoTicket(cliente.getIdPersona(), tipoTicket.getIdTipoTicket());
+            if (ticketsComprados + cantidad > tipoTicket.getLimitePorPersona()) {
+                throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " + 
+                    tipoTicket.getLimitePorPersona() + ". Ya has comprado " + ticketsComprados + " tickets de este tipo.");
+            }
+        }
     }
 
     private byte[] generarQrComoBytes(String contenido) {

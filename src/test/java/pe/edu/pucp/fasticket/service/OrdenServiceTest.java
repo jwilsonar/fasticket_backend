@@ -2,11 +2,14 @@ package pe.edu.pucp.fasticket.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +29,7 @@ import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
@@ -298,5 +302,114 @@ class OrdenServiceTest {
         assertThat(resumen.getItems().get(0).getCantidad()).isEqualTo(2);
         assertThat(resumen.getSubtotal()).isEqualTo(200.0); // 2 * 100.0
         assertThat(resumen.getTotal()).isEqualTo(200.0);
+    }
+
+    @Test
+    void testCrearOrden_ExcedeLimitePorPersona() {
+        // Configurar tipo de ticket con límite por persona
+        tipoTicketMock.setLimitePorPersona(2);
+        when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
+        
+        // Simular que el cliente ya compró 2 tickets de este tipo
+        when(ticketRepository.countTicketsByClienteAndTipoTicket(1, 1)).thenReturn(2);
+
+        // Crear DTO de orden que excede el límite
+        CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
+        ordenDTO.setIdCliente(1);
+        
+        ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
+        item.setIdTipoTicket(1);
+        item.setCantidad(1); // Intentar comprar 1 más cuando ya tiene 2 (límite es 2)
+        
+        DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+        asistente.setNombres("Test");
+        asistente.setApellidos("User");
+        asistente.setTipoDocumento(TipoDocumento.DNI);
+        asistente.setNumeroDocumento("12345678");
+        item.setAsistentes(Collections.singletonList(asistente));
+        
+        ordenDTO.setItems(Collections.singletonList(item));
+
+        // Ejecutar y verificar que lanza BusinessException
+        BusinessException exception = assertThrows(BusinessException.class, () -> ordenServicio.crearOrden(ordenDTO));
+        assertTrue(exception.getMessage().contains("límite de tickets por persona"));
+    }
+
+    @Test
+    void testCrearOrden_CreaTicketsCorrectamente() {
+        // Configurar mocks
+        when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
+        
+        // Crear tickets disponibles
+        List<Ticket> ticketsDisponibles = new ArrayList<>();
+        Ticket ticket1 = new Ticket();
+        ticket1.setIdTicket(1);
+        ticket1.setEstado(EstadoTicket.DISPONIBLE);
+        ticket1.setTipoTicket(tipoTicketMock);
+        ticketsDisponibles.add(ticket1);
+        
+        Ticket ticket2 = new Ticket();
+        ticket2.setIdTicket(2);
+        ticket2.setEstado(EstadoTicket.DISPONIBLE);
+        ticket2.setTipoTicket(tipoTicketMock);
+        ticketsDisponibles.add(ticket2);
+        
+        when(ticketRepository.findAvailableTicketsByTypeAndState(any(), any(), any()))
+                .thenReturn(ticketsDisponibles);
+        when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> {
+            OrdenCompra orden = invocation.getArgument(0);
+            orden.setIdOrdenCompra(1);
+            return orden;
+        });
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Crear DTO de orden
+        CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
+        ordenDTO.setIdCliente(1);
+        
+        ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
+        item.setIdTipoTicket(1);
+        item.setCantidad(2);
+        
+        DatosAsistenteDTO asistente1 = new DatosAsistenteDTO();
+        asistente1.setNombres("Test");
+        asistente1.setApellidos("User1");
+        asistente1.setTipoDocumento(TipoDocumento.DNI);
+        asistente1.setNumeroDocumento("12345678");
+        
+        DatosAsistenteDTO asistente2 = new DatosAsistenteDTO();
+        asistente2.setNombres("Test");
+        asistente2.setApellidos("User2");
+        asistente2.setTipoDocumento(TipoDocumento.DNI);
+        asistente2.setNumeroDocumento("87654321");
+        
+        item.setAsistentes(List.of(asistente1, asistente2));
+        ordenDTO.setItems(Collections.singletonList(item));
+
+        // Ejecutar
+        OrdenCompra ordenCreada = ordenServicio.crearOrden(ordenDTO);
+
+        // Verificar
+        assertThat(ordenCreada).isNotNull();
+        assertThat(ordenCreada.getItems()).hasSize(1);
+        assertThat(ordenCreada.getItems().get(0).getTickets()).hasSize(2);
+        
+        // Verificar que los tickets tienen el evento asignado
+        for (Ticket ticket : ordenCreada.getItems().get(0).getTickets()) {
+            assertThat(ticket.getEvento()).isNotNull();
+            assertThat(ticket.getOrdenCompra()).isNotNull();
+            assertThat(ticket.getCliente()).isNotNull();
+            assertThat(ticket.getEstado()).isEqualTo(EstadoTicket.RESERVADA);
+            assertThat(ticket.getCodigoQr()).isNotNull();
+        }
+        
+        // Verificar que se guardaron los tickets
+        verify(ticketRepository, times(2)).save(any(Ticket.class));
+        verify(clienteRepository, times(1)).save(any(Cliente.class));
     }
 }

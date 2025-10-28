@@ -262,4 +262,49 @@ public class CarroComprasServiceTests {
         Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
         assertTrue(exception.getMessage().contains("diferentes eventos"));
     }
+
+    @Test
+    void testAgregarItem_FallaPorLimitePorPersona() {
+        // Configurar límite por persona en el tipo de ticket
+        ticketEvento1.setLimitePorPersona(2);
+        tipoTicketRepository.save(ticketEvento1);
+
+        // Crear asistentes para el primer request (2 tickets)
+        List<DatosAsistenteDTO> asistentes1 = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+            asistente.setNombres("Asistente " + i);
+            asistente.setApellidos("Apellido " + i);
+            asistente.setTipoDocumento(TipoDocumento.DNI);
+            asistente.setNumeroDocumento("1234567" + i);
+            asistentes1.add(asistente);
+        }
+        
+        AddItemRequestDTO primerRequest = new AddItemRequestDTO();
+        primerRequest.setIdCliente(clientePrueba.getIdPersona());
+        primerRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
+        primerRequest.setCantidad(2);
+        primerRequest.setAsistentes(asistentes1);
+        carroComprasService.agregarItemAlCarrito(primerRequest);
+
+        // Intentar agregar más tickets del mismo tipo (debería fallar)
+        List<DatosAsistenteDTO> asistentes2 = new ArrayList<>();
+        for (int i = 2; i < 4; i++) {
+            DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+            asistente.setNombres("Asistente " + i);
+            asistente.setApellidos("Apellido " + i);
+            asistente.setTipoDocumento(TipoDocumento.DNI);
+            asistente.setNumeroDocumento("1234567" + i);
+            asistentes2.add(asistente);
+        }
+
+        AddItemRequestDTO segundoRequest = new AddItemRequestDTO();
+        segundoRequest.setIdCliente(clientePrueba.getIdPersona());
+        segundoRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
+        segundoRequest.setCantidad(2);
+        segundoRequest.setAsistentes(asistentes2);
+
+        Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
+        assertTrue(exception.getMessage().contains("límite de tickets por persona"));
+    }
 }

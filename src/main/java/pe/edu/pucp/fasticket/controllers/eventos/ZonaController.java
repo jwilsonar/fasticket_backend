@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -29,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
 import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
+import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.mapper.ZonaMapper;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
@@ -78,10 +81,21 @@ public class ZonaController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Obtener zona por ID")
+    @Operation(
+        summary = "Obtener zona por ID",
+        description = "Obtiene información detallada de una zona específica"
+    )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Zona encontrada"),
-        @ApiResponse(responseCode = "404", description = "Zona no encontrada")
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Zona encontrada",
+            content = @Content(schema = @Schema(implementation = ZonaDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Zona no encontrada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
     })
     @GetMapping("/{id}")
     public ResponseEntity<StandardResponse<ZonaDTO>> obtenerPorId(
@@ -100,10 +114,34 @@ public class ZonaController {
 
     @Operation(
         summary = "Crear zona",
-        description = "Crea una nueva zona. Solo administradores.",
+        description = "Crea una nueva zona dentro de un local. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponse(responseCode = "201", description = "Zona creada")
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "201", 
+            description = "Zona creada exitosamente",
+            content = @Content(schema = @Schema(implementation = ZonaDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Datos inválidos",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "401", 
+            description = "No autenticado"
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Sin permisos (requiere rol ADMINISTRADOR)"
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Local no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<ZonaDTO>> crear(@Valid @RequestBody ZonaCreateDTO dto) {
@@ -119,8 +157,28 @@ public class ZonaController {
 
     @Operation(
         summary = "Actualizar zona",
+        description = "Actualiza información de una zona existente. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Zona actualizada exitosamente",
+            content = @Content(schema = @Schema(implementation = ZonaDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Datos inválidos"
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Zona no encontrada"
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Sin permisos"
+        )
+    })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<ZonaDTO>> actualizar(
@@ -138,8 +196,23 @@ public class ZonaController {
 
     @Operation(
         summary = "Eliminar zona",
+        description = "Elimina una zona del sistema. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Zona eliminada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Zona no encontrada"
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Sin permisos"
+        )
+    })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<String>> eliminar(@PathVariable Integer id) {

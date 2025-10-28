@@ -84,12 +84,25 @@ public class OrdenServicio {
             item.setOrdenCompra(orden);
             for (Ticket ticket : item.getTickets()) {
                 ticket.setItemCarrito(item);
+                ticket.setOrdenCompra(orden); // Asociar ticket con la orden
                 ticket.setEstado(EstadoTicket.RESERVADA);
             }
         }
         orden.setItems(items);
         orden.calcularTotal();
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
+        
+        // Guardar explícitamente todos los tickets
+        for (ItemCarrito item : ordenGuardada.getItems()) {
+            for (Ticket ticket : item.getTickets()) {
+                ticketRepository.save(ticket);
+            }
+        }
+        
+        // Actualizar el historial de compras del cliente
+        cliente.getOrdenesCompra().add(ordenGuardada);
+        clienteRepository.save(cliente);
+        
         return ordenGuardada;
     }
 
@@ -160,6 +173,7 @@ public class OrdenServicio {
                 ticket.setEstado(EstadoTicket.RESERVADA);
                 ticket.setItemCarrito(item);
                 ticket.setCliente(cliente);
+                ticket.setEvento(evento); // Asignar el evento al ticket
                 ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
                 ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
                 ticket.setNombreAsistente(asistente.getNombres());
@@ -334,12 +348,32 @@ public class OrdenServicio {
             }
             carrito.removeItem(item);
             orden.addItem(item);
+            
+            // Asociar todos los tickets del item con la orden
+            for (Ticket ticket : item.getTickets()) {
+                ticket.setOrdenCompra(orden);
+            }
         }
         orden.calcularTotal();
         carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
         log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona());
-        return ordenCompraRepositorio.save(orden);
+        
+        OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
+        
+        // Guardar explícitamente todos los tickets
+        for (ItemCarrito item : ordenGuardada.getItems()) {
+            for (Ticket ticket : item.getTickets()) {
+                ticketRepository.save(ticket);
+            }
+        }
+        
+        // Actualizar el historial de compras del cliente
+        Cliente cliente = carrito.getCliente();
+        cliente.getOrdenesCompra().add(ordenGuardada);
+        clienteRepository.save(cliente);
+        
+        return ordenGuardada;
     }
 
     @Transactional

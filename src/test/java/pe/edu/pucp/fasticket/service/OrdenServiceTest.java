@@ -206,6 +206,8 @@ class OrdenServiceTest {
         ItemCarrito item = new ItemCarrito();
         Ticket ticket = new Ticket(); ticket.setEstado(EstadoTicket.RESERVADA);
         item.setTickets(List.of(ticket));
+        item.setTipoTicket(tipoTicketMock);
+        item.setCantidad(1);
         ordenPendiente.setItems(List.of(item));
 
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));

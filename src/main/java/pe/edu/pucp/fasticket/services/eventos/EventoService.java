@@ -1,5 +1,5 @@
 package pe.edu.pucp.fasticket.services.eventos;
-
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.*;
@@ -30,6 +30,7 @@ public class EventoService {
 
     private final EventosRepositorio eventoRepository;
     private final LocalesRepositorio localRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final EventoMapper eventoMapper;
 
     public List<EventoResponseDTO> listarTodos() {

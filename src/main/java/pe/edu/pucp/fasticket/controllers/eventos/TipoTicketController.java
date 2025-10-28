@@ -127,13 +127,11 @@ public class TipoTicketController {
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Tipo de ticket actualizado exitosamente",
-                    content = @Content(schema = @Schema(implementation = TipoTicket.class))
+                    description = "Tipo de ticket actualizado exitosamente"
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Tipo de ticket no encontrado",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Tipo de ticket no encontrado"
             ),
             @ApiResponse(
                     responseCode = "403",
@@ -148,7 +146,7 @@ public class TipoTicketController {
             @Valid @RequestBody ActualizarTipoTicketRequestDTO updateDTO) {
 
         log.info("PUT /api/v1/tipos-ticket/{}", id);
-        TipoTicketDTO actualizado = tipoTicketServicio.actualizarTipoTicket(id,updateDTO);
+        TipoTicketDTO actualizado = tipoTicketServicio.actualizarTipoTicket(id, updateDTO);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket actualizado exitosamente", actualizado));
     }
 
@@ -171,11 +169,6 @@ public class TipoTicketController {
                     description = "Sin permisos"
             )
     })
-        summary = "Eliminar tipo de ticket",
-        description = "Elimina un tipo de ticket. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponse(responseCode = "204", description = "Tipo de ticket eliminado")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> eliminar(
@@ -187,4 +180,5 @@ public class TipoTicketController {
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
     }
 }
+
 

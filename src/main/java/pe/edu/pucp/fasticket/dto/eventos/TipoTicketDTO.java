@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,19 +14,21 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TipoTicketDTO {
-    
+
     private Integer idTipoTicket;
     private String nombre;
     private String descripcion;
-    private BigDecimal precio;
+    private Double precio;
+    private Integer stock;
     private Integer cantidadDisponible;
     private Integer cantidadVendida;
+    private LocalDateTime fechaInicioVenta;
+    private LocalDateTime fechaFinVenta;
+    private Boolean activo;
     private Integer idEvento;
     private String nombreEvento;
-    private Integer idZona;
-    private String nombreZona;
-    private Boolean activo;
-    public TipoTicketDTO(TipoTicket p_tipoTicket){
+
+    public TipoTicketDTO(TipoTicket p_tipoTicket) {
         this.idTipoTicket = p_tipoTicket.getIdTipoTicket();
         this.stock = p_tipoTicket.getStock();
         this.cantidadDisponible = p_tipoTicket.getCantidadDisponible();

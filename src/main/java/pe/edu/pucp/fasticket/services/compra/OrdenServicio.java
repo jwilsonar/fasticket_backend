@@ -1,5 +1,7 @@
 package pe.edu.pucp.fasticket.services.compra;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;

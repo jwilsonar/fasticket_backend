@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.security;
 
-import lombok.RequiredArgsConstructor;
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,7 +20,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Configuración de seguridad de Spring Security con JWT.
@@ -52,12 +53,17 @@ public class SecurityConfig {
                         // Endpoints de solo lectura para clientes
                         .requestMatchers(HttpMethod.GET, "/api/v1/eventos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/locales/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/zonas/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tipos-ticket/**").permitAll()
                         
                         // Endpoints de administración
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/v1/eventos/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/eventos/**").hasRole("ADMINISTRADOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/eventos/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/zonas/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/zonas/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/zonas/**").hasRole("ADMINISTRADOR")
                         
                         // Endpoints de compras (requiere autenticación)
                         .requestMatchers("/api/v1/compras/**").authenticated()

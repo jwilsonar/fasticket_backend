@@ -1,14 +1,18 @@
 package pe.edu.pucp.fasticket.services.eventos;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
-
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -17,6 +21,7 @@ import java.util.Optional;
 public class ZonaServicioImpl implements ZonaServicio {
 
     private final ZonaRepository zonaRepository;
+    private final LocalesRepositorio localRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -40,14 +45,42 @@ public class ZonaServicioImpl implements ZonaServicio {
     }
 
     @Override
-    public Zona crear(Zona zona) {
+    public Zona crear(Zona zona, Integer idLocal) {
         log.info("Creando nueva zona: {}", zona.getNombre());
-        return zonaRepository.save(zona);
+        log.info("ID del local a asignar: {}", idLocal);
+        
+        // Cargar el local desde la base de datos
+        if (idLocal != null) {
+            log.info("Buscando local con ID: {}", idLocal);
+            Local local = localRepository.findById(idLocal)
+                    .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + idLocal));
+            zona.setLocal(local);
+            log.info("Local asignado: {}", local);
+        } else {
+            log.warn("El ID del local es null");
+        }
+        
+        Zona zonaGuardada = zonaRepository.save(zona);
+        log.info("Zona guardada - ID: {}, Local: {}", zonaGuardada.getIdZona(), zonaGuardada.getLocal());
+        return zonaGuardada;
     }
 
     @Override
-    public Zona actualizar(Zona zona) {
+    public Zona actualizar(Zona zona, Integer idLocal) {
         log.info("Actualizando zona con ID: {}", zona.getIdZona());
+        log.info("ID del local a asignar: {}", idLocal);
+        
+        // Cargar el local desde la base de datos
+        if (idLocal != null) {
+            log.info("Buscando local con ID: {}", idLocal);
+            Local local = localRepository.findById(idLocal)
+                    .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + idLocal));
+            zona.setLocal(local);
+            log.info("Local asignado: {}", local);
+        } else {
+            log.warn("El ID del local es null");
+        }
+        
         return zonaRepository.save(zona);
     }
 

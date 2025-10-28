@@ -52,6 +52,7 @@ build/
 .AppleDouble
 .LSOverride
 .nul
+nul
 
 # Windows
 Thumbs.db

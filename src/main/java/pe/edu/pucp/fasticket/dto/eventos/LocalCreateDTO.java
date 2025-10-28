@@ -24,8 +24,8 @@ public class LocalCreateDTO {
     @Size(max = 300, message = "La dirección no puede exceder 300 caracteres")
     private String direccion;
 
-    @Schema(description = "URL del mapa del local", example = "https://maps.google.com/...")
-    @Size(max = 500, message = "La URL del mapa no puede exceder 500 caracteres")
+    @Schema(description = "Información del mapa del local (coordenadas, enlace, etc.)", example = "Coordenadas: -12.0464, -77.0428")
+    @Size(max = 1000, message = "La información del mapa no puede exceder 1000 caracteres")
     private String urlMapa;
 
     @Schema(description = "Capacidad máxima del local", example = "45000", requiredMode = Schema.RequiredMode.REQUIRED)

@@ -1,10 +1,23 @@
 package pe.edu.pucp.fasticket.service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -19,25 +32,17 @@ import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
-
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrdenServiceTest {
@@ -60,6 +65,7 @@ class OrdenServiceTest {
     // --- Datos de prueba reutilizables ---
     private Cliente clienteMock;
     private Evento eventoMock;
+    private Local localMock;
     private TipoTicket tipoTicketMock;
     private CrearOrdenDTO crearOrdenDTO;
     private ItemSeleccionadoDTO itemSeleccionadoDTO;
@@ -72,17 +78,31 @@ class OrdenServiceTest {
         clienteMock.setIdPersona(1);
         // clienteMock.setFechaNacimiento(...) // Necesario para calcularEdad si lo usas
 
+        localMock = new Local();
+        localMock.setIdLocal(1);
+        localMock.setNombre("Local Test");
+        localMock.setActivo(true);
+        
         eventoMock = new Evento();
         eventoMock.setIdEvento(1);
         eventoMock.setNombre("Evento Test");
         eventoMock.setEdadMinima(18);
+        eventoMock.setLocal(localMock);
 
         tipoTicketMock = new TipoTicket();
         tipoTicketMock.setIdTipoTicket(1);
         tipoTicketMock.setNombre("VIP");
         tipoTicketMock.setPrecio(100.0);
         tipoTicketMock.setCantidadDisponible(10); // Stock inicial
-        tipoTicketMock.setEvento(eventoMock);
+        // Crear zona mock
+        Zona zonaMock = new Zona();
+        zonaMock.setIdZona(1);
+        zonaMock.setNombre("Zona VIP");
+        zonaMock.setAforoMax(100);
+        zonaMock.setActivo(true);
+        zonaMock.setLocal(localMock);
+        
+        tipoTicketMock.setZona(zonaMock);
 
         asistenteDTO = new DatosAsistenteDTO();
         asistenteDTO.setTipoDocumento(TipoDocumento.DNI);
@@ -109,6 +129,12 @@ class OrdenServiceTest {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         // 2. Simula que el tipo de ticket existe
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        // 2.1. Simula que se encuentra el evento asociado al tipo de ticket
+        Evento eventoMock = new Evento();
+        eventoMock.setIdEvento(1);
+        eventoMock.setNombre("Evento de Prueba");
+        eventoMock.setEdadMinima(18);
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         // 3. Simula que hay tickets disponibles
         List<Ticket> ticketsDisponibles = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
@@ -178,6 +204,7 @@ class OrdenServiceTest {
         // Arrange
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         // Simula que solo hay 1 ticket disponible cuando se piden 2
         List<Ticket> ticketsDisponibles = List.of(new Ticket());
         when(ticketRepository.findAvailableTicketsByTypeAndState(
@@ -211,6 +238,7 @@ class OrdenServiceTest {
         ordenPendiente.setItems(List.of(item));
 
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente); // Devuelve la orden guardada
 
         // Act

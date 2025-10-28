@@ -1,6 +1,11 @@
 package pe.edu.pucp.fasticket.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Collections;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +15,14 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
@@ -18,22 +30,22 @@ import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
-import pe.edu.pucp.fasticket.model.eventos.*;
+import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.*;
+import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
-
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.Collections;
-import java.util.List;
-
-import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -56,6 +68,9 @@ public class OrdenControllerTest {
     private LocalesRepositorio localRepositorio;
     @Autowired
     private TipoTicketRepositorio tipoTicketRepositorio;
+    
+    @Autowired
+    private ZonaRepositorio zonaRepositorio;
     @Autowired
     private TicketRepository ticketRepository;
     @Autowired
@@ -98,12 +113,27 @@ public class OrdenControllerTest {
         evento.setLocal(localTest);
         eventoTest = eventoRepositorio.save(evento);
 
+        // Crear zona de prueba
+        Zona zonaVip = new Zona();
+        zonaVip.setNombre("Zona VIP");
+        zonaVip.setAforoMax(500);
+        zonaVip.setActivo(true);
+        zonaVip.setLocal(localTest);
+        zonaVip = zonaRepositorio.save(zonaVip);
+
+        Zona zonaGeneral = new Zona();
+        zonaGeneral.setNombre("Zona General");
+        zonaGeneral.setAforoMax(2000);
+        zonaGeneral.setActivo(true);
+        zonaGeneral.setLocal(localTest);
+        zonaGeneral = zonaRepositorio.save(zonaGeneral);
+
         tipoTicketVip = new TipoTicket();
         tipoTicketVip.setNombre("Entrada VIP");
         tipoTicketVip.setPrecio(250.0);
         tipoTicketVip.setStock(500);
         tipoTicketVip.setCantidadDisponible(5);
-        tipoTicketVip.setEvento(eventoTest);
+        tipoTicketVip.setZona(zonaVip);
         tipoTicketVip.setActivo(true);
         tipoTicketVip = tipoTicketRepositorio.save(tipoTicketVip);
 
@@ -112,7 +142,7 @@ public class OrdenControllerTest {
         tipoTicketGeneral.setPrecio(100.0);
         tipoTicketGeneral.setStock(2000);
         tipoTicketGeneral.setCantidadDisponible(10);
-        tipoTicketGeneral.setEvento(eventoTest);
+        tipoTicketGeneral.setZona(zonaGeneral);
         tipoTicketGeneral.setActivo(true);
         tipoTicketGeneral = tipoTicketRepositorio.save(tipoTicketGeneral);
 

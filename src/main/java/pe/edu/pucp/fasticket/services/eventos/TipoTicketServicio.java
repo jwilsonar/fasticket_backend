@@ -1,78 +1,156 @@
 package pe.edu.pucp.fasticket.services.eventos;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.mapper.TipoTicketMapper;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
-import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-
-import java.util.List;
-import java.util.Optional;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class TipoTicketServicio {
 
-    @Autowired
-    private TipoTicketRepositorio repo_tipoTicket;
-    @Autowired
-    private EventosRepositorio repo_evento;
+    private final TipoTicketRepositorio tipoTicketRepositorio;
+    private final ZonaRepositorio zonaRepositorio;
+    private final TipoTicketMapper tipoTicketMapper;
 
-    public List<TipoTicketDTO> ListarTiposTicket() {
-        return repo_tipoTicket.findAll()
+    public List<TipoTicketDTO> listarTodos() {
+        log.info("Listando todos los tipos de ticket");
+        return tipoTicketRepositorio.findAll()
                 .stream()
-                .map(TipoTicketDTO::new)
+                .map(tipoTicketMapper::toDTO)
                 .toList();
     }
 
-    public TipoTicketDTO BuscarId(Integer id) {
-        TipoTicket tipoTicket = repo_tipoTicket.findById(id)
+    public List<TipoTicketDTO> listarPorZona(Integer idZona) {
+        log.info("Listando tipos de ticket para zona: {}", idZona);
+        return tipoTicketRepositorio.findByZonaIdZona(idZona)
+                .stream()
+                .map(tipoTicketMapper::toDTO)
+                .toList();
+    }
+
+    public TipoTicketDTO obtenerPorId(Integer id) {
+        log.info("Obteniendo tipo de ticket con ID: {}", id);
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
-        return new TipoTicketDTO(tipoTicket);
+        return tipoTicketMapper.toDTO(tipoTicket);
     }
 
     @Transactional
-    public TipoTicketDTO crearTipoTicket(CrearTipoTicketRequestDTO dto) {
-        Evento evento = repo_evento.findById(dto.getIdEvento())
-                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + dto.getIdEvento()));
-        TipoTicket nuevoTipoTicket = new TipoTicket();
-        nuevoTipoTicket.setEvento(evento);
-        nuevoTipoTicket.setNombre(dto.getNombre());
-        nuevoTipoTicket.setDescripcion(dto.getDescripcion());
-        nuevoTipoTicket.setPrecio(dto.getPrecio());
-        nuevoTipoTicket.setStock(dto.getStock());
-        nuevoTipoTicket.setCantidadDisponible(dto.getStock());
-        nuevoTipoTicket.setCantidadVendida(0);
-        nuevoTipoTicket.setActivo(true);
-        nuevoTipoTicket.setFechaInicioVenta(dto.getFechaInicioVenta());
-        nuevoTipoTicket.setFechaFinVenta(dto.getFechaFinVenta());
-        TipoTicket guardado = repo_tipoTicket.save(nuevoTipoTicket);
-        return new TipoTicketDTO(guardado);
-    }
-
-    @Transactional
-    public TipoTicketDTO actualizarTipoTicket(Integer id, ActualizarTipoTicketRequestDTO dto) {
-        TipoTicket tipoTicket = repo_tipoTicket.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
+    public TipoTicketDTO crear(CrearTipoTicketRequestDTO dto) {
+        log.info("Creando tipo de ticket: {} para zona: {}", dto.getNombre(), dto.getIdZona());
+        
+        // Validar que la zona existe
+        Zona zona = zonaRepositorio.findById(dto.getIdZona())
+                .orElseThrow(() -> new ResourceNotFoundException("Zona no encontrada con ID: " + dto.getIdZona()));
+        
+        // Validar que la zona esté activa
+        if (!zona.getActivo()) {
+            throw new BusinessException("No se puede crear tipo de ticket para una zona inactiva");
+        }
+        
+        // Validar que el stock no exceda el aforo de la zona
+        if (dto.getStock() > zona.getAforoMax()) {
+            throw new BusinessException("El stock no puede exceder el aforo máximo de la zona (" + zona.getAforoMax() + ")");
+        }
+        
+        // Validar que no exista otro tipo de ticket con el mismo nombre en la misma zona
+        if (tipoTicketRepositorio.existsByNombreAndZonaIdZona(dto.getNombre(), dto.getIdZona())) {
+            throw new BusinessException("Ya existe un tipo de ticket con el nombre '" + dto.getNombre() + "' en esta zona");
+        }
+        
+        // Crear el tipo de ticket
+        TipoTicket tipoTicket = new TipoTicket();
+        tipoTicket.setZona(zona);
         tipoTicket.setNombre(dto.getNombre());
         tipoTicket.setDescripcion(dto.getDescripcion());
         tipoTicket.setPrecio(dto.getPrecio());
-        tipoTicket.setFechaInicioVenta(dto.getFechaInicioVenta());
-        tipoTicket.setFechaFinVenta(dto.getFechaFinVenta());
         tipoTicket.setStock(dto.getStock());
-        TipoTicket actualizado = repo_tipoTicket.save(tipoTicket);
-        return new TipoTicketDTO(actualizado);
+        tipoTicket.setCantidadDisponible(dto.getStock());
+        tipoTicket.setCantidadVendida(0);
+        tipoTicket.setActivo(true);
+        tipoTicket.setLimitePorPersona(dto.getLimitePorPersona());
+        
+        TipoTicket guardado = tipoTicketRepositorio.save(tipoTicket);
+        log.info("Tipo de ticket creado exitosamente con ID: {}", guardado.getIdTipoTicket());
+        
+        return tipoTicketMapper.toDTO(guardado);
     }
 
-    public void Eliminar(Integer id) {
-        if (!repo_tipoTicket.existsById(id)) {
-            throw new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id);
+    @Transactional
+    public TipoTicketDTO actualizar(Integer id, ActualizarTipoTicketRequestDTO dto) {
+        log.info("Actualizando tipo de ticket con ID: {}", id);
+        
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
+        
+        // Validar que el stock no exceda el aforo de la zona
+        if (dto.getStock() > tipoTicket.getZona().getAforoMax()) {
+            throw new BusinessException("El stock no puede exceder el aforo máximo de la zona (" + tipoTicket.getZona().getAforoMax() + ")");
         }
-        repo_tipoTicket.deleteById(id);
+        
+        // Validar que no exista otro tipo de ticket con el mismo nombre en la misma zona
+        if (!tipoTicket.getNombre().equals(dto.getNombre()) && 
+            tipoTicketRepositorio.existsByNombreAndZonaIdZona(dto.getNombre(), tipoTicket.getZona().getIdZona())) {
+            throw new BusinessException("Ya existe un tipo de ticket con el nombre '" + dto.getNombre() + "' en esta zona");
+        }
+        
+        // Actualizar campos
+        tipoTicket.setNombre(dto.getNombre());
+        tipoTicket.setDescripcion(dto.getDescripcion());
+        tipoTicket.setPrecio(dto.getPrecio());
+        tipoTicket.setLimitePorPersona(dto.getLimitePorPersona());
+        
+        // Actualizar stock y cantidad disponible
+        int diferenciaStock = dto.getStock() - tipoTicket.getStock();
+        tipoTicket.setStock(dto.getStock());
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + diferenciaStock);
+        
+        TipoTicket actualizado = tipoTicketRepositorio.save(tipoTicket);
+        log.info("Tipo de ticket actualizado exitosamente");
+        
+        return tipoTicketMapper.toDTO(actualizado);
+    }
+
+    @Transactional
+    public void eliminar(Integer id) {
+        log.info("Eliminando tipo de ticket con ID: {}", id);
+        
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
+        
+        // Validar que no tenga tickets vendidos
+        if (tipoTicket.getCantidadVendida() > 0) {
+            throw new BusinessException("No se puede eliminar un tipo de ticket que ya tiene tickets vendidos");
+        }
+        
+        tipoTicketRepositorio.delete(tipoTicket);
+        log.info("Tipo de ticket eliminado exitosamente");
+    }
+
+    @Transactional
+    public void desactivar(Integer id) {
+        log.info("Desactivando tipo de ticket con ID: {}", id);
+        
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + id));
+        
+        tipoTicket.setActivo(false);
+        tipoTicketRepositorio.save(tipoTicket);
+        log.info("Tipo de ticket desactivado exitosamente");
     }
 }

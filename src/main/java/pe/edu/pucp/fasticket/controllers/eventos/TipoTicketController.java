@@ -50,21 +50,74 @@ public class TipoTicketController {
 
     @Operation(
             summary = "Listar tipos de ticket",
-            description = "Obtiene lista de todos los tipos de ticket disponibles"
+            description = "Obtiene lista de todos los tipos de ticket disponibles. Opcionalmente puede filtrar por zona específica y estado activo.",
+            parameters = {
+                @Parameter(
+                    name = "zona", 
+                    description = "ID de la zona para filtrar tipos de ticket específicos", 
+                    example = "1",
+                    schema = @Schema(type = "integer", minimum = "1")
+                ),
+                @Parameter(
+                    name = "activos", 
+                    description = "Filtrar solo tipos de ticket activos (true/false)", 
+                    example = "true",
+                    schema = @Schema(type = "boolean")
+                )
+            }
     )
-    @ApiResponse(
+    @ApiResponses({
+        @ApiResponse(
             responseCode = "200",
-            description = "Lista obtenida exitosamente")
+            description = "Lista obtenida exitosamente",
+            content = @Content(schema = @Schema(implementation = TipoTicketDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "ID de zona inválido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Zona no encontrada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
     @GetMapping
     public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar(
-            @Parameter(description = "Filtrar por zona específica")
-            @RequestParam(required = false) Integer zona) {
+            @Parameter(description = "ID de la zona para filtrar tipos de ticket específicos", example = "1")
+            @RequestParam(required = false) Integer zona,
+            @Parameter(description = "Filtrar solo tipos de ticket activos", example = "true")
+            @RequestParam(required = false, defaultValue = "false") Boolean activos) {
         
-        log.info("GET /api/v1/tipos-ticket?zona={}", zona);
-        List<TipoTicketDTO> tiposTicket = zona != null 
-            ? tipoTicketServicio.listarPorZona(zona)
-            : tipoTicketServicio.listarTodos();
-        return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
+        log.info("GET /api/v1/tipos-ticket?zona={}&activos={}", zona, activos);
+        
+        // Validar que el ID de zona sea válido si se proporciona
+        if (zona != null && zona <= 0) {
+            log.warn("ID de zona inválido proporcionado: {}", zona);
+            return ResponseEntity.badRequest()
+                .body(StandardResponse.error("El ID de zona debe ser un número positivo"));
+        }
+        
+        List<TipoTicketDTO> tiposTicket;
+        String mensaje;
+        
+        if (zona != null) {
+            // Filtrar por zona
+            if (activos) {
+                tiposTicket = tipoTicketServicio.listarPorZonaActivos(zona);
+                mensaje = String.format("Lista de tipos de ticket activos para zona %d obtenida exitosamente", zona);
+            } else {
+                tiposTicket = tipoTicketServicio.listarPorZona(zona);
+                mensaje = String.format("Lista de tipos de ticket para zona %d obtenida exitosamente", zona);
+            }
+        } else {
+            // Listar todos
+            tiposTicket = tipoTicketServicio.listarTodos();
+            mensaje = "Lista de tipos de ticket obtenida exitosamente";
+        }
+            
+        return ResponseEntity.ok(StandardResponse.success(mensaje, tiposTicket));
     }
 
     @Operation(

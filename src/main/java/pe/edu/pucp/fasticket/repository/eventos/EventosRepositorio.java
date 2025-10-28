@@ -23,6 +23,21 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
     List<Evento> findByEstadoEventoAndActivoTrue(EstadoEvento estado);
     
     List<Evento> findByFechaEventoBetweenAndActivoTrue(LocalDate fechaInicio, LocalDate fechaFin);
+    /**
+     * RF-065: Filtra por tipo de evento (String) y que esté activo.
+     */
+    List<Evento> findByTipoEventoAndActivoTrue(String tipoEvento);
+
+    /**
+     * RF-067: Filtra por el ID del distrito del local del evento y que esté activo.
+     * Spring Data JPA navegará: Evento -> Local -> Distrito -> idDistrito
+     */
+    List<Evento> findByLocalDistritoIdDistritoAndActivoTrue(Integer idDistrito);
+
+    /**
+     * RF-069: Busca todos los activos y los ordena por fecha.
+     */
+    List<Evento> findByActivoTrueOrderByFechaEventoAsc();
     
     @Query("SELECT e FROM Evento e WHERE e.fechaEvento >= :fecha AND e.activo = true ORDER BY e.fechaEvento ASC")
     List<Evento> findEventosProximos(@Param("fecha") LocalDate fecha);

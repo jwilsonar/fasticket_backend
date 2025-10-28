@@ -7,12 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
 import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
@@ -34,6 +37,7 @@ import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 @AutoConfigureMockMvc
 @Transactional
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 public class ZonaControllerTest {
 
     @Autowired
@@ -181,6 +185,24 @@ public class ZonaControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
+    void testCrearZona_ConImagen() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen de zona de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "zona.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/zonas/con-imagen")
+                        .file(imagen)
+                        .param("nombre", "Zona Con Imagen")
+                        .param("aforoMax", "100")
+                        .param("idLocal", localTest.getIdLocal().toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.nombre").value("Zona Con Imagen"))
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearZona_LocalNoExiste() throws Exception {
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("Zona Test");
@@ -190,7 +212,7 @@ public class ZonaControllerTest {
         mockMvc.perform(post("/api/v1/zonas")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -223,6 +245,28 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado"))
                 .andExpect(jsonPath("$.data.aforoMax").value(150))
                 .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    void testActualizarZona_ConImagen() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen actualizada de zona".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "zona_updated.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/con-imagen")
+                        .file(imagen)
+                        .param("nombre", "VIP Actualizado Con Imagen")
+                        .param("aforoMax", "200")
+                        .param("idLocal", localTest.getIdLocal().toString())
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado Con Imagen"))
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
     }
 
     @Test

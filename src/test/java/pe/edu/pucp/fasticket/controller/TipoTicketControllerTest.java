@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
@@ -29,6 +31,7 @@ import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Import(TestConfig.class)
 public class TipoTicketControllerTest {
 
     @Autowired

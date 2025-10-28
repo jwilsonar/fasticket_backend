@@ -57,6 +57,9 @@ public class Local {
     @Column(name = "aforoTotal", nullable = false)
     private Integer aforoTotal;
 
+    @Column(name = "imagenUrl", length = 500)
+    private String imagenUrl;
+
     @Column(name = "activo")
     private Boolean activo = true;
 

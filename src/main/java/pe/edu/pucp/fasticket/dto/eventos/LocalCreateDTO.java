@@ -35,5 +35,8 @@ public class LocalCreateDTO {
 
     @Schema(description = "ID del distrito", example = "1")
     private Integer idDistrito;
+
+    @Schema(description = "URL de la imagen del local", example = "https://bucket.s3.region.amazonaws.com/locales/1/imagen.jpg")
+    private String imagenUrl;
 }
 

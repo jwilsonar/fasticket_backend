@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -34,6 +35,7 @@ import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.mapper.ZonaMapper;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 
 @Tag(
@@ -49,6 +51,7 @@ public class ZonaController {
 
     private final ZonaServicio zonaServicio;
     private final ZonaMapper zonaMapper;
+    private final S3Service s3Service;
 
     @Operation(
         summary = "Listar zonas",
@@ -142,17 +145,70 @@ public class ZonaController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         )
     })
-    @PostMapping
+    @PostMapping(consumes = "application/json")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<ZonaDTO>> crear(@Valid @RequestBody ZonaCreateDTO dto) {
-        log.info("POST /api/v1/zonas - Nombre: {}, idLocal: {}", dto.getNombre(), dto.getIdLocal());
-        Zona zona = zonaMapper.toEntity(dto);
-        log.info("Zona mapeada - Local: {}", zona.getLocal());
-        Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
-        ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
-        log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
-        StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ResponseEntity<StandardResponse<ZonaDTO>> crear(
+            @Valid @RequestBody ZonaCreateDTO dto) {
+        
+        log.info("POST /api/v1/zonas - Nombre: {}, idLocal: {}", 
+                dto.getNombre(), dto.getIdLocal());
+        
+        try {
+            Zona zona = zonaMapper.toEntity(dto);
+            log.info("Zona mapeada - Local: {}", zona.getLocal());
+            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
+            ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
+            
+            log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
+            StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error al crear zona: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error al crear zona: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "/con-imagen", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<ZonaDTO>> crearConImagen(
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "aforoMax", required = false) Integer aforoMax,
+            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+        
+        log.info("POST /api/v1/zonas/con-imagen - Nombre: {}", nombre != null ? nombre : "con imagen");
+        
+        try {
+            if (nombre == null) {
+                return ResponseEntity.badRequest()
+                    .body(StandardResponse.error("Se requiere información de la zona"));
+            }
+            
+            ZonaCreateDTO dto = new ZonaCreateDTO();
+            dto.setNombre(nombre);
+            dto.setAforoMax(aforoMax);
+            dto.setIdLocal(idLocal);
+            
+            Zona zona = zonaMapper.toEntity(dto);
+            log.info("Zona mapeada - Local: {}", zona.getLocal());
+            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
+            ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
+            
+            // Subir imagen si se proporcionó
+            if (imagen != null && !imagen.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagen, "zonas", zonaDTO.getIdZona());
+                zonaDTO.setImagenUrl(imageUrl);
+            }
+            
+            log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
+            StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error al crear zona: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error al crear zona: " + e.getMessage()));
+        }
     }
 
     @Operation(
@@ -179,19 +235,69 @@ public class ZonaController {
             description = "Sin permisos"
         )
     })
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = "application/json")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<ZonaDTO>> actualizar(
             @PathVariable Integer id,
             @Valid @RequestBody ZonaCreateDTO dto) {
         
         log.info("PUT /api/v1/zonas/{}", id);
-        Zona zona = zonaMapper.toEntity(dto);
-        zona.setIdZona(id);
-        Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
-        ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
-        StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
-        return ResponseEntity.ok(response);
+        
+        try {
+            Zona zona = zonaMapper.toEntity(dto);
+            zona.setIdZona(id);
+            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
+            ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
+            
+            StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al actualizar zona: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error al actualizar zona: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping(value = "/{id}/con-imagen", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<ZonaDTO>> actualizarConImagen(
+            @PathVariable Integer id,
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "aforoMax", required = false) Integer aforoMax,
+            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+        
+        log.info("PUT /api/v1/zonas/{}/con-imagen", id);
+        
+        try {
+            if (nombre == null) {
+                return ResponseEntity.badRequest()
+                    .body(StandardResponse.error("Se requiere información de la zona"));
+            }
+            
+            ZonaCreateDTO dto = new ZonaCreateDTO();
+            dto.setNombre(nombre);
+            dto.setAforoMax(aforoMax);
+            dto.setIdLocal(idLocal);
+            
+            Zona zona = zonaMapper.toEntity(dto);
+            zona.setIdZona(id);
+            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
+            ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
+            
+            // Subir imagen si se proporcionó
+            if (imagen != null && !imagen.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagen, "zonas", zonaDTO.getIdZona());
+                zonaDTO.setImagenUrl(imageUrl);
+            }
+            
+            StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al actualizar zona: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error al actualizar zona: " + e.getMessage()));
+        }
     }
 
     @Operation(
@@ -220,6 +326,57 @@ public class ZonaController {
         zonaServicio.eliminar(id);
         StandardResponse<String> response = StandardResponse.success("Zona eliminada exitosamente");
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+        summary = "Subir imagen de zona",
+        description = "Sube una imagen para una zona específica. Solo administradores.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Imagen subida exitosamente",
+            content = @Content(schema = @Schema(implementation = String.class))
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Archivo inválido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "401", 
+            description = "No autenticado"
+        ),
+        @ApiResponse(
+            responseCode = "403", 
+            description = "Sin permisos (requiere rol ADMINISTRADOR)"
+        )
+    })
+    @PostMapping("/{id}/imagen")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<String>> subirImagenZona(
+            @Parameter(description = "ID de la zona", required = true)
+            @PathVariable Integer id,
+            @Parameter(description = "Archivo de imagen", required = true)
+            @RequestParam("file") MultipartFile file) {
+        
+        log.info("POST /api/v1/zonas/{}/imagen", id);
+        
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(StandardResponse.error("El archivo no puede estar vacío"));
+        }
+        
+        try {
+            String imageUrl = s3Service.uploadFile(file, "zonas", id);
+            StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al subir imagen de la zona {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(StandardResponse.error("Error al subir la imagen: " + e.getMessage()));
+        }
     }
 }
 

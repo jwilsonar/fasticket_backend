@@ -29,3 +29,9 @@ variable "swagger_enabled" {
   default     = "true"
 }
 
+variable "s3_bucket_prefix" {
+  description = "Prefijo para el nombre del bucket S3 (se añadirá un sufijo aleatorio)"
+  type        = string
+  default     = "fasticket-images"
+}
+

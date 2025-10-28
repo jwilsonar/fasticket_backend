@@ -16,4 +16,8 @@ public class ZonaCreateDTO {
     @NotNull(message = "El aforo es obligatorio")
     @Positive(message = "El aforo debe ser un número positivo")
     private Integer aforoMax; // Ej: 1000
+
+    @NotNull(message = "El id del local es obligatorio")
+    @Positive(message = "El id del local debe ser un número positivo")
+    private Integer idLocal; // id del Local al que pertenece la zona
 }

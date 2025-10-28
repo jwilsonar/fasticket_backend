@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -26,6 +27,7 @@ import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class TipoTicketControllerTest {
 
@@ -61,8 +63,41 @@ public class TipoTicketControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
     public void testObtenerTipoTicketPorId_Publico() throws Exception {
-        mockMvc.perform(get("/api/v1/tipos-ticket/1"))
+        // Primero crear un tipo de ticket para poder obtenerlo
+        Zona zona = zonaRepositorio.findAll().stream().findFirst().orElse(null);
+        if (zona == null) {
+            zona = new Zona();
+            zona.setNombre("Zona Test");
+            zona.setAforoMax(100);
+            zona.setActivo(true);
+            zona = zonaRepositorio.save(zona);
+        }
+
+        String nombreUnico = generarNombreUnico("VIP Test");
+        CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
+        createRequest.setIdZona(zona.getIdZona());
+        createRequest.setNombre(nombreUnico);
+        createRequest.setDescripcion("Acceso VIP de prueba");
+        createRequest.setPrecio(150.0);
+        createRequest.setStock(50);
+
+        // Crear el tipo de ticket
+        String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        // Extraer el ID del tipo de ticket creado
+        TipoTicketDTO createdTicket = objectMapper.readValue(
+                objectMapper.readTree(createResponse).get("data").toString(),
+                TipoTicketDTO.class
+        );
+
+        // Ahora obtener el tipo de ticket creado
+        mockMvc.perform(get("/api/v1/tipos-ticket/" + createdTicket.getIdTipoTicket()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.mensaje").value("Tipo de ticket obtenido exitosamente"))

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
@@ -29,6 +31,7 @@ import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Import(TestConfig.class)
 public class TipoTicketControllerTest {
 
     @Autowired
@@ -55,10 +58,17 @@ public class TipoTicketControllerTest {
 
     @Test
     public void testListarTiposTicket_FiltroPorZona() throws Exception {
-        mockMvc.perform(get("/api/v1/tipos-ticket?zona=1"))
+        // Crear una zona para el test
+        Zona zona = new Zona();
+        zona.setNombre("Zona Test Filtro");
+        zona.setAforoMax(100);
+        zona.setActivo(true);
+        zona = zonaRepositorio.save(zona);
+
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket obtenida exitosamente"))
+                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket para zona " + zona.getIdZona() + " obtenida exitosamente"))
                 .andExpect(jsonPath("$.data").isArray());
     }
 
@@ -298,5 +308,137 @@ public class TipoTicketControllerTest {
     public void testEliminarTipoTicket_SinPermisoCliente() throws Exception {
         mockMvc.perform(delete("/api/v1/tipos-ticket/1"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ========== NUEVOS TESTS PARA FILTROS MEJORADOS ==========
+
+    @Test
+    public void testListarTiposTicket_FiltroPorZonaActivos() throws Exception {
+        // Crear una zona para el test
+        Zona zona = new Zona();
+        zona.setNombre("Zona Test Activos");
+        zona.setAforoMax(100);
+        zona.setActivo(true);
+        zona = zonaRepositorio.save(zona);
+
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona() + "&activos=true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket activos para zona " + zona.getIdZona() + " obtenida exitosamente"))
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    public void testListarTiposTicket_FiltroSoloActivos() throws Exception {
+        mockMvc.perform(get("/api/v1/tipos-ticket?activos=true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket obtenida exitosamente"))
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    public void testListarTiposTicket_ZonaNoExiste() throws Exception {
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.mensaje").value("Zona no encontrada con ID: 999"));
+    }
+
+    @Test
+    public void testListarTiposTicket_ZonaNoExisteConActivos() throws Exception {
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=999&activos=true"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.mensaje").value("Zona no encontrada con ID: 999"));
+    }
+
+    @Test
+    public void testListarTiposTicket_IdZonaInvalido() throws Exception {
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.mensaje").value("El ID de zona debe ser un número positivo"));
+    }
+
+    @Test
+    public void testListarTiposTicket_IdZonaNegativo() throws Exception {
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.mensaje").value("El ID de zona debe ser un número positivo"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    public void testListarTiposTicket_ConTiposTicketEnZona() throws Exception {
+        // Crear una zona
+        Zona zona = new Zona();
+        zona.setNombre("Zona Test Con Tickets");
+        zona.setAforoMax(100);
+        zona.setActivo(true);
+        zona = zonaRepositorio.save(zona);
+
+        // Crear un tipo de ticket en esa zona
+        String nombreUnico = generarNombreUnico("VIP Test Filtro");
+        CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
+        createRequest.setIdZona(zona.getIdZona());
+        createRequest.setNombre(nombreUnico);
+        createRequest.setDescripcion("Acceso VIP de prueba para filtro");
+        createRequest.setPrecio(150.0);
+        createRequest.setStock(50);
+
+        // Crear el tipo de ticket como administrador
+        mockMvc.perform(post("/api/v1/tipos-ticket")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated());
+
+        // Ahora probar el filtro por zona
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket para zona " + zona.getIdZona() + " obtenida exitosamente"))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].nombre").value(nombreUnico))
+                .andExpect(jsonPath("$.data[0].idZona").value(zona.getIdZona()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    public void testListarTiposTicket_ConTiposTicketActivosEnZona() throws Exception {
+        // Crear una zona
+        Zona zona = new Zona();
+        zona.setNombre("Zona Test Con Tickets Activos");
+        zona.setAforoMax(100);
+        zona.setActivo(true);
+        zona = zonaRepositorio.save(zona);
+
+        // Crear un tipo de ticket activo en esa zona
+        String nombreUnico = generarNombreUnico("VIP Test Activo");
+        CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
+        createRequest.setIdZona(zona.getIdZona());
+        createRequest.setNombre(nombreUnico);
+        createRequest.setDescripcion("Acceso VIP activo de prueba");
+        createRequest.setPrecio(150.0);
+        createRequest.setStock(50);
+
+        // Crear el tipo de ticket como administrador
+        mockMvc.perform(post("/api/v1/tipos-ticket")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated());
+
+        // Ahora probar el filtro por zona activos
+        mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona() + "&activos=true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.mensaje").value("Lista de tipos de ticket activos para zona " + zona.getIdZona() + " obtenida exitosamente"))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].nombre").value(nombreUnico))
+                .andExpect(jsonPath("$.data[0].idZona").value(zona.getIdZona()))
+                .andExpect(jsonPath("$.data[0].activo").value(true));
     }
 }

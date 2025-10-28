@@ -37,10 +37,36 @@ public class TipoTicketServicio {
 
     public List<TipoTicketDTO> listarPorZona(Integer idZona) {
         log.info("Listando tipos de ticket para zona: {}", idZona);
-        return tipoTicketRepositorio.findByZonaIdZona(idZona)
+        
+        // Validar que la zona existe
+        if (!zonaRepositorio.existsById(idZona)) {
+            throw new ResourceNotFoundException("Zona no encontrada con ID: " + idZona);
+        }
+        
+        List<TipoTicketDTO> tiposTicket = tipoTicketRepositorio.findByZonaIdZona(idZona)
                 .stream()
                 .map(tipoTicketMapper::toDTO)
                 .toList();
+                
+        log.info("Encontrados {} tipos de ticket para zona {}", tiposTicket.size(), idZona);
+        return tiposTicket;
+    }
+
+    public List<TipoTicketDTO> listarPorZonaActivos(Integer idZona) {
+        log.info("Listando tipos de ticket activos para zona: {}", idZona);
+        
+        // Validar que la zona existe
+        if (!zonaRepositorio.existsById(idZona)) {
+            throw new ResourceNotFoundException("Zona no encontrada con ID: " + idZona);
+        }
+        
+        List<TipoTicketDTO> tiposTicket = tipoTicketRepositorio.findByZonaIdZonaAndActivoTrue(idZona)
+                .stream()
+                .map(tipoTicketMapper::toDTO)
+                .toList();
+                
+        log.info("Encontrados {} tipos de ticket activos para zona {}", tiposTicket.size(), idZona);
+        return tiposTicket;
     }
 
     public TipoTicketDTO obtenerPorId(Integer id) {

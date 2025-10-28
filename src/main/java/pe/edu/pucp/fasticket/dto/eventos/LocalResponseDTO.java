@@ -41,5 +41,8 @@ public class LocalResponseDTO {
     
     @Schema(description = "Fecha de creación", example = "2025-10-10")
     private LocalDate fechaCreacion;
+    
+    @Schema(description = "URL de la imagen del local", example = "https://bucket.s3.region.amazonaws.com/locales/1/imagen.jpg")
+    private String imagenUrl;
 }
 

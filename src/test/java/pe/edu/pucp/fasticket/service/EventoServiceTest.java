@@ -1,11 +1,23 @@
 package pe.edu.pucp.fasticket.service;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
@@ -16,12 +28,6 @@ import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-
 /**
  * Tests para EventoService.
  * Valida operaciones CRUD de eventos.
@@ -29,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 public class EventoServiceTest {
 
     @Autowired

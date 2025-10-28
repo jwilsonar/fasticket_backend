@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
@@ -51,6 +53,7 @@ import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 @AutoConfigureMockMvc
 @Transactional
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 public class OrdenControllerTest {
 
     @Autowired

@@ -1,11 +1,21 @@
 package pe.edu.pucp.fasticket.service;
 
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.LocalCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.LocalResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
@@ -18,10 +28,6 @@ import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.geografia.ProvinciaRepository;
 import pe.edu.pucp.fasticket.services.eventos.LocalService;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-
 /**
  * Tests para LocalService.
  * Valida operaciones CRUD de locales.
@@ -29,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 public class LocalServiceTest {
 
     @Autowired

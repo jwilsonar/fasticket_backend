@@ -87,6 +87,9 @@ public class ZonaServicioImpl implements ZonaServicio {
     @Override
     public void eliminar(Integer id) {
         log.info("Eliminando zona con ID: {}", id);
+        if (!zonaRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Zona no encontrada con ID: " + id);
+        }
         zonaRepository.deleteById(id);
     }
 

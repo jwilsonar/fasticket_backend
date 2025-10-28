@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 @ActiveProfiles("test")
 public class EventoControllerTest {
 
@@ -56,6 +56,7 @@ public class EventoControllerTest {
         localTest.setNombre("Estadio Prueba Setup");
         localTest.setDireccion("Dirección Test 456");
         localTest.setAforoTotal(5000);
+        localTest.setActivo(true);
         localTest = localRepositorio.save(localTest);
         Evento evento = new Evento();
         evento.setNombre("Concierto Test Setup");
@@ -75,7 +76,15 @@ public class EventoControllerTest {
         tipoTicketTest.setStock(1000);
         tipoTicketTest.setCantidadDisponible(1000);
         tipoTicketTest.setEvento(eventoTest);
+        tipoTicketTest.setActivo(true);
         tipoTicketTest = tipoTicketRepositorio.save(tipoTicketTest);
+    }
+
+    @AfterEach
+    void tearDown() {
+        tipoTicketRepositorio.deleteAll();
+        eventoRepository.deleteAll();
+        localRepositorio.deleteAll();
     }
 
     @Test
@@ -91,7 +100,7 @@ public class EventoControllerTest {
         mockMvc.perform(get("/api/v1/eventos/" + eventoTest.getIdEvento()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento()))
-                .andExpect(jsonPath("$.data.nombre").value("Concierto Test"));
+                .andExpect(jsonPath("$.data.nombre").value("Concierto Test Setup"));
     }
 
     @Test

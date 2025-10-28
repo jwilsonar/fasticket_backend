@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
+import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
+import pe.edu.pucp.fasticket.mapper.ZonaMapper;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 
@@ -40,14 +45,36 @@ import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 public class ZonaController {
 
     private final ZonaServicio zonaServicio;
+    private final ZonaMapper zonaMapper;
 
-    @Operation(summary = "Listar todas las zonas")
+    @Operation(
+        summary = "Listar zonas",
+        description = "Obtiene lista de zonas. Puede filtrar por local específico usando el parámetro 'local'."
+    )
     @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
-    public ResponseEntity<StandardResponse<List<Zona>>> listar() {
-        log.info("GET /api/v1/zonas");
-        List<Zona> zonas = zonaServicio.listarTodas();
-        StandardResponse<List<Zona>> response = StandardResponse.success("Zonas obtenidas exitosamente", zonas);
+    public ResponseEntity<StandardResponse<List<ZonaDTO>>> listar(
+            @Parameter(description = "ID del local para filtrar zonas (opcional)")
+            @RequestParam(required = false) Integer local) {
+        
+        log.info("GET /api/v1/zonas?local={}", local);
+        
+        List<Zona> zonas;
+        if (local != null) {
+            zonas = zonaServicio.buscarPorLocal(local);
+        } else {
+            zonas = zonaServicio.listarTodas();
+        }
+        
+        List<ZonaDTO> zonasDTO = zonas.stream()
+                .map(zonaMapper::toDTO)
+                .collect(Collectors.toList());
+        
+        String mensaje = local != null 
+            ? String.format("Zonas del local %d obtenidas exitosamente", local)
+            : "Zonas obtenidas exitosamente";
+            
+        StandardResponse<List<ZonaDTO>> response = StandardResponse.success(mensaje, zonasDTO);
         return ResponseEntity.ok(response);
     }
 
@@ -57,14 +84,15 @@ public class ZonaController {
         @ApiResponse(responseCode = "404", description = "Zona no encontrada")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<StandardResponse<Zona>> obtenerPorId(
+    public ResponseEntity<StandardResponse<ZonaDTO>> obtenerPorId(
             @Parameter(description = "ID de la zona")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/zonas/{}", id);
         return zonaServicio.buscarPorId(id)
                 .map(zona -> {
-                    StandardResponse<Zona> response = StandardResponse.success("Zona obtenida exitosamente", zona);
+                    ZonaDTO zonaDTO = zonaMapper.toDTO(zona);
+                    StandardResponse<ZonaDTO> response = StandardResponse.success("Zona obtenida exitosamente", zonaDTO);
                     return ResponseEntity.ok(response);
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -78,10 +106,14 @@ public class ZonaController {
     @ApiResponse(responseCode = "201", description = "Zona creada")
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Zona>> crear(@Valid @RequestBody Zona zona) {
-        log.info("POST /api/v1/zonas - Nombre: {}", zona.getNombre());
-        Zona nuevaZona = zonaServicio.crear(zona);
-        StandardResponse<Zona> response = StandardResponse.success("Zona creada exitosamente", nuevaZona);
+    public ResponseEntity<StandardResponse<ZonaDTO>> crear(@Valid @RequestBody ZonaCreateDTO dto) {
+        log.info("POST /api/v1/zonas - Nombre: {}, idLocal: {}", dto.getNombre(), dto.getIdLocal());
+        Zona zona = zonaMapper.toEntity(dto);
+        log.info("Zona mapeada - Local: {}", zona.getLocal());
+        Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
+        ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
+        log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
+        StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -91,14 +123,16 @@ public class ZonaController {
     )
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Zona>> actualizar(
+    public ResponseEntity<StandardResponse<ZonaDTO>> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody Zona zona) {
+            @Valid @RequestBody ZonaCreateDTO dto) {
         
         log.info("PUT /api/v1/zonas/{}", id);
+        Zona zona = zonaMapper.toEntity(dto);
         zona.setIdZona(id);
-        Zona actualizada = zonaServicio.actualizar(zona);
-        StandardResponse<Zona> response = StandardResponse.success("Zona actualizada exitosamente", actualizada);
+        Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
+        ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
+        StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
         return ResponseEntity.ok(response);
     }
 

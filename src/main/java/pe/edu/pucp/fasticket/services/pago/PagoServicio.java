@@ -1,28 +1,29 @@
 package pe.edu.pucp.fasticket.services.pago;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.pago.ComprobanteDTO;
-import pe.edu.pucp.fasticket.dto.pago.PagoResumenDTO;
 import pe.edu.pucp.fasticket.dto.pago.RegistrarPagoDTO;
 import pe.edu.pucp.fasticket.model.pago.Boleta;
 import pe.edu.pucp.fasticket.model.pago.ComprobantePago;
 import pe.edu.pucp.fasticket.model.pago.EstadoPago;
 import pe.edu.pucp.fasticket.model.pago.Pago;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.pago.BoletaRepositorio;
 import pe.edu.pucp.fasticket.repository.pago.ComprobanteDePagoRepositorio;
 import pe.edu.pucp.fasticket.repository.pago.PagoRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class PagoServicio {
@@ -39,6 +40,8 @@ public class PagoServicio {
     private PersonasRepositorio personaRepositorio;
     @Autowired
     private BoletaRepositorio boletaRepositorio;
+    @Autowired
+    private TipoTicketRepositorio tipoTicketRepositorio;
 
     public ComprobanteDTO registrarPagoFinal(RegistrarPagoDTO dto) {
         var orden = ordenRepository.findById(dto.getIdOrden())
@@ -74,7 +77,7 @@ public class PagoServicio {
         boleta.setNombreCliente(usuario.getNombres() + " " + usuario.getApellidos());
         boleta.setComprobantePago(comprobante);
         boletaRepositorio.save(boleta);
-        OrdenResumenDTO ordenDTO = new OrdenResumenDTO(orden);
+        OrdenResumenDTO ordenDTO = new OrdenResumenDTO(orden, tipoTicketRepositorio);
         List<DatosAsistenteDTO> asistentes = orden.getItems().stream().flatMap(item -> item.getTickets().stream()).map(e -> new DatosAsistenteDTO(
                         e.getTipoDocumentoAsistente(),
                         e.getDocumentoAsistente(),

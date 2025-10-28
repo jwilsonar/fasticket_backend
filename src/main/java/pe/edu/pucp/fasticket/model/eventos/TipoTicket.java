@@ -25,8 +25,8 @@ import pe.edu.pucp.fasticket.model.fidelizacion.Promocion;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"evento", "tickets", "promocionesAplicables"})
-@ToString(exclude = {"evento", "tickets", "promocionesAplicables"})
+@EqualsAndHashCode(exclude = {"zona", "tickets", "promocionesAplicables"})
+@ToString(exclude = {"zona", "tickets", "promocionesAplicables"})
 @Entity
 @Table(name = "TipoTicket")
 public class TipoTicket {
@@ -64,9 +64,12 @@ public class TipoTicket {
     @Column(name = "activo")
     private Boolean activo = true;
 
+    @Column(name = "limitePorPersona")
+    private Integer limitePorPersona;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idEvento")
-    private Evento evento;
+    @JoinColumn(name = "idZona")
+    private Zona zona;
 
     @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();

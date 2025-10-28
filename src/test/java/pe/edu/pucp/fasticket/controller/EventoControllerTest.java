@@ -1,6 +1,11 @@
 package pe.edu.pucp.fasticket.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,18 +16,25 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.model.eventos.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-
-import java.time.LocalDate;
-import java.time.LocalTime;
-
-import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 
 /**
  * Tests de integración para EventoController.
@@ -45,6 +57,9 @@ public class EventoControllerTest {
     private LocalesRepositorio localRepositorio;
     @Autowired
     private TipoTicketRepositorio tipoTicketRepositorio;
+    
+    @Autowired
+    private ZonaRepositorio zonaRepositorio;
 
     private Evento eventoTest;
     private Local localTest;
@@ -75,7 +90,15 @@ public class EventoControllerTest {
         tipoTicketTest.setPrecio(120.0);
         tipoTicketTest.setStock(1000);
         tipoTicketTest.setCantidadDisponible(1000);
-        tipoTicketTest.setEvento(eventoTest);
+        // Crear zona de prueba
+        Zona zonaTest = new Zona();
+        zonaTest.setNombre("Zona Test");
+        zonaTest.setAforoMax(1000);
+        zonaTest.setActivo(true);
+        zonaTest.setLocal(localTest);
+        zonaTest = zonaRepositorio.save(zonaTest);
+        
+        tipoTicketTest.setZona(zonaTest);
         tipoTicketTest.setActivo(true);
         tipoTicketTest = tipoTicketRepositorio.save(tipoTicketTest);
     }

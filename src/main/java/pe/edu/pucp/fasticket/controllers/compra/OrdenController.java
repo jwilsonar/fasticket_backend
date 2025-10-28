@@ -1,5 +1,17 @@
 package pe.edu.pucp.fasticket.controllers.compra;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -11,18 +23,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 
 @Tag(
@@ -38,6 +47,7 @@ public class OrdenController {
 
     private final OrdenServicio ordenServicio;
     private final OrdenCompraRepositorio ordenCompraRepositorio;
+    private final TipoTicketRepositorio tipoTicketRepositorio;
 
     @Operation(
             summary = "Crear nueva orden (Checkout directo)",
@@ -58,7 +68,7 @@ public class OrdenController {
     public ResponseEntity<StandardResponse<OrdenResumenDTO>> crearOrden(@Valid @RequestBody CrearOrdenDTO crearOrdenDTO) {
         log.info("POST /api/v1/ordenes - Cliente: {}", crearOrdenDTO.getIdCliente());
         OrdenCompra nuevaOrden = ordenServicio.crearOrden(crearOrdenDTO);
-        OrdenResumenDTO resumenDTO = new OrdenResumenDTO(nuevaOrden);
+        OrdenResumenDTO resumenDTO = new OrdenResumenDTO(nuevaOrden, tipoTicketRepositorio);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(StandardResponse.success("Proceso iniciado correctamente.", resumenDTO));
@@ -84,7 +94,7 @@ public class OrdenController {
         log.info("GET /api/v1/ordenes/{}", id);
         OrdenCompra orden = ordenCompraRepositorio.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + id));
-        OrdenResumenDTO resumen = new OrdenResumenDTO(orden);
+        OrdenResumenDTO resumen = new OrdenResumenDTO(orden, tipoTicketRepositorio);
         return ResponseEntity.ok(StandardResponse.success("Proceso iniciado correctamente.", resumen));
     }
 
@@ -152,7 +162,7 @@ public class OrdenController {
 
         OrdenCompra orden = ordenServicio.comprarDesdeCarrito(idCarrito);
 
-        OrdenResumenDTO resumen = new OrdenResumenDTO(orden);
+        OrdenResumenDTO resumen = new OrdenResumenDTO(orden, tipoTicketRepositorio);
 
         return ResponseEntity.ok(StandardResponse.success(
                 "Carrito comprado correctamente.",

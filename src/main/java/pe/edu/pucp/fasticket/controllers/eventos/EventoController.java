@@ -184,5 +184,47 @@ public class EventoController {
         StandardResponse<String> response = StandardResponse.success("Evento eliminado exitosamente");
         return ResponseEntity.ok(response);
     }
+    @Operation(
+            summary = "Obtener detalle de evento para proceso de compra",
+            description = "Devuelve los datos del evento, su local y los tipos de ticket disponibles. Endpoint público."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Detalle obtenido exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Evento no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @GetMapping("/{id}/detalle-compra")
+    public ResponseEntity<?> obtenerDetalleEventoParaCompra(
+            @Parameter(description = "ID del evento", required = true, example = "1")
+            @PathVariable Integer id) {
+
+        log.info("GET /api/v1/eventos/{}/detalle-compra", id);
+
+        try {
+            var detalle = eventoService.obtenerDetalleParaCompra(id);
+            return ResponseEntity.ok().body(
+                    java.util.Map.of(
+                            "success", true,
+                            "mensajeAviso", "Detalle de evento obtenido exitosamente",
+                            "data", detalle
+                    )
+            );
+        } catch (RuntimeException ex) {
+            log.error("Error al obtener detalle de evento {}: {}", id, ex.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    java.util.Map.of(
+                            "success", false,
+                            "message", "Evento no encontrado"
+                    )
+            );
+        }
+    }
+
 }
 

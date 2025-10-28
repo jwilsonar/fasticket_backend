@@ -76,7 +76,7 @@ fasticket/
 │   └── terraform/                    # Infraestructura como código
 ├── docker-compose.yml
 ├── Dockerfile
-└── pom.xml
+└── pom.xml 
 ```
 
 ## Configuración

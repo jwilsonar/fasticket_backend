@@ -44,6 +44,9 @@ public class Local {
     @Column(name = "nombre", nullable = false, length = 200)
     private String nombre;
 
+    @Column(name = "urlMapa")
+    private String urlMapa;
+
     @Column(name = "direccion", length = 300)
     private String direccion;
 

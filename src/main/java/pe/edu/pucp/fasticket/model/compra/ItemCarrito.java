@@ -65,10 +65,35 @@ public class ItemCarrito {
     @JoinColumn(name = "idTipoTicket", nullable = false)
     private TipoTicket tipoTicket;
 
-    @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "itemCarrito", cascade = CascadeType.ALL, fetch = FetchType.LAZY,orphanRemoval = true)
     private List<Ticket> tickets = new ArrayList<>();
 
     public void calcularPrecioFinal() {
         this.precioFinal = (this.precio * this.cantidad) - this.descuento;
+    }
+
+    public void addTicket(Ticket ticket) {
+        if (this.tickets == null) {
+            this.tickets = new ArrayList<>();
+        }
+        this.tickets.add(ticket);
+        ticket.setItemCarrito(this);
+        ticket.setOrdenCompra(this.ordenCompra);
+    }
+
+    public void setOrdenCompra(OrdenCompra ordenCompra) {
+        this.ordenCompra = ordenCompra;
+        if (this.tickets != null) {
+            for (Ticket ticket : this.tickets) {
+                ticket.setOrdenCompra(ordenCompra);
+            }
+        }
+    }
+
+    public void removeTicket(Ticket ticket) {
+        if (this.tickets != null) {
+            this.tickets.remove(ticket);
+            ticket.setItemCarrito(null);
+        }
     }
 }

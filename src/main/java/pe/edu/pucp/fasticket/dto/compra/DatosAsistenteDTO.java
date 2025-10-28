@@ -9,6 +9,8 @@ import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 @Data
 @NoArgsConstructor
 public class DatosAsistenteDTO {
+    @NotNull(message = "ID del Ticket es obligatorio")
+    private Integer idTicket;
     @NotNull
     private TipoDocumento tipoDocumento;
     @NotBlank

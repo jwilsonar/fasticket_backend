@@ -167,8 +167,12 @@ public class EventoController {
     public ResponseEntity<StandardResponse<EventoResponseDTO>> crearConImagen(
             @RequestParam(value = "imagen", required = false) MultipartFile imagen,
             @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "descripcion", required = false) String descripcion,
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
+            @RequestParam(value = "horaInicio", required = false) String horaInicio,
+            @RequestParam(value = "horaFin", required = false) String horaFin,
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
+            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
             @RequestParam(value = "idLocal", required = false) Integer idLocal) {
         
@@ -182,11 +186,21 @@ public class EventoController {
             
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
+            dto.setDescripcion(descripcion);
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }
+            if (horaInicio != null) {
+                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+            }
+            if (horaFin != null) {
+                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+            }
             if (tipoEvento != null) {
                 dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+            }
+            if (estadoEvento != null) {
+                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
             }
             dto.setAforoDisponible(aforoDisponible);
             dto.setIdLocal(idLocal);
@@ -244,8 +258,12 @@ public class EventoController {
             @PathVariable Integer id,
             @RequestParam(value = "imagen", required = false) MultipartFile imagen,
             @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "descripcion", required = false) String descripcion,
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
+            @RequestParam(value = "horaInicio", required = false) String horaInicio,
+            @RequestParam(value = "horaFin", required = false) String horaFin,
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
+            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
             @RequestParam(value = "idLocal", required = false) Integer idLocal) {
         
@@ -259,11 +277,21 @@ public class EventoController {
             
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
+            dto.setDescripcion(descripcion);
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }
+            if (horaInicio != null) {
+                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+            }
+            if (horaFin != null) {
+                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+            }
             if (tipoEvento != null) {
                 dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+            }
+            if (estadoEvento != null) {
+                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
             }
             dto.setAforoDisponible(aforoDisponible);
             dto.setIdLocal(idLocal);

@@ -2,6 +2,7 @@
 
 package pe.edu.pucp.fasticket.controllers.eventos;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -29,12 +30,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
+import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
 
 import org.springframework.core.io.ByteArrayResource;
@@ -57,6 +61,7 @@ import java.io.IOException;
 public class EventoController {
 
     private final EventoService eventoService;
+    private final S3Service s3Service;
 
     @Operation(
             summary = "Listar todos los eventos",
@@ -155,6 +160,66 @@ public class EventoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping(value = "/con-imagen", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> crearConImagen(
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "descripcion", required = false) String descripcion,
+            @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
+            @RequestParam(value = "horaInicio", required = false) String horaInicio,
+            @RequestParam(value = "horaFin", required = false) String horaFin,
+            @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
+            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
+            @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
+            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+
+        log.info("POST /api/v1/eventos/con-imagen - Crear: {}", nombre != null ? nombre : "con imagen");
+
+        try {
+            if (nombre == null) {
+                return ResponseEntity.badRequest()
+                        .body(StandardResponse.error("Se requiere información del evento"));
+            }
+
+            EventoCreateDTO dto = new EventoCreateDTO();
+            dto.setNombre(nombre);
+            dto.setDescripcion(descripcion);
+            if (fechaEvento != null) {
+                dto.setFechaEvento(LocalDate.parse(fechaEvento));
+            }
+            if (horaInicio != null) {
+                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+            }
+            if (horaFin != null) {
+                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+            }
+            if (tipoEvento != null) {
+                dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+            }
+            if (estadoEvento != null) {
+                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+            }
+            dto.setAforoDisponible(aforoDisponible);
+            dto.setIdLocal(idLocal);
+
+            EventoResponseDTO evento = eventoService.crear(dto);
+
+            // Subir imagen si se proporcionó
+            if (imagen != null && !imagen.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
+                evento.setImagenUrl(imageUrl);
+            }
+
+            StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error al crear evento: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(StandardResponse.error("Error al crear evento: " + e.getMessage()));
+        }
+    }
+
     @Operation(
             summary = "Actualizar evento",
             description = "Actualiza un evento existente. Solo administradores.",
@@ -175,6 +240,67 @@ public class EventoController {
         EventoResponseDTO evento = eventoService.actualizar(id, dto);
         StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping(value = "/{id}/con-imagen", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
+            @PathVariable Integer id,
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "nombre", required = false) String nombre,
+            @RequestParam(value = "descripcion", required = false) String descripcion,
+            @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
+            @RequestParam(value = "horaInicio", required = false) String horaInicio,
+            @RequestParam(value = "horaFin", required = false) String horaFin,
+            @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
+            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
+            @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
+            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+
+        log.info("PUT /api/v1/eventos/{}/con-imagen", id);
+
+        try {
+            if (nombre == null) {
+                return ResponseEntity.badRequest()
+                        .body(StandardResponse.error("Se requiere información del evento"));
+            }
+
+            EventoCreateDTO dto = new EventoCreateDTO();
+            dto.setNombre(nombre);
+            dto.setDescripcion(descripcion);
+            if (fechaEvento != null) {
+                dto.setFechaEvento(LocalDate.parse(fechaEvento));
+            }
+            if (horaInicio != null) {
+                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+            }
+            if (horaFin != null) {
+                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+            }
+            if (tipoEvento != null) {
+                dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+            }
+            if (estadoEvento != null) {
+                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+            }
+            dto.setAforoDisponible(aforoDisponible);
+            dto.setIdLocal(idLocal);
+
+            EventoResponseDTO evento = eventoService.actualizar(id, dto);
+
+            // Subir imagen si se proporcionó
+            if (imagen != null && !imagen.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
+                evento.setImagenUrl(imageUrl);
+            }
+
+            StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al actualizar evento: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(StandardResponse.error("Error al actualizar evento: " + e.getMessage()));
+        }
     }
 
     @Operation(
@@ -230,6 +356,57 @@ public class EventoController {
                             "message", "Evento no encontrado"
                     )
             );
+        }
+    }
+
+    @Operation(
+            summary = "Subir imagen de evento",
+            description = "Sube una imagen para un evento específico. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Imagen subida exitosamente",
+                    content = @Content(schema = @Schema(implementation = String.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Archivo inválido",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol ADMINISTRADOR)"
+            )
+    })
+    @PostMapping("/{id}/imagen")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<String>> subirImagenEvento(
+            @Parameter(description = "ID del evento", required = true)
+            @PathVariable Integer id,
+            @Parameter(description = "Archivo de imagen", required = true)
+            @RequestParam("file") MultipartFile file) {
+
+        log.info("POST /api/v1/eventos/{}/imagen", id);
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(StandardResponse.error("El archivo no puede estar vacío"));
+        }
+
+        try {
+            String imageUrl = s3Service.uploadFile(file, "eventos", id);
+            StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al subir imagen del evento {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(StandardResponse.error("Error al subir la imagen: " + e.getMessage()));
         }
     }
 

@@ -11,4 +11,5 @@ import java.util.List;
 @Repository
 public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integer> {
     List<OrdenCompra> findByEstadoAndFechaExpiracionBefore(EstadoCompra estado, LocalDateTime fechaExpiracion);
+    List<OrdenCompra> findByItems_TipoTicket_Evento_IdEventoAndEstado(Integer idEvento, EstadoCompra estado);
 }

@@ -84,11 +84,11 @@ public class OrdenCompra {
     @JoinColumn(name = "idCliente", nullable = false)
     private Cliente cliente; //
 
-    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY,orphanRemoval = true)
     private List<ItemCarrito> items = new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idCarroCompra", nullable = false)
+    @JoinColumn(name = "idCarroCompra",nullable = true)
     private CarroCompras carroCompras;
 
     @Column(name = "fechaExpiracion")

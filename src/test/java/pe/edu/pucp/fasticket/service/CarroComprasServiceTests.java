@@ -1,5 +1,14 @@
 package pe.edu.pucp.fasticket.service;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,21 +16,25 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
+import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
+import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
-import pe.edu.pucp.fasticket.model.usuario.*;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.model.usuario.Rol;
+import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
+import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
-
-import java.time.LocalDate; // Importante para la fecha
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
@@ -34,6 +47,7 @@ public class CarroComprasServiceTests {
     @Autowired private EventosRepositorio eventosRepositorio;
     @Autowired private ClienteRepository clienteRepository;
     @Autowired private TipoTicketRepository tipoTicketRepository;
+    @Autowired private TicketRepository ticketRepository;
     @Autowired private CarroComprasRepository carroComprasRepository;
 
     private Cliente clientePrueba;
@@ -55,23 +69,38 @@ public class CarroComprasServiceTests {
         cliente.setNivel(TipoNivel.BRONZE);
         clientePrueba = clienteRepository.save(cliente);
 
-        // 2. Crear Eventos de prueba (CON LOS CAMPOS OBLIGATORIOS)
+        // 2. Crear Eventos de prueba (CON TODOS LOS CAMPOS OBLIGATORIOS)
         evento1 = new Evento();
         evento1.setNombre("Concierto de Prueba Finalísimo");
-        evento1.setFechaEvento(LocalDate.now().plusMonths(3)); // <-- CAMBIO CLAVE: Añadimos fecha
+        evento1.setDescripcion("Descripción del concierto de prueba");
+        evento1.setFechaEvento(LocalDate.now().plusMonths(3));
+        evento1.setHoraInicio(LocalTime.of(20, 0));
+        evento1.setTipoEvento(pe.edu.pucp.fasticket.model.eventos.TipoEvento.ROCK);
+        evento1.setEstadoEvento(pe.edu.pucp.fasticket.model.eventos.EstadoEvento.ACTIVO);
+        evento1.setAforoDisponible(5000);
+        evento1.setActivo(true);
+        evento1.setFechaCreacion(LocalDate.now());
         evento1 = eventosRepositorio.save(evento1);
 
         Evento evento2 = new Evento();
         evento2.setNombre("Otro Concierto Finalísimo");
-        evento2.setFechaEvento(LocalDate.now().plusMonths(4)); // <-- CAMBIO CLAVE: Añadimos fecha
+        evento2.setDescripcion("Descripción del segundo concierto");
+        evento2.setFechaEvento(LocalDate.now().plusMonths(4));
+        evento2.setHoraInicio(LocalTime.of(19, 30));
+        evento2.setTipoEvento(pe.edu.pucp.fasticket.model.eventos.TipoEvento.POP);
+        evento2.setEstadoEvento(pe.edu.pucp.fasticket.model.eventos.EstadoEvento.ACTIVO);
+        evento2.setAforoDisponible(3000);
+        evento2.setActivo(true);
+        evento2.setFechaCreacion(LocalDate.now());
         evento2 = eventosRepositorio.save(evento2);
 
         // 3. Crear Tipos de Ticket
         ticketEvento1 = new TipoTicket();
         ticketEvento1.setNombre("VIP Finalísimo");
         ticketEvento1.setPrecio(250.0);
-        ticketEvento1.setCantidadDisponible(50);
-        ticketEvento1.setStock(50);
+        ticketEvento1.setCantidadDisponible(5);
+        ticketEvento1.setStock(5);
+        ticketEvento1.setActivo(true);
         ticketEvento1.setEvento(evento1);
         ticketEvento1 = tipoTicketRepository.save(ticketEvento1);
 
@@ -80,21 +109,61 @@ public class CarroComprasServiceTests {
         ticketEvento2.setPrecio(120.0);
         ticketEvento2.setCantidadDisponible(100);
         ticketEvento2.setStock(100);
+        ticketEvento2.setActivo(true);
         ticketEvento2.setEvento(evento2);
         ticketEvento2 = tipoTicketRepository.save(ticketEvento2);
+        
+        // 4. Crear tickets individuales para los tipos de ticket
+        crearTicketsParaTipoTicket(ticketEvento1, 5); // Solo 5 tickets disponibles
+        crearTicketsParaTipoTicket(ticketEvento2, 100);
+        
+        // 5. Asegurar que los eventos tengan la relación con los tipos de ticket
+        evento1.getTiposTicket().add(ticketEvento1);
+        eventosRepositorio.save(evento1);
+        
+        evento2.getTiposTicket().add(ticketEvento2);
+        eventosRepositorio.save(evento2);
+    }
+    
+    private void crearTicketsParaTipoTicket(TipoTicket tipoTicket, int cantidad) {
+        for (int i = 0; i < cantidad; i++) {
+            Ticket ticket = new Ticket();
+            ticket.setTipoTicket(tipoTicket);
+            ticket.setEvento(tipoTicket.getEvento());
+            ticket.setEstado(EstadoTicket.DISPONIBLE);
+            ticket.setPrecio(tipoTicket.getPrecio());
+            ticket.setCodigoQr("QR-" + tipoTicket.getIdTipoTicket() + "-" + i);
+            ticketRepository.save(ticket);
+        }
     }
 
-    // Los tests se mantienen exactamente iguales
     @Test
     void testAgregarItemAlCarrito_Exitoso() {
         AddItemRequestDTO request = new AddItemRequestDTO();
         request.setIdCliente(clientePrueba.getIdPersona());
         request.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
         request.setCantidad(2);
+        
+        // Crear asistentes para la validación
+        DatosAsistenteDTO asistente1 = new DatosAsistenteDTO();
+        asistente1.setNombres("Asistente 1");
+        asistente1.setApellidos("Apellido 1");
+        asistente1.setTipoDocumento(TipoDocumento.DNI);
+        asistente1.setNumeroDocumento("12345678");
+        
+        DatosAsistenteDTO asistente2 = new DatosAsistenteDTO();
+        asistente2.setNombres("Asistente 2");
+        asistente2.setApellidos("Apellido 2");
+        asistente2.setTipoDocumento(TipoDocumento.DNI);
+        asistente2.setNumeroDocumento("87654321");
+        
+        request.setAsistentes(List.of(asistente1, asistente2));
 
         CarroComprasDTO carritoDTO = carroComprasService.agregarItemAlCarrito(request);
 
-        assertNotNull(carritoDTO.getIdCarro());
+        assertNotNull(carritoDTO, "El carritoDTO no debe ser null");
+        assertNotNull(carritoDTO.getIdCarro(), "El ID del carrito no debe ser null");
+        assertNotNull(carritoDTO.getItems(), "La lista de items no debe ser null");
         assertEquals(1, carritoDTO.getItems().size());
         assertEquals(500.0, carritoDTO.getTotal());
         assertEquals(evento1.getIdEvento(), carroComprasRepository.findById(carritoDTO.getIdCarro()).get().getIdEventoActual());
@@ -105,26 +174,54 @@ public class CarroComprasServiceTests {
         AddItemRequestDTO request = new AddItemRequestDTO();
         request.setIdCliente(clientePrueba.getIdPersona());
         request.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
-        request.setCantidad(55);
+        request.setCantidad(8); // Dentro del límite máximo (10) pero excede el stock (5)
+        
+        // Crear asistentes para la validación
+        List<DatosAsistenteDTO> asistentes = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+            asistente.setNombres("Asistente " + i);
+            asistente.setApellidos("Apellido " + i);
+            asistente.setTipoDocumento(TipoDocumento.DNI);
+            asistente.setNumeroDocumento("1234567" + i);
+            asistentes.add(asistente);
+        }
+        request.setAsistentes(asistentes);
 
-        Exception exception = assertThrows(RuntimeException.class, () -> carroComprasService.agregarItemAlCarrito(request));
+        Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(request));
         assertTrue(exception.getMessage().contains("Stock insuficiente"));
     }
 
     @Test
     void testAgregarItem_FallaPorSerDeEventoDiferente() {
+        // Crear asistentes para el primer request
+        DatosAsistenteDTO asistente1 = new DatosAsistenteDTO();
+        asistente1.setNombres("Asistente 1");
+        asistente1.setApellidos("Apellido 1");
+        asistente1.setTipoDocumento(TipoDocumento.DNI);
+        asistente1.setNumeroDocumento("12345678");
+        
         AddItemRequestDTO primerRequest = new AddItemRequestDTO();
         primerRequest.setIdCliente(clientePrueba.getIdPersona());
         primerRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
         primerRequest.setCantidad(1);
+        primerRequest.setAsistentes(List.of(asistente1));
         carroComprasService.agregarItemAlCarrito(primerRequest);
+
+        // Crear asistentes para el segundo request
+        DatosAsistenteDTO asistente2 = new DatosAsistenteDTO();
+        asistente2.setNombres("Asistente 2");
+        asistente2.setApellidos("Apellido 2");
+        asistente2.setTipoDocumento(TipoDocumento.DNI);
+        asistente2.setNumeroDocumento("87654321");
 
         AddItemRequestDTO segundoRequest = new AddItemRequestDTO();
         segundoRequest.setIdCliente(clientePrueba.getIdPersona());
         segundoRequest.setIdTipoTicket(ticketEvento2.getIdTipoTicket());
         segundoRequest.setCantidad(1);
+        segundoRequest.setAsistentes(List.of(asistente2));
 
-        Exception exception = assertThrows(RuntimeException.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
+        Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
         assertTrue(exception.getMessage().contains("diferentes eventos"));
     }
 }

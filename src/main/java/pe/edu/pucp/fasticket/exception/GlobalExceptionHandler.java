@@ -271,5 +271,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(StandardResponse.error("Ha ocurrido un error inesperado. Por favor, contacte al administrador.", error));
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleGenericRuntimeError(
+            RuntimeException ex, HttpServletRequest request) {
+        log.error("Error de Runtime detectado: {}", ex.getMessage()); // Loguea como error
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value()) // Estado 400
+                .error("Bad Request")
+                .message(ex.getMessage()) // Mensaje específico del error
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity
+                .badRequest() // Devuelve 400
+                .body(StandardResponse.error(ex.getMessage(), error));
+    }
 }
 

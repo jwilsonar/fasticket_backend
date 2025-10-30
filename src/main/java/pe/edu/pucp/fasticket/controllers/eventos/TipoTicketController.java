@@ -2,6 +2,9 @@ package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.util.List;
 
+import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,8 +35,8 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
 
 @Tag(
-    name = "Tipos de Ticket",
-    description = "API para gestión de tipos de tickets para eventos"
+        name = "Tipos de Ticket",
+        description = "API para gestión de tipos de tickets para eventos"
 )
 @RestController
 @RequestMapping("/api/v1/tipos-ticket")
@@ -45,95 +48,133 @@ public class TipoTicketController {
     private final TipoTicketServicio tipoTicketServicio;
 
     @Operation(
-        summary = "Listar tipos de ticket",
-        description = "Obtiene lista de todos los tipos de ticket"
+            summary = "Listar tipos de ticket",
+            description = "Obtiene lista de todos los tipos de ticket disponibles"
     )
-    @ApiResponse(responseCode = "200", description = "Lista obtenida")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Lista obtenida exitosamente")
     @GetMapping
-    public ResponseEntity<StandardResponse<List<TipoTicket>>> listar() {
+    public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar() {
         log.info("GET /api/v1/tipos-ticket");
-        List<TipoTicket> tiposTicket = tipoTicketServicio.ListarTiposTicket();
+        List<TipoTicketDTO> tiposTicket = tipoTicketServicio.ListarTiposTicket();
         return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
     }
 
     @Operation(
-        summary = "Obtener tipo de ticket por ID",
-        description = "Obtiene información de un tipo de ticket específico"
+            summary = "Obtener tipo de ticket por ID",
+            description = "Obtiene información detallada de un tipo de ticket específico"
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Tipo de ticket encontrado"
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Tipo de ticket no encontrado",
-            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-        )
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Tipo de ticket encontrado",
+                    content = @Content(schema = @Schema(implementation = TipoTicket.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
     })
     @GetMapping("/{id}")
-    public ResponseEntity<StandardResponse<TipoTicket>> obtenerPorId(
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> obtenerPorId(
             @Parameter(description = "ID del tipo de ticket", required = true, example = "1")
             @PathVariable Integer id) {
-        
         log.info("GET /api/v1/tipos-ticket/{}", id);
-        return tipoTicketServicio.BuscarId(id)
-                .map(tipoTicket -> ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket)))
-                .orElse(ResponseEntity.notFound().build());
+        TipoTicketDTO tipoTicket = tipoTicketServicio.BuscarId(id);
+        return ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket));
     }
 
     @Operation(
-        summary = "Crear tipo de ticket",
-        description = "Crea un nuevo tipo de ticket para un evento. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Crear tipo de ticket",
+            description = "Crea un nuevo tipo de ticket para un evento (ej: VIP, General, Platea). Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Tipo de ticket creado"),
-        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
-        @ApiResponse(responseCode = "403", description = "Sin permisos")
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Tipo de ticket creado exitosamente",
+                    content = @Content(schema = @Schema(implementation = TipoTicket.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Datos inválidos",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol ADMINISTRADOR)"
+            )
     })
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<TipoTicket>> crear(@Valid @RequestBody TipoTicket tipoTicket) {
-        log.info("POST /api/v1/tipos-ticket - Nombre: {}", tipoTicket.getNombre());
-        TipoTicket nuevoTipoTicket = tipoTicketServicio.Guardar(tipoTicket);
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> crear(@Valid @RequestBody CrearTipoTicketRequestDTO requestDTO) {
+        log.info("POST /api/v1/tipos-ticket - Nombre: {}", requestDTO.getNombre());
+        TipoTicketDTO nuevoTipoTicket = tipoTicketServicio.crearTipoTicket(requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Tipo de ticket creado exitosamente", nuevoTipoTicket));
     }
 
     @Operation(
-        summary = "Actualizar tipo de ticket",
-        description = "Actualiza un tipo de ticket existente. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Actualizar tipo de ticket",
+            description = "Actualiza un tipo de ticket existente. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Tipo de ticket actualizado"),
-        @ApiResponse(responseCode = "404", description = "Tipo de ticket no encontrado")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Tipo de ticket actualizado exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos"
+            )
     })
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<TipoTicket>> actualizar(
+    public ResponseEntity<StandardResponse<TipoTicketDTO>> actualizar(
             @Parameter(description = "ID del tipo de ticket a actualizar", required = true)
             @PathVariable Integer id,
-            @Valid @RequestBody TipoTicket tipoTicket) {
-        
+            @Valid @RequestBody ActualizarTipoTicketRequestDTO updateDTO) {
+
         log.info("PUT /api/v1/tipos-ticket/{}", id);
-        tipoTicket.setIdTipoTicket(id);
-        TipoTicket actualizado = tipoTicketServicio.Guardar(tipoTicket);
+        TipoTicketDTO actualizado = tipoTicketServicio.actualizarTipoTicket(id, updateDTO);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket actualizado exitosamente", actualizado));
     }
 
     @Operation(
-        summary = "Eliminar tipo de ticket",
-        description = "Elimina un tipo de ticket. Solo administradores.",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Eliminar tipo de ticket",
+            description = "Elimina un tipo de ticket del sistema. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponse(responseCode = "204", description = "Tipo de ticket eliminado")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Tipo de ticket eliminado exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos"
+            )
+    })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> eliminar(
             @Parameter(description = "ID del tipo de ticket a eliminar", required = true)
             @PathVariable Integer id) {
-        
+
         log.info("DELETE /api/v1/tipos-ticket/{}", id);
         tipoTicketServicio.Eliminar(id);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));

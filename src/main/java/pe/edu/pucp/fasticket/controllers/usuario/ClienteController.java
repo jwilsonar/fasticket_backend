@@ -26,11 +26,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
-import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
@@ -219,6 +221,69 @@ public class ClienteController {
         log.info("GET /api/v1/clientes/nivel/{} - Obtener clientes por nivel", nivel);
         List<ClientePerfilResponseDTO> perfiles = clienteService.obtenerPerfilesPorNivel(nivel);
         return ResponseEntity.ok(StandardResponse.success("Perfiles obtenidos exitosamente", perfiles));
+    }
+
+    /////////////////////////////////////
+    //CAMBIOS YO QUE SON MUY CAMBIANTES//
+    /////////////////////////////////////
+
+    @Operation(
+            summary = "Editar perfil del cliente",
+            description = "RF-060: Permite al administrador editar datos de un cliente",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Perfil editado exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Datos inválidos"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos"
+            )
+    })
+    @PutMapping("/{id}/perfil")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> editarPerfil(
+            @Parameter(description = "ID del cliente", required = true, example = "7")
+            @PathVariable Integer id,
+            @Valid @RequestBody ClientePerfilEditDTO dto) {
+
+        log.info("PUT /api/v1/clientes/{}/perfil", id);
+        ClientePerfilResponseDTO perfilActualizado = clienteService.editarPerfil(id,dto);
+        return ResponseEntity.ok(StandardResponse.success("Perfil editado exitosamente", perfilActualizado));
+    }
+
+    @Operation(
+            summary = "Lista de clientes",
+            description = "Lista a todos los clientes. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Listado obtenido exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Datos inválidos"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos"
+            )
+    })
+    @GetMapping("/listar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<Cliente>>> listarClientes() {
+
+        log.info("GET /api/v1/clientes/listar");
+        List<Cliente> listaClientes = clienteService.listarTodos();
+        return ResponseEntity.ok(StandardResponse.success("Lista de clientes obtenida exitosamente", listaClientes));
     }
 }
 

@@ -68,6 +68,10 @@ public class TipoTicket {
     @JoinColumn(name = "idZona")
     private Zona zona;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idEvento")
+    private Evento evento;
+
     @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 

@@ -22,16 +22,20 @@ import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
@@ -49,6 +53,8 @@ public class CarroComprasServiceTests {
     @Autowired private TipoTicketRepository tipoTicketRepository;
     @Autowired private TicketRepository ticketRepository;
     @Autowired private CarroComprasRepository carroComprasRepository;
+    @Autowired private ZonaRepositorio zonaRepository;
+    @Autowired private LocalesRepositorio localRepositorio;
 
     private Cliente clientePrueba;
     private TipoTicket ticketEvento1;
@@ -69,7 +75,22 @@ public class CarroComprasServiceTests {
         cliente.setNivel(TipoNivel.CLASICO);
         clientePrueba = clienteRepository.save(cliente);
 
-        // 2. Crear Eventos de prueba (CON TODOS LOS CAMPOS OBLIGATORIOS)
+        // 2. Crear Locales de prueba
+        Local local1 = new Local();
+        local1.setNombre("Estadio Nacional");
+        local1.setDireccion("Av. José Díaz, Lima");
+        local1.setAforoTotal(5000);
+        local1.setActivo(true);
+        local1 = localRepositorio.save(local1);
+        
+        Local local2 = new Local();
+        local2.setNombre("Coliseo Amauta");
+        local2.setDireccion("Av. Javier Prado, Lima");
+        local2.setAforoTotal(3000);
+        local2.setActivo(true);
+        local2 = localRepositorio.save(local2);
+
+        // 3. Crear Eventos de prueba (CON TODOS LOS CAMPOS OBLIGATORIOS)
         evento1 = new Evento();
         evento1.setNombre("Concierto de Prueba Finalísimo");
         evento1.setDescripcion("Descripción del concierto de prueba");
@@ -80,6 +101,7 @@ public class CarroComprasServiceTests {
         evento1.setAforoDisponible(5000);
         evento1.setActivo(true);
         evento1.setFechaCreacion(LocalDate.now());
+        evento1.setLocal(local1);
         evento1 = eventosRepositorio.save(evento1);
 
         Evento evento2 = new Evento();
@@ -92,6 +114,7 @@ public class CarroComprasServiceTests {
         evento2.setAforoDisponible(3000);
         evento2.setActivo(true);
         evento2.setFechaCreacion(LocalDate.now());
+        evento2.setLocal(local2);
         evento2 = eventosRepositorio.save(evento2);
 
         // 3. Crear Tipos de Ticket
@@ -101,7 +124,22 @@ public class CarroComprasServiceTests {
         ticketEvento1.setCantidadDisponible(5);
         ticketEvento1.setStock(5);
         ticketEvento1.setActivo(true);
-        ticketEvento1.setEvento(evento1);
+        // Crear zonas para los eventos
+        Zona zona1 = new Zona();
+        zona1.setNombre("Zona VIP Evento 1");
+        zona1.setAforoMax(100);
+        zona1.setActivo(true);
+        zona1.setLocal(local1);
+        zona1 = zonaRepository.save(zona1);
+        
+        Zona zona2 = new Zona();
+        zona2.setNombre("Zona General Evento 2");
+        zona2.setAforoMax(200);
+        zona2.setActivo(true);
+        zona2.setLocal(local2);
+        zona2 = zonaRepository.save(zona2);
+        
+        ticketEvento1.setZona(zona1);
         ticketEvento1 = tipoTicketRepository.save(ticketEvento1);
 
         ticketEvento2 = new TipoTicket();
@@ -110,26 +148,26 @@ public class CarroComprasServiceTests {
         ticketEvento2.setCantidadDisponible(100);
         ticketEvento2.setStock(100);
         ticketEvento2.setActivo(true);
-        ticketEvento2.setEvento(evento2);
+        ticketEvento2.setZona(zona2);
         ticketEvento2 = tipoTicketRepository.save(ticketEvento2);
         
         // 4. Crear tickets individuales para los tipos de ticket
         crearTicketsParaTipoTicket(ticketEvento1, 5); // Solo 5 tickets disponibles
         crearTicketsParaTipoTicket(ticketEvento2, 100);
         
-        // 5. Asegurar que los eventos tengan la relación con los tipos de ticket
-        evento1.getTiposTicket().add(ticketEvento1);
-        eventosRepositorio.save(evento1);
-        
-        evento2.getTiposTicket().add(ticketEvento2);
-        eventosRepositorio.save(evento2);
+        // 5. Los tipos de ticket ya están relacionados con los eventos a través de las zonas
+        // No es necesario agregar manualmente la relación
     }
     
     private void crearTicketsParaTipoTicket(TipoTicket tipoTicket, int cantidad) {
         for (int i = 0; i < cantidad; i++) {
             Ticket ticket = new Ticket();
             ticket.setTipoTicket(tipoTicket);
-            ticket.setEvento(tipoTicket.getEvento());
+            // Buscar el evento que usa este local
+            Evento evento = eventosRepositorio.findByLocalIdLocal(tipoTicket.getZona().getLocal().getIdLocal()).stream()
+                    .findFirst()
+                    .orElse(null);
+            ticket.setEvento(evento);
             ticket.setEstado(EstadoTicket.DISPONIBLE);
             ticket.setPrecio(tipoTicket.getPrecio());
             ticket.setCodigoQr("QR-" + tipoTicket.getIdTipoTicket() + "-" + i);
@@ -223,5 +261,50 @@ public class CarroComprasServiceTests {
 
         Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
         assertTrue(exception.getMessage().contains("diferentes eventos"));
+    }
+
+    @Test
+    void testAgregarItem_FallaPorLimitePorPersona() {
+        // Configurar límite por persona en el tipo de ticket
+        ticketEvento1.setLimitePorPersona(2);
+        tipoTicketRepository.save(ticketEvento1);
+
+        // Crear asistentes para el primer request (2 tickets)
+        List<DatosAsistenteDTO> asistentes1 = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+            asistente.setNombres("Asistente " + i);
+            asistente.setApellidos("Apellido " + i);
+            asistente.setTipoDocumento(TipoDocumento.DNI);
+            asistente.setNumeroDocumento("1234567" + i);
+            asistentes1.add(asistente);
+        }
+        
+        AddItemRequestDTO primerRequest = new AddItemRequestDTO();
+        primerRequest.setIdCliente(clientePrueba.getIdPersona());
+        primerRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
+        primerRequest.setCantidad(2);
+        primerRequest.setAsistentes(asistentes1);
+        carroComprasService.agregarItemAlCarrito(primerRequest);
+
+        // Intentar agregar más tickets del mismo tipo (debería fallar)
+        List<DatosAsistenteDTO> asistentes2 = new ArrayList<>();
+        for (int i = 2; i < 4; i++) {
+            DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+            asistente.setNombres("Asistente " + i);
+            asistente.setApellidos("Apellido " + i);
+            asistente.setTipoDocumento(TipoDocumento.DNI);
+            asistente.setNumeroDocumento("1234567" + i);
+            asistentes2.add(asistente);
+        }
+
+        AddItemRequestDTO segundoRequest = new AddItemRequestDTO();
+        segundoRequest.setIdCliente(clientePrueba.getIdPersona());
+        segundoRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
+        segundoRequest.setCantidad(2);
+        segundoRequest.setAsistentes(asistentes2);
+
+        Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(segundoRequest));
+        assertTrue(exception.getMessage().contains("límite de tickets por persona"));
     }
 }

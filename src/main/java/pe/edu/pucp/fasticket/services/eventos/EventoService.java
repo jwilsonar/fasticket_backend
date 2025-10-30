@@ -1,26 +1,29 @@
 package pe.edu.pucp.fasticket.services.eventos;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.context.ApplicationEventPublisher;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.eventos.*;
-import pe.edu.pucp.fasticket.events.EventoCanceladoEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoDetalleDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.eventos.LocalDetalleDTO;
+import pe.edu.pucp.fasticket.dto.eventos.TipoTicketCompraDTO;
+import pe.edu.pucp.fasticket.events.EventoCanceladoEvent;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Local;
-import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +33,7 @@ public class EventoService {
 
     private final EventosRepositorio eventoRepository;
     private final LocalesRepositorio localRepository;
+    private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ApplicationEventPublisher eventPublisher;
     private final EventoMapper eventoMapper;
 
@@ -247,9 +251,10 @@ public class EventoService {
         localDTO.setDistrito(local.getDistrito());
         dto.setLocal(localDTO);
 
-        // 4. Mapeo limpio de Tipos de Ticket
-        List<TipoTicketCompraDTO> tiposDTO = evento.getTiposTicket().stream()
-                .filter(tt -> Boolean.TRUE.equals(tt.getActivo()) && tt.getCantidadDisponible() > 0)
+        // 4. Mapeo limpio de Tipos de Ticket - obtener a través de las zonas del local
+        List<TipoTicketCompraDTO> tiposDTO = evento.getLocal().getZonas().stream()
+                .flatMap(zona -> tipoTicketRepositorio.findByZonaIdZonaAndActivoTrue(zona.getIdZona()).stream())
+                .filter(tt -> tt.getCantidadDisponible() > 0)
                 .map(tt -> {
                     TipoTicketCompraDTO t = new TipoTicketCompraDTO();
                     t.setIdTipoTicket(tt.getIdTipoTicket());

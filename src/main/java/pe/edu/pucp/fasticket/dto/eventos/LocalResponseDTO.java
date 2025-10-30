@@ -1,12 +1,12 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
+import java.time.LocalDate;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 
 @Schema(description = "Respuesta con datos de un local")
 @Data
@@ -24,6 +24,9 @@ public class LocalResponseDTO {
     @Schema(description = "Dirección", example = "Av. José Díaz, Lima")
     private String direccion;
     
+    @Schema(description = "URL del mapa", example = "https://maps.google.com/...")
+    private String urlMapa;
+    
     @Schema(description = "Aforo total", example = "45000")
     private Integer aforoTotal;
     
@@ -38,5 +41,8 @@ public class LocalResponseDTO {
     
     @Schema(description = "Fecha de creación", example = "2025-10-10")
     private LocalDate fechaCreacion;
+    
+    @Schema(description = "URL de la imagen del local", example = "https://bucket.s3.region.amazonaws.com/locales/1/imagen.jpg")
+    private String imagenUrl;
 }
 

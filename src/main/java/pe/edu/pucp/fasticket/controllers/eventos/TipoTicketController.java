@@ -2,9 +2,6 @@ package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.util.List;
 
-import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
-import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
-import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +28,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
+import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
@@ -49,16 +50,74 @@ public class TipoTicketController {
 
     @Operation(
             summary = "Listar tipos de ticket",
-            description = "Obtiene lista de todos los tipos de ticket disponibles"
+            description = "Obtiene lista de todos los tipos de ticket disponibles. Opcionalmente puede filtrar por zona específica y estado activo.",
+            parameters = {
+                @Parameter(
+                    name = "zona", 
+                    description = "ID de la zona para filtrar tipos de ticket específicos", 
+                    example = "1",
+                    schema = @Schema(type = "integer", minimum = "1")
+                ),
+                @Parameter(
+                    name = "activos", 
+                    description = "Filtrar solo tipos de ticket activos (true/false)", 
+                    example = "true",
+                    schema = @Schema(type = "boolean")
+                )
+            }
     )
-    @ApiResponse(
+    @ApiResponses({
+        @ApiResponse(
             responseCode = "200",
-            description = "Lista obtenida exitosamente")
+            description = "Lista obtenida exitosamente",
+            content = @Content(schema = @Schema(implementation = TipoTicketDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "ID de zona inválido",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Zona no encontrada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
     @GetMapping
-    public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar() {
-        log.info("GET /api/v1/tipos-ticket");
-        List<TipoTicketDTO> tiposTicket = tipoTicketServicio.ListarTiposTicket();
-        return ResponseEntity.ok(StandardResponse.success("Lista de tipos de ticket obtenida exitosamente", tiposTicket));
+    public ResponseEntity<StandardResponse<List<TipoTicketDTO>>> listar(
+            @Parameter(description = "ID de la zona para filtrar tipos de ticket específicos", example = "1")
+            @RequestParam(required = false) Integer zona,
+            @Parameter(description = "Filtrar solo tipos de ticket activos", example = "true")
+            @RequestParam(required = false, defaultValue = "false") Boolean activos) {
+        
+        log.info("GET /api/v1/tipos-ticket?zona={}&activos={}", zona, activos);
+        
+        // Validar que el ID de zona sea válido si se proporciona
+        if (zona != null && zona <= 0) {
+            log.warn("ID de zona inválido proporcionado: {}", zona);
+            return ResponseEntity.badRequest()
+                .body(StandardResponse.error("El ID de zona debe ser un número positivo"));
+        }
+        
+        List<TipoTicketDTO> tiposTicket;
+        String mensaje;
+        
+        if (zona != null) {
+            // Filtrar por zona
+            if (activos) {
+                tiposTicket = tipoTicketServicio.listarPorZonaActivos(zona);
+                mensaje = String.format("Lista de tipos de ticket activos para zona %d obtenida exitosamente", zona);
+            } else {
+                tiposTicket = tipoTicketServicio.listarPorZona(zona);
+                mensaje = String.format("Lista de tipos de ticket para zona %d obtenida exitosamente", zona);
+            }
+        } else {
+            // Listar todos
+            tiposTicket = tipoTicketServicio.listarTodos();
+            mensaje = "Lista de tipos de ticket obtenida exitosamente";
+        }
+            
+        return ResponseEntity.ok(StandardResponse.success(mensaje, tiposTicket));
     }
 
     @Operation(
@@ -82,7 +141,7 @@ public class TipoTicketController {
             @Parameter(description = "ID del tipo de ticket", required = true, example = "1")
             @PathVariable Integer id) {
         log.info("GET /api/v1/tipos-ticket/{}", id);
-        TipoTicketDTO tipoTicket = tipoTicketServicio.BuscarId(id);
+        TipoTicketDTO tipoTicket = tipoTicketServicio.obtenerPorId(id);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket obtenido exitosamente", tipoTicket));
     }
 
@@ -114,8 +173,8 @@ public class TipoTicketController {
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<TipoTicketDTO>> crear(@Valid @RequestBody CrearTipoTicketRequestDTO requestDTO) {
-        log.info("POST /api/v1/tipos-ticket - Nombre: {}", requestDTO.getNombre());
-        TipoTicketDTO nuevoTipoTicket = tipoTicketServicio.crearTipoTicket(requestDTO);
+        log.info("POST /api/v1/tipos-ticket - Nombre: {} para zona: {}", requestDTO.getNombre(), requestDTO.getIdZona());
+        TipoTicketDTO nuevoTipoTicket = tipoTicketServicio.crear(requestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(StandardResponse.success("Tipo de ticket creado exitosamente", nuevoTipoTicket));
     }
 
@@ -146,7 +205,7 @@ public class TipoTicketController {
             @Valid @RequestBody ActualizarTipoTicketRequestDTO updateDTO) {
 
         log.info("PUT /api/v1/tipos-ticket/{}", id);
-        TipoTicketDTO actualizado = tipoTicketServicio.actualizarTipoTicket(id, updateDTO);
+        TipoTicketDTO actualizado = tipoTicketServicio.actualizar(id, updateDTO);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket actualizado exitosamente", actualizado));
     }
 
@@ -171,13 +230,43 @@ public class TipoTicketController {
     })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<Void>> eliminar(
+    public ResponseEntity<StandardResponse<String>> eliminar(
             @Parameter(description = "ID del tipo de ticket a eliminar", required = true)
             @PathVariable Integer id) {
 
         log.info("DELETE /api/v1/tipos-ticket/{}", id);
-        tipoTicketServicio.Eliminar(id);
+        tipoTicketServicio.eliminar(id);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket eliminado exitosamente"));
+    }
+
+    @Operation(
+            summary = "Desactivar tipo de ticket",
+            description = "Desactiva un tipo de ticket (eliminación lógica). Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Tipo de ticket desactivado exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos"
+            )
+    })
+    @PutMapping("/{id}/desactivar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<String>> desactivar(
+            @Parameter(description = "ID del tipo de ticket a desactivar", required = true)
+            @PathVariable Integer id) {
+
+        log.info("PUT /api/v1/tipos-ticket/{}/desactivar", id);
+        tipoTicketServicio.desactivar(id);
+        return ResponseEntity.ok(StandardResponse.success("Tipo de ticket desactivado exitosamente"));
     }
 }
 

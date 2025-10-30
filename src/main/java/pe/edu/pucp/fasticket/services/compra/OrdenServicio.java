@@ -1,13 +1,25 @@
 package pe.edu.pucp.fasticket.services.compra;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
-import pe.edu.pucp.fasticket.dto.compra.*;
-import pe.edu.pucp.fasticket.events.CompraAnuladaEvent;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
+import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
+import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -25,14 +37,6 @@ import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -80,12 +84,25 @@ public class OrdenServicio {
             item.setOrdenCompra(orden);
             for (Ticket ticket : item.getTickets()) {
                 ticket.setItemCarrito(item);
+                ticket.setOrdenCompra(orden); // Asociar ticket con la orden
                 ticket.setEstado(EstadoTicket.RESERVADA);
             }
         }
         orden.setItems(items);
         orden.calcularTotal();
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
+        
+        // Guardar explícitamente todos los tickets
+        for (ItemCarrito item : ordenGuardada.getItems()) {
+            for (Ticket ticket : item.getTickets()) {
+                ticketRepository.save(ticket);
+            }
+        }
+        
+        // Actualizar el historial de compras del cliente
+        cliente.getOrdenesCompra().add(ordenGuardada);
+        clienteRepository.save(cliente);
+        
         return ordenGuardada;
     }
 
@@ -121,10 +138,17 @@ public class OrdenServicio {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + itemDTO.getIdTipoTicket()));
             Integer edadCliente = cliente.calcularEdad();
-            Integer edadMinima = tipoTicket.getEvento().getEdadMinima();
+            // Necesitamos encontrar el evento asociado a este tipo de ticket
+            // Como TipoTicket no tiene relación directa con Evento, necesitamos buscarlo
+            Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
+            Integer edadMinima = evento.getEdadMinima();
             if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
                 throw new IllegalArgumentException("El evento '%s' requiere edad mínima...");
             }
+            
+            // Validar límite por persona
+            validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
@@ -149,6 +173,7 @@ public class OrdenServicio {
                 ticket.setEstado(EstadoTicket.RESERVADA);
                 ticket.setItemCarrito(item);
                 ticket.setCliente(cliente);
+                ticket.setEvento(evento); // Asignar el evento al ticket
                 ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
                 ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
                 ticket.setNombreAsistente(asistente.getNombres());
@@ -202,7 +227,8 @@ public class OrdenServicio {
                 ticket.setEstado(EstadoTicket.VENDIDA);
             }
             // Obtener evento relacionado
-            Evento evento = item.getTipoTicket().getEvento();
+            Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(item.getTipoTicket().getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
             cantidadPorEvento.merge(evento, item.getCantidad(), Integer::sum);
         }
         // Actualizar aforo de los eventos involucrados
@@ -271,6 +297,17 @@ public class OrdenServicio {
                 throw new IllegalArgumentException("Tipo de documento obligatorio");
         }
     }
+    
+    private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
+        if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
+            // Verificar cuántos tickets de este tipo ha comprado el cliente
+            Integer ticketsComprados = ticketRepository.countTicketsByClienteAndTipoTicket(cliente.getIdPersona(), tipoTicket.getIdTipoTicket());
+            if (ticketsComprados + cantidad > tipoTicket.getLimitePorPersona()) {
+                throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " + 
+                    tipoTicket.getLimitePorPersona() + ". Ya has comprado " + ticketsComprados + " tickets de este tipo.");
+            }
+        }
+    }
 
 
     private List<DatosAsistenteDTO> obtenerAsistentesParaItem(ItemCarrito itemCarrito) {
@@ -311,12 +348,32 @@ public class OrdenServicio {
             }
             carrito.removeItem(item);
             orden.addItem(item);
+            
+            // Asociar todos los tickets del item con la orden
+            for (Ticket ticket : item.getTickets()) {
+                ticket.setOrdenCompra(orden);
+            }
         }
         orden.calcularTotal();
         carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
         log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona());
-        return ordenCompraRepositorio.save(orden);
+        
+        OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
+        
+        // Guardar explícitamente todos los tickets
+        for (ItemCarrito item : ordenGuardada.getItems()) {
+            for (Ticket ticket : item.getTickets()) {
+                ticketRepository.save(ticket);
+            }
+        }
+        
+        // Actualizar el historial de compras del cliente
+        Cliente cliente = carrito.getCliente();
+        cliente.getOrdenesCompra().add(ordenGuardada);
+        clienteRepository.save(cliente);
+        
+        return ordenGuardada;
     }
 
     @Transactional

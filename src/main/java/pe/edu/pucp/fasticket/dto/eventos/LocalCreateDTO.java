@@ -1,7 +1,10 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,6 +24,10 @@ public class LocalCreateDTO {
     @Size(max = 300, message = "La dirección no puede exceder 300 caracteres")
     private String direccion;
 
+    @Schema(description = "Información del mapa del local (coordenadas, enlace, etc.)", example = "Coordenadas: -12.0464, -77.0428")
+    @Size(max = 1000, message = "La información del mapa no puede exceder 1000 caracteres")
+    private String urlMapa;
+
     @Schema(description = "Capacidad máxima del local", example = "45000", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "El aforo total es obligatorio")
     @Positive(message = "El aforo debe ser positivo")
@@ -28,5 +35,8 @@ public class LocalCreateDTO {
 
     @Schema(description = "ID del distrito", example = "1")
     private Integer idDistrito;
+
+    @Schema(description = "URL de la imagen del local", example = "https://bucket.s3.region.amazonaws.com/locales/1/imagen.jpg")
+    private String imagenUrl;
 }
 

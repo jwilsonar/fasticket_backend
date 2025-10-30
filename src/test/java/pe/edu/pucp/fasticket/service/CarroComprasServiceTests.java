@@ -26,10 +26,10 @@ import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
-import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
@@ -72,7 +72,7 @@ public class CarroComprasServiceTests {
         cliente.setEmail("final.test@pucp.edu.pe");
         cliente.setContrasena("clave123");
         cliente.setRol(Rol.CLIENTE);
-        cliente.setNivel(TipoNivel.CLASICO);
+        cliente.setNivel(TipoMembresia.BRONCE);
         clientePrueba = clienteRepository.save(cliente);
 
         // 2. Crear Locales de prueba

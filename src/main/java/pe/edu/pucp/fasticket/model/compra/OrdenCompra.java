@@ -23,7 +23,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import pe.edu.pucp.fasticket.model.eventos.Ticket;
+import pe.edu.pucp.fasticket.model.fidelizacion.Canje;
 import pe.edu.pucp.fasticket.model.pago.Pago;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
@@ -37,52 +37,55 @@ public class OrdenCompra {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_orden_compra")
-    private Integer idOrdenCompra;
+    @Column(name = "idOrdenCompra")
+    private Integer idOrdenCompra;  //
 
-    @Column(name = "fecha_orden")
-    private LocalDate fechaOrden;
+    @Column(name = "fechaOrden")
+    private LocalDate fechaOrden; // 
 
     @Column(name = "subtotal")
     private Double subtotal;
 
-    @Column(name = "descuento")
-    private Double descuento = 0.0;
+    @Column(name = "descuentoPorMembrecia")
+    private Double descuentoPorMembrecia = 0.0; // 
+
+    @Column(name = "descuentoPorCanje")
+    private Double descuentoPorCanje = 0.0; // 
 
     @Column(name = "igv")
     private Double igv;
 
     @Column(name = "total")
-    private Double total;
+    private Double total;   //
 
     @Column(name = "estado")
     @Enumerated(EnumType.STRING)
-    private EstadoCompra estado;
+    private EstadoCompra estado; //
 
-    @Column(name = "codigo_seguimiento", unique = true, length = 50)
+    @Column(name = "codigoSeguimiento", unique = true, length = 50)
     private String codigoSeguimiento;
 
-    @Column(name = "metodo_pago", length = 50)
+    @Column(name = "metodoPago", length = 50)
     private String metodoPago;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "usuario_creacion")
+    @Column(name = "usuarioCreacion")
     private Integer usuarioCreacion;
 
-    @Column(name = "fecha_creacion")
+    @Column(name = "fechaCreacion")
     private LocalDate fechaCreacion;
 
-    @Column(name = "usuario_actualizacion")
+    @Column(name = "usuarioActualizacion")
     private Integer usuarioActualizacion;
 
-    @Column(name = "fecha_actualizacion")
+    @Column(name = "fechaActualizacion")
     private LocalDate fechaActualizacion;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idCliente", nullable = false)
-    private Cliente cliente;
+    private Cliente cliente; //
 
     @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY,orphanRemoval = true)
     private List<ItemCarrito> items = new ArrayList<>();
@@ -91,8 +94,11 @@ public class OrdenCompra {
     @JoinColumn(name = "idCarroCompra",nullable = true)
     private CarroCompras carroCompras;
 
-    @Column(name = "fecha_expiracion")
+    @Column(name = "fechaExpiracion")
     private LocalDateTime fechaExpiracion;
+
+    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<Canje> canjesAplicados = new ArrayList<>();
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "idPago", referencedColumnName = "idPago")
@@ -112,6 +118,17 @@ public class OrdenCompra {
         this.subtotal = this.items.stream().mapToDouble(ItemCarrito::getPrecioFinal).sum();
         double valorVenta = this.subtotal / 1.18;
         this.igv = this.subtotal - valorVenta;
-        this.total = this.subtotal - this.descuento;
+        
+        // Si hay canje aplicado, el total es 0 (pago completo con puntos)
+        // Si no hay canje, se aplica el descuento por membresía
+        if (this.descuentoPorCanje > 0) {
+            this.total = 0.0; // Pago completo con puntos
+        } else {
+            this.total = this.subtotal - this.descuentoPorMembrecia;
+        }
+    }
+
+    public void aplicarDescuentoYRecalcular() {
+        calcularTotal();
     }
 }

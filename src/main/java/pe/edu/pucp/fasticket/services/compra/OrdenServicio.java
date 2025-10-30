@@ -37,6 +37,8 @@ import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 
 @Service
 @Slf4j
@@ -49,6 +51,7 @@ public class OrdenServicio {
     private final ApplicationEventPublisher eventPublisher;
     private final ItemCarritoRepository itemCarritoRepositorio;
     private final CarroComprasRepository carroComprasRepository;
+    private final FidelizacionService fidelizacionService;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
@@ -57,7 +60,8 @@ public class OrdenServicio {
             TicketRepository ticketRepository,
             ApplicationEventPublisher eventPublisher,
             ItemCarritoRepository itemCarritoRepositorio,
-            CarroComprasRepository carroComprasRepository
+            CarroComprasRepository carroComprasRepository,
+            FidelizacionService fidelizacionService
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
@@ -66,6 +70,7 @@ public class OrdenServicio {
         this.eventPublisher = eventPublisher;
         this.itemCarritoRepositorio = itemCarritoRepositorio;
         this.carroComprasRepository = carroComprasRepository;
+        this.fidelizacionService = fidelizacionService;
     }
 
     @Transactional
@@ -89,7 +94,11 @@ public class OrdenServicio {
             }
         }
         orden.setItems(items);
-        orden.calcularTotal();
+        orden.calcularTotal(); // Primero calcular el subtotal
+        
+        // Calcular descuento por membresía
+        calcularDescuentoPorMembresia(orden, cliente);
+        
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
         
         // Guardar explícitamente todos los tickets
@@ -104,6 +113,28 @@ public class OrdenServicio {
         clienteRepository.save(cliente);
         
         return ordenGuardada;
+    }
+
+    private void calcularDescuentoPorMembresia(OrdenCompra orden, Cliente cliente) {
+        // Contar total de entradas compradas en la orden
+        int totalEntradas = orden.getItems().stream()
+                .mapToInt(ItemCarrito::getCantidad)
+                .sum();
+        
+        // Obtener el tipo de membresía del cliente
+        TipoMembresia tipoMembresia = cliente.getNivel();
+        
+        // Calcular el porcentaje de descuento según las reglas de negocio
+        double porcentajeDescuento = fidelizacionService.calcularDescuentoPorMembresia(tipoMembresia, totalEntradas);
+        
+        // Aplicar descuento al subtotal
+        Double descuento = orden.getSubtotal() * porcentajeDescuento;
+        orden.setDescuentoPorMembrecia(descuento);
+        
+        // Recalcular el total después de aplicar el descuento
+        orden.aplicarDescuentoYRecalcular();
+        
+        log.info("Descuento por membresía aplicado: {} ({}) para cliente ID: {}", descuento, porcentajeDescuento * 100 + "%", cliente.getIdPersona());
     }
 
     protected OrdenCompra registrarOrdenCompra(Cliente cliente, List<ItemCarrito> itemsCarrito) {
@@ -241,6 +272,11 @@ public class OrdenServicio {
             }
         }
         ordenCompraRepositorio.save(orden);
+        
+        // Generar puntos por la compra confirmada
+        fidelizacionService.generarPuntosPorCompra(orden.getCliente().getIdPersona(), orden.getTotal(), orden.getIdOrdenCompra());
+        
+        log.info("Puntos generados para orden confirmada ID: {}", idOrden);
     }
 
     @Transactional
@@ -354,7 +390,11 @@ public class OrdenServicio {
                 ticket.setOrdenCompra(orden);
             }
         }
-        orden.calcularTotal();
+        orden.calcularTotal(); // Primero calcular el subtotal
+        
+        // Calcular descuento por membresía
+        calcularDescuentoPorMembresia(orden, carrito.getCliente());
+        
         carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
         log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona());

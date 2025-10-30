@@ -1,48 +1,42 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "DTO para TipoTicket")
 public class TipoTicketDTO {
 
+    @Schema(description = "ID del tipo de ticket", example = "1")
     private Integer idTipoTicket;
+    
+    @Schema(description = "Nombre del tipo de ticket", example = "VIP")
     private String nombre;
+    
+    @Schema(description = "Descripción del tipo de ticket", example = "Acceso VIP con beneficios exclusivos")
     private String descripcion;
+    
+    @Schema(description = "Precio del ticket", example = "150.00")
     private Double precio;
+    
+    @Schema(description = "Stock disponible", example = "100")
     private Integer stock;
-    private Integer cantidadDisponible;
-    private Integer cantidadVendida;
-    private LocalDateTime fechaInicioVenta;
-    private LocalDateTime fechaFinVenta;
+    
+    @Schema(description = "Estado activo", example = "true")
     private Boolean activo;
-    private Integer idEvento;
-    private String nombreEvento;
-
-    public TipoTicketDTO(TipoTicket p_tipoTicket) {
-        this.idTipoTicket = p_tipoTicket.getIdTipoTicket();
-        this.stock = p_tipoTicket.getStock();
-        this.cantidadDisponible = p_tipoTicket.getCantidadDisponible();
-        this.cantidadVendida = p_tipoTicket.getCantidadVendida();
-        this.nombre = p_tipoTicket.getNombre();
-        this.descripcion = p_tipoTicket.getDescripcion();
-        this.precio = p_tipoTicket.getPrecio();
-        this.fechaInicioVenta = p_tipoTicket.getFechaInicioVenta();
-        this.fechaFinVenta = p_tipoTicket.getFechaFinVenta();
-        this.activo = p_tipoTicket.getActivo();
-
-        if (p_tipoTicket.getEvento() != null) {
-            this.idEvento = p_tipoTicket.getEvento().getIdEvento();
-            this.nombreEvento = p_tipoTicket.getEvento().getNombre();
-        }
-    }
+    
+    @Schema(description = "ID de la zona", example = "1")
+    private Integer idZona;
+    
+    @Schema(description = "Nombre de la zona", example = "Zona VIP")
+    private String nombreZona;
+    
+    @Schema(description = "Límite de tickets por persona", example = "4")
+    private Integer limitePorPersona;
 }

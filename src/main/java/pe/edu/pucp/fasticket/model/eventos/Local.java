@@ -44,7 +44,7 @@ public class Local {
     @Column(name = "nombre", nullable = false, length = 200)
     private String nombre;
 
-    @Column(name = "urlMapa")
+    @Column(name = "urlMapa", columnDefinition = "TEXT")
     private String urlMapa;
 
     @Column(name = "direccion", length = 300)
@@ -56,6 +56,9 @@ public class Local {
      */
     @Column(name = "aforoTotal", nullable = false)
     private Integer aforoTotal;
+
+    @Column(name = "imagenUrl", length = 500)
+    private String imagenUrl;
 
     @Column(name = "activo")
     private Boolean activo = true;

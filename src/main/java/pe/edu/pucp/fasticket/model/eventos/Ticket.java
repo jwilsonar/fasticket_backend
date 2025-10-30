@@ -1,25 +1,18 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.compra.TransferenciaEntrada;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -102,6 +95,12 @@ public class Ticket {
     @Column(name = "tipoDocumentoAsistente", length = 100)
     private TipoDocumento tipoDocumentoAsistente;
 
+    @Column(name = "contador_transferencias", nullable = false, columnDefinition = "INT DEFAULT 0")
+    private Integer contadorTransferencias = 0;
 
+    @Column(name = "fecha_ultima_transferencia")
+    private LocalDateTime fechaUltimaTransferencia;
 
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<TransferenciaEntrada> historialTransferencias;
 }

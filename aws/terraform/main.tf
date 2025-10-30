@@ -172,7 +172,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "postgres" {
   identifier     = "fasticket-db"
   engine         = "postgres"
-  engine_version = "16.4"
+  engine_version = "16.6"
   instance_class = "db.t3.micro"
   
   db_name  = "fasticket"
@@ -199,6 +199,52 @@ resource "aws_db_instance" "postgres" {
   
   tags = {
     Name = "fasticket-db"
+  }
+}
+
+# ============================================================================
+# S3 BUCKET PARA IMÁGENES
+# ============================================================================
+
+resource "aws_s3_bucket" "images" {
+  bucket = "${var.s3_bucket_prefix}-${random_string.bucket_suffix.result}"
+  
+  tags = {
+    Name = "fasticket-images"
+  }
+}
+
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
+resource "aws_s3_bucket_versioning" "images" {
+  bucket = aws_s3_bucket.images.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_cors_configuration" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
   }
 }
 
@@ -288,6 +334,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_PASSWORD", value = var.db_password },
         { name = "FRONTEND_URL", value = var.frontend_url },
         { name = "SWAGGER_ENABLED", value = var.swagger_enabled },
+        { name = "AWS_S3_BUCKET_NAME", value = aws_s3_bucket.images.bucket },
+        { name = "AWS_S3_REGION", value = var.aws_region },
         { name = "JAVA_OPTS", value = "-Xmx768m -Xms512m -XX:+UseG1GC" }
       ]
       
@@ -357,6 +405,16 @@ output "ecr_repository_url" {
 output "ecs_cluster_name" {
   description = "Nombre del cluster ECS"
   value       = aws_ecs_cluster.main.name
+}
+
+output "s3_bucket_name" {
+  description = "Nombre del bucket S3 para imágenes"
+  value       = aws_s3_bucket.images.bucket
+}
+
+output "s3_bucket_region" {
+  description = "Región del bucket S3"
+  value       = aws_s3_bucket.images.region
 }
 
 output "api_access_info" {

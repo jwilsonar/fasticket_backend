@@ -1,28 +1,43 @@
 package pe.edu.pucp.fasticket.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.model.eventos.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import pe.edu.pucp.fasticket.config.TestConfig;
+import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-
-import java.time.LocalDate;
-import java.time.LocalTime;
-
-import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 
 /**
  * Tests de integración para EventoController.
@@ -30,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 public class EventoControllerTest {
 
     @Autowired
@@ -45,6 +61,9 @@ public class EventoControllerTest {
     private LocalesRepositorio localRepositorio;
     @Autowired
     private TipoTicketRepositorio tipoTicketRepositorio;
+    
+    @Autowired
+    private ZonaRepositorio zonaRepositorio;
 
     private Evento eventoTest;
     private Local localTest;
@@ -75,7 +94,15 @@ public class EventoControllerTest {
         tipoTicketTest.setPrecio(120.0);
         tipoTicketTest.setStock(1000);
         tipoTicketTest.setCantidadDisponible(1000);
-        tipoTicketTest.setEvento(eventoTest);
+        // Crear zona de prueba
+        Zona zonaTest = new Zona();
+        zonaTest.setNombre("Zona Test");
+        zonaTest.setAforoMax(1000);
+        zonaTest.setActivo(true);
+        zonaTest.setLocal(localTest);
+        zonaTest = zonaRepositorio.save(zonaTest);
+        
+        tipoTicketTest.setZona(zonaTest);
         tipoTicketTest.setActivo(true);
         tipoTicketTest = tipoTicketRepositorio.save(tipoTicketTest);
     }
@@ -146,6 +173,74 @@ public class EventoControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
+    void testCrearEvento_ConImagen() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
+                        .file(imagen)
+                        .param("nombre", "Evento Con Imagen")
+                        .param("descripcion", "Descripción del evento con imagen")
+                        .param("fechaEvento", "2025-12-31")
+                        .param("horaInicio", "20:00")
+                        .param("horaFin", "23:00")
+                        .param("tipoEvento", "ROCK")
+                        .param("estadoEvento", "ACTIVO")
+                        .param("aforoDisponible", "1000")
+                        .param("idLocal", localTest.getIdLocal().toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.nombre").value("Evento Con Imagen"))
+                .andExpect(jsonPath("$.data.descripcion").value("Descripción del evento con imagen"))
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    void testCrearEvento_SoloImagen() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
+                        .file(imagen))
+                .andExpect(status().isBadRequest()) // Debería fallar sin datos del evento
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.mensaje").value("Se requiere información del evento"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    void testCrearEvento_ConImagen_TodosLosCampos() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen completa de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "complete.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
+                        .file(imagen)
+                        .param("nombre", "Evento Completo Con Imagen")
+                        .param("descripcion", "Descripción completa del evento con todos los campos")
+                        .param("fechaEvento", "2026-06-15")
+                        .param("horaInicio", "18:30")
+                        .param("horaFin", "23:45")
+                        .param("tipoEvento", "ELECTRONICA")
+                        .param("estadoEvento", "ACTIVO")
+                        .param("aforoDisponible", "3000")
+                        .param("idLocal", localTest.getIdLocal().toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.nombre").value("Evento Completo Con Imagen"))
+                .andExpect(jsonPath("$.data.descripcion").value("Descripción completa del evento con todos los campos"))
+                .andExpect(jsonPath("$.data.tipoEvento").value("ELECTRONICA"))
+                .andExpect(jsonPath("$.data.estadoEvento").value("ACTIVO"))
+                .andExpect(jsonPath("$.data.aforoDisponible").value(3000))
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
     void testActualizarEvento_Exitoso() throws Exception {
         String eventoJson = "{\"nombre\":\"Evento Actualizado\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"POP\",\"aforoDisponible\":2000}";
 
@@ -154,6 +249,35 @@ public class EventoControllerTest {
                 .content(eventoJson))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    void testActualizarEvento_ConImagen() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen actualizada de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("imagen", "updated.jpg", "image/jpeg", imagenBytes);
+
+        mockMvc.perform(multipart("/api/v1/eventos/" + eventoTest.getIdEvento() + "/con-imagen")
+                        .file(imagen)
+                        .param("nombre", "Evento Actualizado Con Imagen")
+                        .param("descripcion", "Descripción actualizada del evento con imagen")
+                        .param("fechaEvento", "2025-12-31")
+                        .param("horaInicio", "19:00")
+                        .param("horaFin", "22:30")
+                        .param("tipoEvento", "POP")
+                        .param("estadoEvento", "ACTIVO")
+                        .param("aforoDisponible", "2000")
+                        .param("idLocal", localTest.getIdLocal().toString())
+                        .with(request -> {
+                            request.setMethod("PUT");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado Con Imagen"))
+                .andExpect(jsonPath("$.data.descripcion").value("Descripción actualizada del evento con imagen"))
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
     }
 
     @Test

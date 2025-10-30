@@ -1,13 +1,14 @@
 package pe.edu.pucp.fasticket.mapper;
 
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDate;
+
 import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
 import pe.edu.pucp.fasticket.dto.eventos.LocalCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.LocalResponseDTO;
 import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
-
-import java.time.LocalDate;
 
 /**
  * Mapper para convertir entre entidades Local y DTOs.
@@ -25,6 +26,7 @@ public class LocalMapper {
                 .idLocal(local.getIdLocal())
                 .nombre(local.getNombre())
                 .direccion(local.getDireccion())
+                .urlMapa(local.getUrlMapa())
                 .aforoTotal(local.getAforoTotal())
                 .activo(local.getActivo())
                 .idDistrito(local.getDistrito() != null ? local.getDistrito().getIdDistrito() : null)
@@ -37,6 +39,7 @@ public class LocalMapper {
         Local local = new Local();
         local.setNombre(dto.getNombre());
         local.setDireccion(dto.getDireccion());
+        local.setUrlMapa(dto.getUrlMapa());
         local.setAforoTotal(dto.getAforoTotal());
         local.setDistrito(distrito);
         local.setActivo(true);
@@ -47,6 +50,7 @@ public class LocalMapper {
     public void updateEntity(Local local, LocalCreateDTO dto, Distrito distrito) {
         local.setNombre(dto.getNombre());
         local.setDireccion(dto.getDireccion());
+        local.setUrlMapa(dto.getUrlMapa());
         local.setAforoTotal(dto.getAforoTotal());
         if (distrito != null) {
             local.setDistrito(distrito);

@@ -1,15 +1,21 @@
 package pe.edu.pucp.fasticket.services;
 
-import org.springframework.context.ApplicationEventPublisher;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
-import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.ItemCarritoDTO;
+import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -21,15 +27,8 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +37,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     private final CarroComprasRepository carroComprasRepository;
     private final ClienteRepository clienteRepository;
-    private final TipoTicketRepository tipoTicketRepository;
+    private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ItemCarritoRepository itemCarritoRepository;
     private final TicketRepository ticketRepository;
 
@@ -50,15 +49,18 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
         log.info("Agregando item al carrito para cliente ID: {}", request.getIdCliente());
         validarItemYAsistentes(request);
-        TipoTicket tipoTicket = tipoTicketRepository.findById(request.getIdTipoTicket())
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + request.getIdTipoTicket()));
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + request.getIdCliente()));
         Integer edadCliente = cliente.calcularEdad();
-        Integer edadMinima = tipoTicket.getEvento().getEdadMinima();
+        // Obtener evento a través del repositorio
+        pe.edu.pucp.fasticket.model.eventos.Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
+        Integer edadMinima = evento.getEdadMinima();
         if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
             throw new IllegalArgumentException(
-                    String.format("El evento '%s' requiere una edad mínima de %d años.", tipoTicket.getEvento().getNombre(), edadMinima)
+                    String.format("El evento '%s' requiere una edad mínima de %d años.", evento.getNombre(), edadMinima)
             );
         }
         CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
@@ -74,7 +76,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         // Validar que no se puedan agregar items de eventos diferentes
         if (!carro.getItems().isEmpty()) {
             Integer eventoActual = carro.getIdEventoActual();
-            Integer eventoNuevo = tipoTicket.getEvento().getIdEvento();
+            Integer eventoNuevo = evento.getIdEvento();
             if (eventoActual != null && !eventoActual.equals(eventoNuevo)) {
                 throw new BusinessException("No puedes agregar tickets de diferentes eventos al mismo carrito");
             }
@@ -86,6 +88,9 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                     String.format("No puedes tener más de %d tickets en el carrito.", LIMITE_MAXIMO_TICKETS_POR_CLIENTE)
             );
         }
+        
+        // Validar límite por persona para este tipo de ticket
+        validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
         List<Ticket> ticketsReservados = reservarTickets(tipoTicket, request.getCantidad());
         ItemCarrito nuevoItem = new ItemCarrito();
         nuevoItem.setTipoTicket(tipoTicket);
@@ -109,7 +114,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             nuevoItem.addTicket(ticket);
         }
         carro.addItem(nuevoItem);
-        carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
+        carro.setIdEventoActual(evento.getIdEvento());
         carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         itemCarritoRepository.save(nuevoItem);
@@ -182,6 +187,17 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     private String generarCodigoQrUnico() {
         return java.util.UUID.randomUUID().toString();
+    }
+    
+    private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
+        if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
+            // Verificar cuántos tickets de este tipo ha comprado el cliente
+            Integer ticketsComprados = ticketRepository.countTicketsByClienteAndTipoTicket(cliente.getIdPersona(), tipoTicket.getIdTipoTicket());
+            if (ticketsComprados + cantidad > tipoTicket.getLimitePorPersona()) {
+                throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " + 
+                    tipoTicket.getLimitePorPersona() + ". Ya has comprado " + ticketsComprados + " tickets de este tipo.");
+            }
+        }
     }
 
     private byte[] generarQrComoBytes(String contenido) {

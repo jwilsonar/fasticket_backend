@@ -1,10 +1,26 @@
 package pe.edu.pucp.fasticket.service;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -13,31 +29,24 @@ import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
-
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
-import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrdenServiceTest {
@@ -60,6 +69,7 @@ class OrdenServiceTest {
     // --- Datos de prueba reutilizables ---
     private Cliente clienteMock;
     private Evento eventoMock;
+    private Local localMock;
     private TipoTicket tipoTicketMock;
     private CrearOrdenDTO crearOrdenDTO;
     private ItemSeleccionadoDTO itemSeleccionadoDTO;
@@ -72,17 +82,31 @@ class OrdenServiceTest {
         clienteMock.setIdPersona(1);
         // clienteMock.setFechaNacimiento(...) // Necesario para calcularEdad si lo usas
 
+        localMock = new Local();
+        localMock.setIdLocal(1);
+        localMock.setNombre("Local Test");
+        localMock.setActivo(true);
+        
         eventoMock = new Evento();
         eventoMock.setIdEvento(1);
         eventoMock.setNombre("Evento Test");
         eventoMock.setEdadMinima(18);
+        eventoMock.setLocal(localMock);
 
         tipoTicketMock = new TipoTicket();
         tipoTicketMock.setIdTipoTicket(1);
         tipoTicketMock.setNombre("VIP");
         tipoTicketMock.setPrecio(100.0);
         tipoTicketMock.setCantidadDisponible(10); // Stock inicial
-        tipoTicketMock.setEvento(eventoMock);
+        // Crear zona mock
+        Zona zonaMock = new Zona();
+        zonaMock.setIdZona(1);
+        zonaMock.setNombre("Zona VIP");
+        zonaMock.setAforoMax(100);
+        zonaMock.setActivo(true);
+        zonaMock.setLocal(localMock);
+        
+        tipoTicketMock.setZona(zonaMock);
 
         asistenteDTO = new DatosAsistenteDTO();
         asistenteDTO.setTipoDocumento(TipoDocumento.DNI);
@@ -109,6 +133,12 @@ class OrdenServiceTest {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         // 2. Simula que el tipo de ticket existe
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        // 2.1. Simula que se encuentra el evento asociado al tipo de ticket
+        Evento eventoMock = new Evento();
+        eventoMock.setIdEvento(1);
+        eventoMock.setNombre("Evento de Prueba");
+        eventoMock.setEdadMinima(18);
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         // 3. Simula que hay tickets disponibles
         List<Ticket> ticketsDisponibles = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
@@ -178,6 +208,7 @@ class OrdenServiceTest {
         // Arrange
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         // Simula que solo hay 1 ticket disponible cuando se piden 2
         List<Ticket> ticketsDisponibles = List.of(new Ticket());
         when(ticketRepository.findAvailableTicketsByTypeAndState(
@@ -211,6 +242,7 @@ class OrdenServiceTest {
         ordenPendiente.setItems(List.of(item));
 
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente); // Devuelve la orden guardada
 
         // Act
@@ -270,5 +302,114 @@ class OrdenServiceTest {
         assertThat(resumen.getItems().get(0).getCantidad()).isEqualTo(2);
         assertThat(resumen.getSubtotal()).isEqualTo(200.0); // 2 * 100.0
         assertThat(resumen.getTotal()).isEqualTo(200.0);
+    }
+
+    @Test
+    void testCrearOrden_ExcedeLimitePorPersona() {
+        // Configurar tipo de ticket con límite por persona
+        tipoTicketMock.setLimitePorPersona(2);
+        when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
+        
+        // Simular que el cliente ya compró 2 tickets de este tipo
+        when(ticketRepository.countTicketsByClienteAndTipoTicket(1, 1)).thenReturn(2);
+
+        // Crear DTO de orden que excede el límite
+        CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
+        ordenDTO.setIdCliente(1);
+        
+        ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
+        item.setIdTipoTicket(1);
+        item.setCantidad(1); // Intentar comprar 1 más cuando ya tiene 2 (límite es 2)
+        
+        DatosAsistenteDTO asistente = new DatosAsistenteDTO();
+        asistente.setNombres("Test");
+        asistente.setApellidos("User");
+        asistente.setTipoDocumento(TipoDocumento.DNI);
+        asistente.setNumeroDocumento("12345678");
+        item.setAsistentes(Collections.singletonList(asistente));
+        
+        ordenDTO.setItems(Collections.singletonList(item));
+
+        // Ejecutar y verificar que lanza BusinessException
+        BusinessException exception = assertThrows(BusinessException.class, () -> ordenServicio.crearOrden(ordenDTO));
+        assertTrue(exception.getMessage().contains("límite de tickets por persona"));
+    }
+
+    @Test
+    void testCrearOrden_CreaTicketsCorrectamente() {
+        // Configurar mocks
+        when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
+        
+        // Crear tickets disponibles
+        List<Ticket> ticketsDisponibles = new ArrayList<>();
+        Ticket ticket1 = new Ticket();
+        ticket1.setIdTicket(1);
+        ticket1.setEstado(EstadoTicket.DISPONIBLE);
+        ticket1.setTipoTicket(tipoTicketMock);
+        ticketsDisponibles.add(ticket1);
+        
+        Ticket ticket2 = new Ticket();
+        ticket2.setIdTicket(2);
+        ticket2.setEstado(EstadoTicket.DISPONIBLE);
+        ticket2.setTipoTicket(tipoTicketMock);
+        ticketsDisponibles.add(ticket2);
+        
+        when(ticketRepository.findAvailableTicketsByTypeAndState(any(), any(), any()))
+                .thenReturn(ticketsDisponibles);
+        when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> {
+            OrdenCompra orden = invocation.getArgument(0);
+            orden.setIdOrdenCompra(1);
+            return orden;
+        });
+        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Crear DTO de orden
+        CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
+        ordenDTO.setIdCliente(1);
+        
+        ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
+        item.setIdTipoTicket(1);
+        item.setCantidad(2);
+        
+        DatosAsistenteDTO asistente1 = new DatosAsistenteDTO();
+        asistente1.setNombres("Test");
+        asistente1.setApellidos("User1");
+        asistente1.setTipoDocumento(TipoDocumento.DNI);
+        asistente1.setNumeroDocumento("12345678");
+        
+        DatosAsistenteDTO asistente2 = new DatosAsistenteDTO();
+        asistente2.setNombres("Test");
+        asistente2.setApellidos("User2");
+        asistente2.setTipoDocumento(TipoDocumento.DNI);
+        asistente2.setNumeroDocumento("87654321");
+        
+        item.setAsistentes(List.of(asistente1, asistente2));
+        ordenDTO.setItems(Collections.singletonList(item));
+
+        // Ejecutar
+        OrdenCompra ordenCreada = ordenServicio.crearOrden(ordenDTO);
+
+        // Verificar
+        assertThat(ordenCreada).isNotNull();
+        assertThat(ordenCreada.getItems()).hasSize(1);
+        assertThat(ordenCreada.getItems().get(0).getTickets()).hasSize(2);
+        
+        // Verificar que los tickets tienen el evento asignado
+        for (Ticket ticket : ordenCreada.getItems().get(0).getTickets()) {
+            assertThat(ticket.getEvento()).isNotNull();
+            assertThat(ticket.getOrdenCompra()).isNotNull();
+            assertThat(ticket.getCliente()).isNotNull();
+            assertThat(ticket.getEstado()).isEqualTo(EstadoTicket.RESERVADA);
+            assertThat(ticket.getCodigoQr()).isNotNull();
+        }
+        
+        // Verificar que se guardaron los tickets
+        verify(ticketRepository, times(2)).save(any(Ticket.class));
+        verify(clienteRepository, times(1)).save(any(Cliente.class));
     }
 }

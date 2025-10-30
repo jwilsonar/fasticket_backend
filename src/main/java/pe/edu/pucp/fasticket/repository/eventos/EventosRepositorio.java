@@ -33,6 +33,11 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
      * Spring Data JPA navegará: Evento -> Local -> Distrito -> idDistrito
      */
     List<Evento> findByLocalDistritoIdDistritoAndActivoTrue(Integer idDistrito);
+    
+    /**
+     * Busca eventos por ID del local
+     */
+    List<Evento> findByLocalIdLocal(Integer idLocal);
 
     /**
      * RF-069: Busca todos los activos y los ordena por fecha.

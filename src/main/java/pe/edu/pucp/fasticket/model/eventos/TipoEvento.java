@@ -1,5 +1,25 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
+// TipoEvento.java
 public enum TipoEvento {
-    ROCK, POP, ELECTRONICA, URBANO, METAL, PUNK, REGGAE, ROCKANDPOP, REGUETON
+    CONCIERTO,
+    FESTIVAL,
+    OBRA_TEATRAL,
+    CONFERENCIA,
+    EXPOSICION,
+    DEPORTE,
+    CINE,
+    TALLER,
+    FERIA,
+    
+    ROCK,
+    POP,
+    ELECTRONICA,
+    URBANO,
+    METAL,
+    PUNK,
+    REGGAE,
+    ROCK_POP,
+    REGGAETON,
+    OTRO,
 }

@@ -1,24 +1,36 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 @Data
+@Schema(description = "DTO para actualizar TipoTicket")
 public class ActualizarTipoTicketRequestDTO {
-    @NotBlank
+    
+    @Schema(description = "Nombre del tipo de ticket", example = "VIP")
+    @NotBlank(message = "El nombre es obligatorio")
+    @Size(min = 2, max = 100, message = "El nombre debe tener entre 2 y 100 caracteres")
     private String nombre;
-    @NotBlank
+    
+    @Schema(description = "Descripción del tipo de ticket", example = "Acceso VIP con beneficios exclusivos")
+    @Size(max = 500, message = "La descripción no puede exceder 500 caracteres")
     private String descripcion;
-    @NotNull @Positive
+    
+    @Schema(description = "Precio del ticket", example = "150.00")
+    @NotNull(message = "El precio es obligatorio")
+    @Positive(message = "El precio debe ser mayor a cero")
     private Double precio;
-    @NotNull @Positive
+    
+    @Schema(description = "Stock disponible", example = "100")
+    @NotNull(message = "El stock es obligatorio")
+    @Positive(message = "El stock debe ser mayor a cero")
     private Integer stock;
-    @NotNull
-    private LocalDateTime fechaInicioVenta;
-    @NotNull
-    private LocalDateTime fechaFinVenta;
+    
+    @Schema(description = "Límite de tickets por persona", example = "4")
+    @Positive(message = "El límite por persona debe ser mayor a cero")
+    private Integer limitePorPersona;
 }

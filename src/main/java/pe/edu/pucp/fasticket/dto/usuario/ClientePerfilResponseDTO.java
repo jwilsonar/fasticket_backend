@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
 /**

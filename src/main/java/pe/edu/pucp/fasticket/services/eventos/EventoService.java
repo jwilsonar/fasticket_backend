@@ -444,7 +444,8 @@ public class EventoService {
 
         for (OrdenCompra orden : ordenesAprobadas) {
             // El descuento y el neto se calculan a nivel de Orden de Compra
-            totalDescuentos += orden.getDescuento();
+            totalDescuentos += (orden.getDescuentoPorMembrecia() != null ? orden.getDescuentoPorMembrecia() : 0.0) + 
+                               (orden.getDescuentoPorCanje() != null ? orden.getDescuentoPorCanje() : 0.0);
             totalIngresosNetos += orden.getTotal(); // Suma el total neto pagado
 
             for (ItemCarrito item : orden.getItems()) {

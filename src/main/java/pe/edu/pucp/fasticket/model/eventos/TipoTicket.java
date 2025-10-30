@@ -68,6 +68,10 @@ public class TipoTicket {
     private Integer limitePorPersona;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idEvento", nullable = false)
+    private Evento evento;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idZona")
     private Zona zona;
 

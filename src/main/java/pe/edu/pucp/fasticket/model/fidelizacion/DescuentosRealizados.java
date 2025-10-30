@@ -1,6 +1,5 @@
 package pe.edu.pucp.fasticket.model.fidelizacion;
 
-import java.time.LocalDate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,8 +8,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -19,27 +18,25 @@ import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"puntos"})
-@ToString(exclude = {"puntos"})
+@EqualsAndHashCode(exclude = {"codigoPromocional", "ordenCompra"})
+@ToString(exclude = {"codigoPromocional", "ordenCompra"})
 @Entity
-@Table(name = "canje")
-public class Canje {
+@Table(name = "DescuentosRealizados")
+public class DescuentosRealizados {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "idCanje")
-    private Integer idCanje;
+    @Column(name = "idDescuentoRealizado")
+    private Integer idDescuentoRealizado;
 
-    @Column(name = "fechaCanje")
-    private LocalDate fechaCanje;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idCodigoPromocional", nullable = false)
+    private CodigoPromocional codigoPromocional;
 
-    
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idOrdenCompra", nullable = false)
     private OrdenCompra ordenCompra;
 
-    @JoinColumn(name = "idPunto", nullable = false, unique = true)
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    private Puntos puntos; 
-
+    @Column(name = "valor")
+    private Double valor;
 }

@@ -1,9 +1,6 @@
 package pe.edu.pucp.fasticket.model.fidelizacion;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,17 +12,18 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"reglaPuntos", "canjesDetalle"})
-@ToString(exclude = {"reglaPuntos", "canjesDetalle"})
+@EqualsAndHashCode(exclude = {"reglaPuntos"})
+@ToString(exclude = {"reglaPuntos"})
 @Entity
 @Table(name = "puntos")
 public class Puntos {
@@ -35,26 +33,33 @@ public class Puntos {
     @Column(name = "idPuntos")
     private Integer idPuntos;
 
-    @Column(name = "puntosIniciales")
-    private Integer puntosIniciales;
+    @Column(name = "cantPuntos")
+    private Integer cantPuntos; // cantidad de puntos al ser ganados
 
-    @Column(name = "ganadoEn")
-    private LocalDate ganadoEn;
-
-    @Column(name = "fecha_vencimiento")
+    @Column(name = "fechaVencimiento")
     private LocalDate fechaVencimiento;
 
-    @Column(name = "estado")
-    @Enumerated(EnumType.STRING)
-    private EstadoPuntos estado;
+    // agregado mikler 30/10 
+    @Column(name = "fechaTransaccion")
+    private LocalDate fechaTransaccion; 
+
+    @Column(name = "tipoTransaccion")
+    private TipoTransaccion tipoTransaccion;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "idRegla")
+    // --------- relaciones -----------
+
+    @OneToOne(mappedBy = "puntos", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private Canje canje;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "idRegla", nullable = false)
     private ReglaPuntos reglaPuntos;
 
-    @OneToMany(mappedBy = "puntos", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<CanjeDetalle> canjesDetalle = new ArrayList<>();
+    // agregado mikler 30/10 relacion con cliente
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idCliente")
+    private Cliente cliente;
 }

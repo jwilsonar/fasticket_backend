@@ -52,7 +52,7 @@ public class CarroComprasServiceTests {
         cliente.setEmail("final.test@pucp.edu.pe");
         cliente.setContrasena("clave123");
         cliente.setRol(Rol.CLIENTE);
-        cliente.setNivel(TipoNivel.CLASICO);
+        cliente.setNivel(TipoNivel.BRONZE);
         clientePrueba = clienteRepository.save(cliente);
 
         // 2. Crear Eventos de prueba (CON LOS CAMPOS OBLIGATORIOS)

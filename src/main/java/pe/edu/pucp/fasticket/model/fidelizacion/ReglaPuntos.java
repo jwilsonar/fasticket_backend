@@ -20,8 +20,8 @@ import lombok.ToString;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"canjes", "puntosGenerados"})
-@ToString(exclude = {"canjes", "puntosGenerados"})
+@EqualsAndHashCode(exclude = {"puntosGenerados"})
+@ToString(exclude = {"puntosGenerados"})
 @Entity
 @Table(name = "reglapuntos")
 public class ReglaPuntos {
@@ -34,27 +34,17 @@ public class ReglaPuntos {
     @Column(name = "solesPorPunto")
     private Double solesPorPunto;
 
-    @Column(name = "puntosPorBloque")
-    private Integer puntosPorBloque;
-
-    @Column(name = "descuentoPorBloque")
-    private Double descuentoPorBloque;
+    @Column(name = "tipoRegla")
+    private TipoRegla tipoRegla;
 
     @Column(name = "activo")
     private Boolean activo = true;
 
-    @Column(name = "estado", length = 255)
-    private String estado;
+    @Column(name = "estado")
+    private Boolean estado;
 
-    @Column(name = "fechaInicioVigencia")
-    private LocalDate fechaInicioVigencia;
+    // --------- relaciones -----------
 
-    @Column(name = "diasVigencia")
-    private Integer diasVigencia;
-
-    @OneToMany(mappedBy = "reglaPuntos", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Canje> canjes = new ArrayList<>();
-
-    @OneToMany(mappedBy = "reglaPuntos", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "reglaPuntos",cascade = {CascadeType.PERSIST, CascadeType.MERGE},orphanRemoval = false,fetch = FetchType.LAZY)
     private List<Puntos> puntosGenerados = new ArrayList<>();
 }

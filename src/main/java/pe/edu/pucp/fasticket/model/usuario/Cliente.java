@@ -20,6 +20,7 @@ import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.fidelizacion.ClienteMembresia;
+import pe.edu.pucp.fasticket.model.fidelizacion.Puntos;
 
 @Data
 @EqualsAndHashCode(callSuper = true, exclude = {"carroCompras", "ordenesCompra", "membresiaClientes"})
@@ -31,10 +32,14 @@ public class Cliente extends Persona {
 
     @Column(name = "nivel")
     @Enumerated(EnumType.STRING)
-    private TipoNivel nivel = TipoNivel.CLASICO;
+    private TipoNivel nivel = TipoNivel.BRONZE; 
 
     @Column(name = "puntosAcumulados")
     private Integer puntosAcumulados = 0;
+
+    // agregado mikler 30/10 relacion con puntos
+    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Puntos> puntos = new ArrayList<>();
 
     @OneToOne(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private CarroCompras carroCompras;

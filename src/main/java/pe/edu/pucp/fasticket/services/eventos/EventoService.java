@@ -1,4 +1,6 @@
 package pe.edu.pucp.fasticket.services.eventos;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,19 +10,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.reportes.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
-import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
-import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
+import pe.edu.pucp.fasticket.model.eventos.*;
+import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
+import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
+import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 
+import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +50,10 @@ public class EventoService {
 
     private final EventosRepositorio eventoRepository;
     private final LocalesRepositorio localRepository;
+    private final OrdenCompraRepositorio ordenCompraRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventoMapper eventoMapper;
+
 
     public List<EventoResponseDTO> listarTodos() {
         return eventoRepository.findAll().stream()
@@ -52,7 +74,20 @@ public class EventoService {
     }
 
     public List<EventoResponseDTO> listarPorEstado(EstadoEvento estado) {
-        return eventoRepository.findByEstadoEventoAndActivoTrue(estado).stream()
+        log.info("Buscando eventos por estado: {}", estado);
+        List<Evento> eventosEncontrados;
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        if (estado == EstadoEvento.BORRADOR || estado == EstadoEvento.CANCELADO) {
+            // Busca solo por estado, ignorando si está activo o no
+            eventosEncontrados = eventoRepository.findByEstadoEvento(estado); // <-- Necesita nuevo método en Repo
+        } else {
+            // Para estados activos (PUBLICADO, etc.), busca por estado Y activo=true
+            eventosEncontrados = eventoRepository.findByEstadoEventoAndActivoTrue(estado);
+        }
+        // --- FIN DE LA CORRECCIÓN ---
+
+        return eventosEncontrados.stream()
                 .map(eventoMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -81,6 +116,8 @@ public class EventoService {
 
         // Crear y guardar
         Evento evento = eventoMapper.toEntity(dto, local);
+        evento.setEstadoEvento(EstadoEvento.BORRADOR);
+        evento.setActivo(false);
         Evento eventoGuardado = eventoRepository.save(evento);
 
         log.info("Evento creado con ID: {}", eventoGuardado.getIdEvento());
@@ -269,6 +306,248 @@ public class EventoService {
 
         log.info("FIN: Detalle de evento {} mapeado correctamente.", id);
         return dto;
+    }
+
+    /**
+     * RF-034: Genera un reporte de ventas en formato PDF para un evento específico.
+     * @param idEvento ID del evento
+     * @return byte[] que representa el archivo PDF.
+     * @throws IOException Si ocurre un error al generar el PDF.
+     */
+    @Transactional(readOnly = true)
+    public byte[] generarReporteVentasPdf(Integer idEvento) throws IOException {
+        log.info("Generando reporte PDF de ventas para evento ID: {}", idEvento);
+
+        // --- 1. Obtener Datos ---
+        Evento evento = eventoRepository.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        List<OrdenCompra> ordenesAprobadas = ordenCompraRepository.findByItems_TipoTicket_Evento_IdEventoAndEstado(idEvento, EstadoCompra.APROBADO);
+
+        if (ordenesAprobadas.isEmpty()) {
+            log.warn("No se encontraron ventas aprobadas para el evento ID: {}", idEvento);
+        }
+
+        // --- 2. Calcular Métricas y Poblar DTOs ---
+        ReporteVentasEventoDTO datosReporte = calcularMetricasReporte(evento, ordenesAprobadas);
+
+        // --- 3. Generar el PDF ---
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            PDPageContentStream contentStream = new PDPageContentStream(document, page);
+
+            // Fuentes estándar
+            PDType1Font fontBold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDType1Font fontRegular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+            // Posición inicial
+            float yPosition = 750;
+            float margin = 50;
+            float width = page.getMediaBox().getWidth() - 2 * margin;
+
+            // --- Escribir Contenido del PDF ---
+            contentStream.beginText();
+            contentStream.setFont(fontBold, 16);
+            contentStream.newLineAtOffset(margin, yPosition);
+            contentStream.showText("Reporte de Ventas - Evento");
+            contentStream.endText();
+            yPosition -= 30; // Bajar línea
+
+            // Detalles del Evento
+            contentStream.beginText();
+            contentStream.setFont(fontRegular, 12);
+            contentStream.newLineAtOffset(margin, yPosition);
+            contentStream.showText("Evento: " + datosReporte.getEventoDetalles().getTitulo() + " (ID: " + idEvento + ")");
+            contentStream.newLineAtOffset(0, -15); // Bajar línea
+            contentStream.showText("Fecha: " + datosReporte.getEventoDetalles().getFechaEvento().toString());
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText("Local: " + datosReporte.getEventoDetalles().getLocalNombre());
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText("Generado: " + datosReporte.getReporteInfo().getFechaGeneracion().toString());
+            contentStream.endText();
+            yPosition -= 60;
+
+            // Resumen General
+            contentStream.beginText();
+            contentStream.setFont(fontBold, 14);
+            contentStream.newLineAtOffset(margin, yPosition);
+            contentStream.showText("Resumen General de Ventas");
+            contentStream.endText();
+            yPosition -= 20;
+
+            contentStream.beginText();
+            contentStream.setFont(fontRegular, 12);
+            contentStream.newLineAtOffset(margin, yPosition);
+            contentStream.showText("Tickets Vendidos: " + datosReporte.getResumenGeneralVentas().getTicketsVendidosTotal());
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText(String.format("Ingresos Brutos: S/ %.2f", datosReporte.getResumenGeneralVentas().getIngresosBrutosTotal()));
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText(String.format("Descuentos Aplicados: S/ %.2f", datosReporte.getResumenGeneralVentas().getDescuentosAplicadosTotal()));
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText(String.format("Ingresos Netos: S/ %.2f", datosReporte.getResumenGeneralVentas().getIngresosNetosTotal()));
+            contentStream.newLineAtOffset(0, -15);
+            contentStream.showText(String.format("Ocupación: %.1f%%", datosReporte.getResumenGeneralVentas().getPorcentajeOcupacion()));
+            contentStream.endText();
+            yPosition -= 90;
+
+            // Desglose por Categoría (Ejemplo básico - Habría que iterar y formatear mejor)
+            contentStream.beginText();
+            contentStream.setFont(fontBold, 14);
+            contentStream.newLineAtOffset(margin, yPosition);
+            contentStream.showText("Desglose por Categoría");
+            contentStream.endText();
+            yPosition -= 20;
+
+            contentStream.setFont(fontRegular, 10);
+            for (DesgloseCategoriaTicketDTO categoria : datosReporte.getDesglosePorCategoriaTicket()) {
+                contentStream.beginText();
+                contentStream.newLineAtOffset(margin, yPosition);
+                contentStream.showText(String.format("- %s: Vendidos=%d, Ingresos Netos=S/ %.2f",
+                        categoria.getCategoriaNombre(),
+                        categoria.getTicketsVendidos(),
+                        categoria.getIngresosNetosCategoria()));
+                contentStream.endText();
+                yPosition -= 12;
+                if (yPosition < margin) { // Salto de página simple
+                    contentStream.close();
+                    page = new PDPage();
+                    document.addPage(page);
+                    contentStream = new PDPageContentStream(document, page);
+                    yPosition = 750;
+                    contentStream.setFont(fontRegular, 10); // Reestablecer fuente
+                }
+            }
+
+            // --- Fin Contenido ---
+            contentStream.close();
+            document.save(outputStream);
+        }
+        log.info("Reporte PDF generado exitosamente para evento ID: {}", idEvento);
+        return outputStream.toByteArray();
+    }
+
+    // --- MÉTODO AUXILIAR PARA CÁLCULOS (CORREGIDO) ---
+    private ReporteVentasEventoDTO calcularMetricasReporte(Evento evento, List<OrdenCompra> ordenesAprobadas) {
+        ReporteVentasEventoDTO dto = new ReporteVentasEventoDTO();
+        dto.setReporteInfo(new ReporteInfoDTO());
+        dto.getReporteInfo().setFechaGeneracion(LocalDateTime.now());
+        dto.getReporteInfo().setPeriodoCubierto(evento.getEstadoEvento() == EstadoEvento.FINALIZADO ? "Completo" : "Parcial");
+
+        dto.setEventoDetalles(new EventoDetallesDTO());
+        dto.getEventoDetalles().setIdEvento(evento.getIdEvento());
+        dto.getEventoDetalles().setTitulo(evento.getNombre());
+        dto.getEventoDetalles().setFechaEvento(evento.getFechaEvento());
+        if (evento.getLocal() != null) {
+            dto.getEventoDetalles().setLocalNombre(evento.getLocal().getNombre());
+            dto.getEventoDetalles().setAforoTotal(evento.getLocal().getAforoTotal());
+        } else {
+            dto.getEventoDetalles().setLocalNombre("N/A");
+            dto.getEventoDetalles().setAforoTotal(0);
+        }
+
+        dto.setResumenGeneralVentas(new ResumenGeneralVentasDTO());
+        Map<String, DesgloseCategoriaTicketDTO> desgloseMap = new HashMap<>(); // Para agrupar por categoría
+
+        long totalTicketsVendidos = 0;
+        double totalIngresosBrutos = 0.0;
+        double totalDescuentos = 0.0;
+        double totalIngresosNetos = 0.0; // Usaremos el total de la orden
+
+        for (OrdenCompra orden : ordenesAprobadas) {
+            // El descuento y el neto se calculan a nivel de Orden de Compra
+            totalDescuentos += orden.getDescuento();
+            totalIngresosNetos += orden.getTotal(); // Suma el total neto pagado
+
+            for (ItemCarrito item : orden.getItems()) {
+                // La lógica de cálculo debe basarse en 'TipoTicket', no en 'Ticket'
+                TipoTicket tipoTicket = item.getTipoTicket(); // <-- Corrección 1: Usar getTipoTicket()
+
+                // Asegurarse que este item pertenece al evento del reporte
+                if (tipoTicket != null && tipoTicket.getEvento().getIdEvento().equals(evento.getIdEvento())) {
+
+                    long cantidadItem = item.getCantidad(); // <-- OK (ItemCarrito tiene getCantidad())
+                    totalTicketsVendidos += cantidadItem;
+
+                    // Ingreso Bruto es Precio Base (de ItemCarrito) * Cantidad
+                    double subtotalItem = item.getPrecio() * cantidadItem; // <-- Corrección 2: Usar getPrecio()
+                    totalIngresosBrutos += subtotalItem;
+
+                    // Lógica de Desglose
+                    String categoriaKey = tipoTicket.getNombre(); // La clave es el nombre del TipoTicket
+
+                    DesgloseCategoriaTicketDTO desglose = desgloseMap.computeIfAbsent(categoriaKey, k -> {
+                        DesgloseCategoriaTicketDTO nuevo = new DesgloseCategoriaTicketDTO();
+                        nuevo.setCategoriaNombre(k);
+                        nuevo.setPrecioUnitarioBase(tipoTicket.getPrecio()); // Precio base del TipoTicket
+                        nuevo.setTicketsDisponibles(tipoTicket.getStock()); // <-- Corrección 3: Usar getStock()
+                        return nuevo;
+                    });
+
+                    desglose.setTicketsVendidos(desglose.getTicketsVendidos() + cantidadItem);
+                    desglose.setIngresosBrutosCategoria(desglose.getIngresosBrutosCategoria() + subtotalItem);
+                    desglose.setIngresosNetosCategoria(desglose.getIngresosNetosCategoria() + item.getPrecioFinal()); // <-- OK (ItemCarrito tiene getPrecioFinal())
+                }
+            }
+        }
+
+        dto.getResumenGeneralVentas().setTicketsVendidosTotal(totalTicketsVendidos);
+        dto.getResumenGeneralVentas().setIngresosBrutosTotal(totalIngresosBrutos);
+        dto.getResumenGeneralVentas().setDescuentosAplicadosTotal(totalDescuentos);
+        dto.getResumenGeneralVentas().setIngresosNetosTotal(totalIngresosNetos); // El neto total es la suma de los totales de las órdenes
+
+        if (dto.getEventoDetalles().getAforoTotal() != null && dto.getEventoDetalles().getAforoTotal() > 0) {
+            dto.getResumenGeneralVentas().setPorcentajeOcupacion(
+                    ((double) totalTicketsVendidos / dto.getEventoDetalles().getAforoTotal()) * 100.0
+            );
+        }
+
+        // Finalizar cálculos de desglose (porcentaje)
+        desgloseMap.values().forEach(d -> {
+            if (d.getTicketsDisponibles() != null && d.getTicketsDisponibles() > 0) {
+                d.setPorcentajeVentasCategoria(((double) d.getTicketsVendidos() / d.getTicketsDisponibles()) * 100.0);
+            }
+        });
+        dto.setDesglosePorCategoriaTicket(new ArrayList<>(desgloseMap.values()));
+
+        // TODO: Calcular tendencia por fecha si se requiere
+
+        return dto;
+    }
+    /**
+     * PASO FINAL del Wizard: Publica un evento.
+     * Cambia el estado de BORRADOR a PUBLICADO.
+     * RF-014: Valida que el evento tenga al menos una entrada (Ticket/Categoria)
+     */
+    @Transactional
+    public EventoResponseDTO publicarEvento(Integer idEvento) {
+        log.info("Intentando publicar evento ID: {}", idEvento);
+
+        Evento evento = eventoRepository.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        // 1. Validar estado
+        if (evento.getEstadoEvento() != EstadoEvento.BORRADOR) {
+            throw new BusinessException("Solo se pueden publicar eventos en estado BORRADOR");
+        }
+
+        // 2. Validar RF-014: Que tenga al menos una entrada/ticket
+        // Esta validación ahora usa la relación 'tiposTicket' que sí existe en tu Evento.java
+        if (evento.getTiposTicket() == null || evento.getTiposTicket().isEmpty()) {
+            throw new BusinessException("Error: No se ha definido el mínimo de categorías de entradas.");
+        }
+
+        // 3. ¡Publicar!
+        evento.setEstadoEvento(EstadoEvento.PUBLICADO);
+        evento.setActivo(true);
+        evento.setFechaActualizacion(LocalDate.now());
+
+        Evento eventoPublicado = eventoRepository.save(evento);
+
+        log.info("¡Evento ID: {} publicado exitosamente!", idEvento);
+        return eventoMapper.toResponseDTO(eventoPublicado);
     }
 }
 

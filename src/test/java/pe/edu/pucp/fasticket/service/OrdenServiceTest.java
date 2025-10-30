@@ -26,7 +26,7 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 
@@ -45,7 +45,7 @@ class OrdenServiceTest {
     @Mock
     private OrdenCompraRepositorio ordenCompraRepositorio;
     @Mock
-    private TipoTicketRepositorio tipoTicketRepositorio;
+    private TipoTicketRepository tipoTicketRepositorio;
     @Mock
     private ClienteRepository clienteRepository;
     @Mock

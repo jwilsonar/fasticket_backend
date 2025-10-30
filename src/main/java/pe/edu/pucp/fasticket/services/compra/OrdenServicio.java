@@ -23,7 +23,7 @@ import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 import java.time.LocalDate;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class OrdenServicio {
 
     private final OrdenCompraRepositorio ordenCompraRepositorio;
-    private final TipoTicketRepositorio tipoTicketRepositorio;
+    private final TipoTicketRepository tipoTicketRepositorio;
     private final ClienteRepository clienteRepository;
     private final TicketRepository ticketRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -48,7 +48,7 @@ public class OrdenServicio {
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
-            TipoTicketRepositorio tipoTicketRepositorio,
+            TipoTicketRepository tipoTicketRepositorio,
             ClienteRepository clienteRepository,
             TicketRepository ticketRepository,
             ApplicationEventPublisher eventPublisher,

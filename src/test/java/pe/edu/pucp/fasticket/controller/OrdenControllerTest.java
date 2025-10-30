@@ -55,7 +55,7 @@ public class OrdenControllerTest {
     @Autowired
     private LocalesRepositorio localRepositorio;
     @Autowired
-    private TipoTicketRepositorio tipoTicketRepositorio;
+    private TipoTicketRepository tipoTicketRepositorio;
     @Autowired
     private TicketRepository ticketRepository;
     @Autowired

@@ -10,7 +10,7 @@ import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +19,7 @@ import java.util.Optional;
 public class TipoTicketServicio {
 
     @Autowired
-    private TipoTicketRepositorio repo_tipoTicket;
+    private TipoTicketRepository repo_tipoTicket;
     @Autowired
     private EventosRepositorio repo_evento;
 

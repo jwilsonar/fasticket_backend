@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.model.eventos.*;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -44,7 +44,7 @@ public class EventoControllerTest {
     @Autowired // Necesitarás estos repositorios
     private LocalesRepositorio localRepositorio;
     @Autowired
-    private TipoTicketRepositorio tipoTicketRepositorio;
+    private TipoTicketRepository tipoTicketRepositorio;
 
     private Evento eventoTest;
     private Local localTest;

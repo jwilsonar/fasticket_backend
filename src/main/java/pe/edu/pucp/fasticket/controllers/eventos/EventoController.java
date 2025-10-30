@@ -33,8 +33,15 @@ import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
+
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import java.io.IOException;
 
 @Tag(
     name = "Eventos",
@@ -226,5 +233,45 @@ public class EventoController {
         }
     }
 
+    @Operation(
+            summary = "Descargar Reporte de Ventas en PDF",
+            description = "RF-034: Genera y devuelve un archivo PDF con el resumen de ventas del evento. Solo Admins.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "PDF generado", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos"),
+            @ApiResponse(responseCode = "500", description = "Error al generar PDF")
+    })
+    @GetMapping(value = "/{idEvento}/reporte/ventas/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<Resource> descargarReporteVentasPdf(
+            @Parameter(description = "ID del evento", required = true)
+            @PathVariable Integer idEvento) {
+
+        log.info("GET /api/v1/eventos/{}/reporte/ventas/pdf", idEvento);
+        try {
+            byte[] pdfBytes = eventoService.generarReporteVentasPdf(idEvento);
+            ByteArrayResource resource = new ByteArrayResource(pdfBytes);
+
+            // Nombre del archivo PDF
+            String filename = "reporte-ventas-evento-" + idEvento + ".pdf";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentLength(pdfBytes.length)
+                    .body(resource);
+
+        } catch (IOException e) {
+            log.error("Error generando PDF para evento {}: {}", idEvento, e.getMessage(), e);
+            // Considera devolver un DTO de error estándar aquí
+            return ResponseEntity.internalServerError().build();
+        } catch (ResourceNotFoundException e) {
+            log.warn("Intento de generar reporte para evento no encontrado ID: {}", idEvento);
+            return ResponseEntity.notFound().build();
+        }
+    }
 }
 

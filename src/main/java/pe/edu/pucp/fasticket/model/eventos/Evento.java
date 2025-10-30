@@ -86,6 +86,12 @@ public class Evento {
     @Column(name = "politicasDevolucion", length = 1000)
     private String politicasDevolucion;
 
+    @Column(name = "max_transferencias_permitidas", columnDefinition = "INT DEFAULT 1")
+    private Integer maxTransferenciasPermitidas = 1;
+
+    @Column(name = "horas_cooldown_transferencia", columnDefinition = "INT DEFAULT 12")
+    private Integer horasCooldownTransferencia = 1;
+
     @Column(name = "activo")
     private Boolean activo = true;
 

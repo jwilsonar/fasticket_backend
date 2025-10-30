@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
@@ -106,6 +107,52 @@ public class ClienteService {
     }
 
     /**
+     * RF-060: Actualiza el perfil del cliente(pero para el Administrador).
+     *
+     * @param id ID del cliente autenticado
+     * @param dto Datos a actualizar
+     * @return Perfil actualizado
+     */
+    @Transactional
+    public ClientePerfilResponseDTO editarPerfil(Integer id, ClientePerfilEditDTO dto) {
+        log.info("Actualizando perfil del cliente de ID: {}", id);
+
+        Cliente cliente = (Cliente) personasRepositorio.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
+
+        // Actualizar campos si vienen en el DTO
+        if (dto.getNombres() != null && !dto.getNombres().isBlank()) {
+            cliente.setNombres(dto.getNombres());
+        }
+        if (dto.getApellidos() != null && !dto.getApellidos().isBlank()) {
+            cliente.setApellidos(dto.getApellidos());
+        }
+        if (dto.getTelefono() != null && !dto.getTelefono().isBlank()) {
+            cliente.setTelefono(dto.getTelefono());
+        }
+        if (dto.getDireccion() != null && !dto.getDireccion().isBlank()) {
+            cliente.setDireccion(dto.getDireccion());
+        }
+        if (dto.getDocIdentidad() != null && !dto.getDocIdentidad().isBlank()) {
+            cliente.setDocIdentidad(dto.getDocIdentidad());
+        }
+
+        // Validar que el nuevo email no esté en uso por otro cliente
+        if (dto.getEmail() != null && !dto.getEmail().equals(cliente.getEmail())) {
+            if (personasRepositorio.existsByEmail(dto.getEmail())) {
+                throw new BusinessException("El email ya está registrado por otro usuario");
+            }
+            cliente.setEmail(dto.getEmail());
+        }
+
+        cliente.setFechaActualizacion(java.time.LocalDate.now());
+        Cliente clienteActualizado = clienteRepository.save(cliente);
+
+        log.info("Perfil actualizado exitosamente para: {}", id);
+        return convertirAPerfilDTO(clienteActualizado);
+    }
+
+    /**
      * RF-032, RF-091: Obtiene el historial de compras del cliente por email.
      * 
      * @param email Email del cliente
@@ -147,6 +194,14 @@ public class ClienteService {
                     .collect(Collectors.toList());
     }
 
+    /**
+     * Obtiene una lista de todos los cliente
+     * */
+
+    public List<Cliente> listarTodos() {
+        log.info("Obteniendo perfiles de todos los clientes");
+        return clienteRepository.findAll();
+    }
 
     /**
      * Convierte una entidad Cliente a ClientePerfilDTO.
@@ -168,6 +223,7 @@ public class ClienteService {
         dto.setPuntosAcumulados(cliente.getPuntosAcumulados());
         dto.setNivel(cliente.getNivel());
         dto.setEdad(cliente.calcularEdad());
+        //dto.setFechaCreacion(cliente.getFechaCreacion());
         return dto;
     }
 }

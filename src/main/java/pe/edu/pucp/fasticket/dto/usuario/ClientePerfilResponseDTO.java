@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 
@@ -54,5 +55,10 @@ public class ClientePerfilResponseDTO {
     
     @Schema(description = "Edad actual calculada", example = "34")
     private Integer edad;
+
+    /*
+    @Schema(description = "Fecha de creación del perfil de este cliente", example ="2025-01-10")
+    private LocalDate fechaCreacion;
+    */
 }
 

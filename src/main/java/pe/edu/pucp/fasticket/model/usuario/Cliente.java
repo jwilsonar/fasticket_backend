@@ -19,12 +19,12 @@ import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
-import pe.edu.pucp.fasticket.model.fidelizacion.ClienteMembresia;
 import pe.edu.pucp.fasticket.model.fidelizacion.Puntos;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 
 @Data
-@EqualsAndHashCode(callSuper = true, exclude = {"carroCompras", "ordenesCompra", "membresiaClientes"})
-@ToString(callSuper = true, exclude = {"carroCompras", "ordenesCompra", "membresiaClientes"})
+@EqualsAndHashCode(callSuper = true, exclude = {"carroCompras", "ordenesCompra"})
+@ToString(callSuper = true, exclude = {"carroCompras", "ordenesCompra"})
 @Entity
 @Table(name = "Cliente")
 @PrimaryKeyJoinColumn(name = "idPersona")
@@ -32,7 +32,7 @@ public class Cliente extends Persona {
 
     @Column(name = "nivel")
     @Enumerated(EnumType.STRING)
-    private TipoNivel nivel = TipoNivel.BRONZE; 
+    private TipoMembresia nivel = TipoMembresia.BRONCE; 
 
     @Column(name = "puntosAcumulados")
     private Integer puntosAcumulados = 0;
@@ -46,9 +46,6 @@ public class Cliente extends Persona {
 
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrdenCompra> ordenesCompra = new ArrayList<>();
-
-    @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ClienteMembresia> membresiaClientes = new ArrayList<>();
 
     @OneToMany(mappedBy = "cliente", fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();

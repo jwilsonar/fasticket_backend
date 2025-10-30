@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,11 +43,15 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
+import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
 @ExtendWith(MockitoExtension.class)
 class OrdenServiceTest {
@@ -61,6 +66,12 @@ class OrdenServiceTest {
     private TicketRepository ticketRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ItemCarritoRepository itemCarritoRepositorio;
+    @Mock
+    private CarroComprasRepository carroComprasRepository;
+    @Mock
+    private FidelizacionService fidelizacionService;
 
     // --- Instancia del Servicio a probar ---
     @InjectMocks // Crea una instancia de OrdenServicio e inyecta los mocks
@@ -80,6 +91,7 @@ class OrdenServiceTest {
         // Configura datos de prueba básicos antes de cada test
         clienteMock = new Cliente();
         clienteMock.setIdPersona(1);
+        clienteMock.setNivel(TipoMembresia.BRONCE);
         // clienteMock.setFechaNacimiento(...) // Necesario para calcularEdad si lo usas
 
         localMock = new Local();
@@ -150,6 +162,9 @@ class OrdenServiceTest {
         ).thenReturn(ticketsDisponibles);
         // 4. Simula la respuesta del save (devuelve el mismo objeto)
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        
+        // 5. Mock fidelizacionService
+        when(fidelizacionService.calcularDescuentoPorMembresia(any(TipoMembresia.class), any(Integer.class))).thenReturn(0.0);
 
         // Act: Llama al método del servicio
         OrdenCompra ordenCreada = ordenServicio.crearOrden(crearOrdenDTO);
@@ -240,10 +255,12 @@ class OrdenServiceTest {
         item.setTipoTicket(tipoTicketMock);
         item.setCantidad(1);
         ordenPendiente.setItems(List.of(item));
+        ordenPendiente.setCliente(clienteMock);
 
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));
         when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente); // Devuelve la orden guardada
+        doNothing().when(fidelizacionService).generarPuntosPorCompra(any(), any(), any());
 
         // Act
         ordenServicio.confirmarPagoOrden(1);
@@ -367,6 +384,7 @@ class OrdenServiceTest {
         });
         when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(fidelizacionService.calcularDescuentoPorMembresia(any(TipoMembresia.class), any(Integer.class))).thenReturn(0.0);
 
         // Crear DTO de orden
         CrearOrdenDTO ordenDTO = new CrearOrdenDTO();

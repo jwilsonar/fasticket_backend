@@ -12,8 +12,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -21,12 +19,11 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import pe.edu.pucp.fasticket.model.fidelizacion.Promocion;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"zona", "tickets", "promocionesAplicables"})
-@ToString(exclude = {"zona", "tickets", "promocionesAplicables"})
+@EqualsAndHashCode(exclude = {"zona", "tickets"})
+@ToString(exclude = {"zona", "tickets"})
 @Entity
 @Table(name = "TipoTicket")
 public class TipoTicket {
@@ -74,11 +71,4 @@ public class TipoTicket {
     @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "tipoTicketPromocion",
-        joinColumns = @JoinColumn(name = "idTipoTicket"),
-        inverseJoinColumns = @JoinColumn(name = "idPromocion")
-    )
-    private List<Promocion> promocionesAplicables = new ArrayList<>();
 }

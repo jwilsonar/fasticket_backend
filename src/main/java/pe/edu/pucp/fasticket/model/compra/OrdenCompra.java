@@ -49,6 +49,9 @@ public class OrdenCompra {
     @Column(name = "descuentoPorMembrecia")
     private Double descuentoPorMembrecia = 0.0; // 
 
+    @Column(name = "descuentoPorCanje")
+    private Double descuentoPorCanje = 0.0; // 
+
     @Column(name = "igv")
     private Double igv;
 
@@ -115,6 +118,17 @@ public class OrdenCompra {
         this.subtotal = this.items.stream().mapToDouble(ItemCarrito::getPrecioFinal).sum();
         double valorVenta = this.subtotal / 1.18;
         this.igv = this.subtotal - valorVenta;
-        this.total = this.subtotal - this.descuentoPorMembrecia;
+        
+        // Si hay canje aplicado, el total es 0 (pago completo con puntos)
+        // Si no hay canje, se aplica el descuento por membresía
+        if (this.descuentoPorCanje > 0) {
+            this.total = 0.0; // Pago completo con puntos
+        } else {
+            this.total = this.subtotal - this.descuentoPorMembrecia;
+        }
+    }
+
+    public void aplicarDescuentoYRecalcular() {
+        calcularTotal();
     }
 }

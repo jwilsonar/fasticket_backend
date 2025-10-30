@@ -30,7 +30,7 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
-import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
@@ -213,8 +213,8 @@ public class ClienteController {
     @GetMapping("/nivel/{nivel}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<List<ClientePerfilResponseDTO>>> obtenerClientesPerfilPorNivel(
-            @Parameter(description = "Nivel del cliente (ej: CLASICO, ORO, PLATINO)", required = true, example = "CLASICO")
-            @PathVariable TipoNivel nivel) {
+            @Parameter(description = "Nivel del cliente (ej: BRONCE, PLATA, ORO)", required = true, example = "BRONCE")
+            @PathVariable TipoMembresia nivel) {
 
         log.info("GET /api/v1/clientes/nivel/{} - Obtener clientes por nivel", nivel);
         List<ClientePerfilResponseDTO> perfiles = clienteService.obtenerPerfilesPorNivel(nivel);

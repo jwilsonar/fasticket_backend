@@ -95,6 +95,7 @@ public class OrdenControllerTest {
         clienteTest.setDocIdentidad("12345678");
         clienteTest.setContrasena("password");
         clienteTest.setActivo(true);
+        clienteTest.setNivel(pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia.BRONCE);
         clienteTest = clienteRepository.save(clienteTest);
 
         localTest = new Local();
@@ -200,7 +201,7 @@ public class OrdenControllerTest {
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.mensaje").value("Proceso iniciado correctamente."))
                 .andExpect(jsonPath("$.data.idOrden").exists())
-                .andExpect(jsonPath("$.data.total").value(500.0));
+                .andExpect(jsonPath("$.data.total").value(490.0)); // 500 - 10 (2% descuento por membresía bronce)
     }
 
     @Test

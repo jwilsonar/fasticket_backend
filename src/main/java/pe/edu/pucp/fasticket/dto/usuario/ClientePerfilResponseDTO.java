@@ -6,8 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
-import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 
 /**
  * DTO para mostrar el perfil del cliente.
@@ -49,8 +49,8 @@ public class ClientePerfilResponseDTO {
     @Schema(description = "RF-033: Puntos de fidelización acumulados", example = "1500")
     private Integer puntosAcumulados;
     
-    @Schema(description = "Nivel del cliente (CLASICO, PLATA, ORO)", example = "ORO")
-    private TipoNivel nivel;
+    @Schema(description = "Nivel del cliente (BRONCE, PLATA, ORO)", example = "ORO")
+    private TipoMembresia nivel;
     
     @Schema(description = "Edad actual calculada", example = "34")
     private Integer edad;

@@ -14,8 +14,8 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
-import pe.edu.pucp.fasticket.model.usuario.TipoNivel;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
@@ -137,7 +137,7 @@ public class ClienteService {
      * @param nivel Nivel del cliente
      * @return Lista de perfiles de clientes
      */
-    public List<ClientePerfilResponseDTO> obtenerPerfilesPorNivel(TipoNivel nivel) {
+    public List<ClientePerfilResponseDTO> obtenerPerfilesPorNivel(TipoMembresia nivel) {
         log.info("Obteniendo perfiles de clientes con nivel: {}", nivel);
         List<Cliente> clientes = clienteRepository.findByNivel(nivel);
         return (clientes == null)

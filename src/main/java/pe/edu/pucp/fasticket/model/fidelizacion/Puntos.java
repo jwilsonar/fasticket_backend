@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.model.fidelizacion;
 
 import java.time.LocalDate;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,8 +23,8 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"reglaPuntos"})
-@ToString(exclude = {"reglaPuntos"})
+@EqualsAndHashCode(exclude = {"reglaPuntos", "cliente", "canje"})
+@ToString(exclude = {"reglaPuntos", "cliente", "canje"})
 @Entity
 @Table(name = "puntos")
 public class Puntos {
@@ -43,6 +44,7 @@ public class Puntos {
     @Column(name = "fechaTransaccion")
     private LocalDate fechaTransaccion; 
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "tipoTransaccion")
     private TipoTransaccion tipoTransaccion;
 

@@ -62,7 +62,7 @@ public class TransferenciaEntradaServicio {
         if (!nombreCoincide || !docCoincide || !telCoincide) {
             throw new BusinessException("Los datos (Nombre, Documento o Teléfono) no coinciden con el email registrado.");
         }
-        Evento evento = ticket.getTipoTicket().getEvento();
+        Evento evento = ticket.getEvento();
 
         Integer maxTransf = evento.getMaxTransferenciasPermitidas();
         Integer contActual = ticket.getContadorTransferencias();

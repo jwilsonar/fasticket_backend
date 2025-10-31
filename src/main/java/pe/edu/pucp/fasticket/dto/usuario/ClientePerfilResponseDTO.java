@@ -56,9 +56,8 @@ public class ClientePerfilResponseDTO {
     @Schema(description = "Edad actual calculada", example = "34")
     private Integer edad;
 
-    /*
     @Schema(description = "Fecha de creación del perfil de este cliente", example ="2025-01-10")
     private LocalDate fechaCreacion;
-    */
+
 }
 

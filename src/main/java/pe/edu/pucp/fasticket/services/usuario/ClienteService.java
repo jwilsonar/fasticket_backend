@@ -137,6 +137,10 @@ public class ClienteService {
             cliente.setDocIdentidad(dto.getDocIdentidad());
         }
 
+        if (dto.getDistrito() != null){
+            cliente.setDistrito(dto.getDistrito());
+        }
+
         // Validar que el nuevo email no esté en uso por otro cliente
         if (dto.getEmail() != null && !dto.getEmail().equals(cliente.getEmail())) {
             if (personasRepositorio.existsByEmail(dto.getEmail())) {
@@ -223,7 +227,7 @@ public class ClienteService {
         dto.setPuntosAcumulados(cliente.getPuntosAcumulados());
         dto.setNivel(cliente.getNivel());
         dto.setEdad(cliente.calcularEdad());
-        //dto.setFechaCreacion(cliente.getFechaCreacion());
+        dto.setFechaCreacion(cliente.getFechaCreacion());
         return dto;
     }
 }

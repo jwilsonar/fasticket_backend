@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import pe.edu.pucp.fasticket.model.geografia.Distrito;
 
 /**
  * DTO para EDITAR el perfil de un cliente (ADMINISTRADOR).
@@ -45,4 +46,8 @@ public class ClientePerfilEditDTO {
     @Email(message = "El email debe ser válido")
     @Size(max = 150, message = "El email no puede exceder 150 caracteres")
     private String email;
+
+    @Schema(description = "Distrito de estadia del cliente", example = "San Miguel")
+    @Size(min = 2, max = 30, message = "Distritos en la lista despegable")
+    private Distrito distrito;
 }

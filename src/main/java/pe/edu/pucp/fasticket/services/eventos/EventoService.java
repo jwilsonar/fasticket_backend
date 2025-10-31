@@ -131,6 +131,28 @@ public class EventoService {
         return eventoMapper.toResponseDTO(eventoActualizado);
     }
 
+    /**
+     * Actualiza únicamente la URL de la imagen de un evento.
+     * 
+     * @param id ID del evento
+     * @param imagenUrl URL de la imagen a guardar
+     * @return EventoResponseDTO con la información actualizada
+     */
+    @Transactional
+    public EventoResponseDTO actualizarImagenUrl(Integer id, String imagenUrl) {
+        log.info("Actualizando URL de imagen para evento ID: {}", id);
+
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
+
+        evento.setImagenUrl(imagenUrl);
+        evento.setFechaActualizacion(LocalDate.now());
+        Evento eventoActualizado = eventoRepository.save(evento);
+
+        log.info("URL de imagen actualizada para evento ID: {}", id);
+        return eventoMapper.toResponseDTO(eventoActualizado);
+    }
+
     @Transactional
     public void eliminarLogico(Integer id) {
         log.info("Eliminación lógica del evento ID: {}", id);

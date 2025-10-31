@@ -2,10 +2,15 @@
 
 package pe.edu.pucp.fasticket.controllers.eventos;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,22 +36,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.multipart.MultipartFile;
+import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
-import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
 import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
-
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import java.io.IOException;
 
 @Tag(
         name = "Eventos",
@@ -208,7 +207,8 @@ public class EventoController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
-                evento.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
@@ -291,7 +291,8 @@ public class EventoController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
-                evento.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
@@ -401,6 +402,8 @@ public class EventoController {
 
         try {
             String imageUrl = s3Service.uploadFile(file, "eventos", id);
+            // Guardar la URL de la imagen en la base de datos
+            eventoService.actualizarImagenUrl(id, imageUrl);
             StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

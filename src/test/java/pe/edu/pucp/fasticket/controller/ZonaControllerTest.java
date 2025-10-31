@@ -191,14 +191,26 @@ public class ZonaControllerTest {
         org.springframework.mock.web.MockMultipartFile imagen = 
             new org.springframework.mock.web.MockMultipartFile("imagen", "zona.jpg", "image/jpeg", imagenBytes);
 
-        mockMvc.perform(multipart("/api/v1/zonas/con-imagen")
+        String response = mockMvc.perform(multipart("/api/v1/zonas/con-imagen")
                         .file(imagen)
                         .param("nombre", "Zona Con Imagen")
                         .param("aforoMax", "100")
                         .param("idLocal", localTest.getIdLocal().toString()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Zona Con Imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        // Extraer el ID de la zona creada
+        Integer idZonaCreada = objectMapper.readTree(response).get("data").get("idZona").asInt();
+
+        // Verificar que al obtener la zona, la imagenUrl está guardada en la BD
+        mockMvc.perform(get("/api/v1/zonas/" + idZonaCreada))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data.idZona").value(idZonaCreada))
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 
     @Test
@@ -267,6 +279,14 @@ public class ZonaControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado Con Imagen"))
                 .andExpect(jsonPath("$.data.imagenUrl").exists());
+
+        // Verificar que al obtener la zona actualizada, la imagenUrl está guardada en la BD
+        mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data.idZona").value(zonaTest.getIdZona()))
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 
     @Test
@@ -345,5 +365,30 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMINISTRADOR")
+    void testSubirImagenZona_YVerificarPersistencia() throws Exception {
+        // Crear un archivo de prueba
+        byte[] imagenBytes = "imagen de zona independiente".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagen = 
+            new org.springframework.mock.web.MockMultipartFile("file", "zona_upload.jpg", "image/jpeg", imagenBytes);
+
+        // Subir la imagen
+        mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/imagen")
+                        .file(imagen))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.data").isNotEmpty());
+
+        // Verificar que al obtener la zona, la imagenUrl está guardada en la BD
+        mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.data.idZona").value(zonaTest.getIdZona()))
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 }

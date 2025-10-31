@@ -198,7 +198,9 @@ public class ZonaController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "zonas", zonaDTO.getIdZona());
-                zonaDTO.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                Zona zonaActualizada = zonaServicio.actualizarImagenUrl(zonaDTO.getIdZona(), imageUrl);
+                zonaDTO = zonaMapper.toDTO(zonaActualizada);
             }
             
             log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
@@ -288,7 +290,9 @@ public class ZonaController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "zonas", zonaDTO.getIdZona());
-                zonaDTO.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                Zona zonaActualizada = zonaServicio.actualizarImagenUrl(zonaDTO.getIdZona(), imageUrl);
+                zonaDTO = zonaMapper.toDTO(zonaActualizada);
             }
             
             StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
@@ -370,6 +374,8 @@ public class ZonaController {
         
         try {
             String imageUrl = s3Service.uploadFile(file, "zonas", id);
+            // Guardar la URL de la imagen en la base de datos
+            zonaServicio.actualizarImagenUrl(id, imageUrl);
             StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

@@ -51,8 +51,6 @@ public class FidelizacionService {
     private final ClienteRepository clienteRepository;
     private final OrdenCompraRepositorio ordenCompraRepositorio;
 
-    private final static Integer PUNTOS_VENCIMIENTO_ANIOS = 1;
-
     // ============ REGLAS DE PUNTOS ============
     
     public List<ReglaPuntosDTO> listarReglasPuntos() {
@@ -149,7 +147,7 @@ public class FidelizacionService {
         
         if (regla.getTipoRegla() == TipoRegla.COMPRA) {
             // Los puntos por compra tienen vencimiento
-            puntos.setFechaVencimiento(LocalDate.now().plusYears(PUNTOS_VENCIMIENTO_ANIOS));
+            puntos.setFechaVencimiento(LocalDate.now().plusYears(1));
         }
         
         Puntos guardado = puntosRepository.save(puntos);

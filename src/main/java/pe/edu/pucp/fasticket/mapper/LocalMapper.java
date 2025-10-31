@@ -28,6 +28,7 @@ public class LocalMapper {
                 .direccion(local.getDireccion())
                 .urlMapa(local.getUrlMapa())
                 .aforoTotal(local.getAforoTotal())
+                .imagenUrl(local.getImagenUrl())
                 .activo(local.getActivo())
                 .idDistrito(local.getDistrito() != null ? local.getDistrito().getIdDistrito() : null)
                 .nombreDistrito(local.getDistrito() != null ? local.getDistrito().getNombre() : null)

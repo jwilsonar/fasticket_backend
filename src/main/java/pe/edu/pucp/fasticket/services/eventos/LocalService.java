@@ -116,5 +116,27 @@ public class LocalService {
 
         log.info("Local desactivado: {}", id);
     }
+
+    /**
+     * Actualiza únicamente la URL de la imagen de un local.
+     * 
+     * @param id ID del local
+     * @param imagenUrl URL de la imagen a guardar
+     * @return LocalResponseDTO con la información actualizada
+     */
+    @Transactional
+    public LocalResponseDTO actualizarImagenUrl(Integer id, String imagenUrl) {
+        log.info("Actualizando URL de imagen para local ID: {}", id);
+
+        Local local = localRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + id));
+
+        local.setImagenUrl(imagenUrl);
+        local.setFechaActualizacion(LocalDate.now());
+        Local localActualizado = localRepository.save(local);
+
+        log.info("URL de imagen actualizada para local ID: {}", id);
+        return localMapper.toResponseDTO(localActualizado);
+    }
 }
 

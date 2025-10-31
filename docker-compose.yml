@@ -64,6 +64,12 @@ services:
       SPRING_PROFILES_ACTIVE: dev
       FRONTEND_URL: http://localhost:4200
       
+      # Configuración de AWS S3 (para desarrollo local)
+      AWS_S3_REGION: ${AWS_S3_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      
       # JVM Options
       JAVA_OPTS: "-Xmx512m -Xms256m"
     depends_on:

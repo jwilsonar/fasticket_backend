@@ -1,5 +1,19 @@
 package pe.edu.pucp.fasticket.controllers;
 
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -11,16 +25,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.services.S3Service;
-
-import java.util.List;
+import pe.edu.pucp.fasticket.services.eventos.LocalService;
 
 @Tag(
     name = "Archivos",
@@ -34,6 +42,7 @@ import java.util.List;
 public class FileController {
 
     private final S3Service s3Service;
+    private final LocalService localService;
 
     @Operation(
         summary = "Subir imagen de evento",
@@ -128,6 +137,8 @@ public class FileController {
         
         try {
             String imageUrl = s3Service.uploadFile(file, "locales", localId);
+            // Guardar la URL de la imagen en la base de datos
+            localService.actualizarImagenUrl(localId, imageUrl);
             StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

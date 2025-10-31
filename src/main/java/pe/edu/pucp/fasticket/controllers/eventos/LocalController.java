@@ -172,7 +172,8 @@ public class LocalController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "locales", local.getIdLocal());
-                local.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                local = localService.actualizarImagenUrl(local.getIdLocal(), imageUrl);
             }
             
             StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local creado exitosamente", local);
@@ -252,7 +253,8 @@ public class LocalController {
             // Subir imagen si se proporcionó
             if (imagen != null && !imagen.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagen, "locales", local.getIdLocal());
-                local.setImagenUrl(imageUrl);
+                // Guardar la URL de la imagen en la base de datos
+                local = localService.actualizarImagenUrl(local.getIdLocal(), imageUrl);
             }
             
             StandardResponse<LocalResponseDTO> response = StandardResponse.success("Local actualizado exitosamente", local);
@@ -321,6 +323,8 @@ public class LocalController {
         
         try {
             String imageUrl = s3Service.uploadFile(file, "locales", id);
+            // Guardar la URL de la imagen en la base de datos
+            localService.actualizarImagenUrl(id, imageUrl);
             StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
             return ResponseEntity.ok(response);
         } catch (Exception e) {

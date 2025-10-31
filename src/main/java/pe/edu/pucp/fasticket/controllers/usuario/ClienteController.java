@@ -279,10 +279,10 @@ public class ClienteController {
     })
     @GetMapping("/listar")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<List<Cliente>>> listarClientes() {
+    public ResponseEntity<StandardResponse<List<ClientePerfilResponseDTO>>> listarClientes() {
 
         log.info("GET /api/v1/clientes/listar");
-        List<Cliente> listaClientes = clienteService.listarTodos();
+        List<ClientePerfilResponseDTO> listaClientes = clienteService.listarTodos();
         return ResponseEntity.ok(StandardResponse.success("Lista de clientes obtenida exitosamente", listaClientes));
     }
 }

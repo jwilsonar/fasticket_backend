@@ -202,9 +202,10 @@ public class ClienteService {
      * Obtiene una lista de todos los cliente
      * */
 
-    public List<Cliente> listarTodos() {
+    public List<ClientePerfilResponseDTO> listarTodos() {
         log.info("Obteniendo perfiles de todos los clientes");
-        return clienteRepository.findAll();
+        List<Cliente> clientes = clienteRepository.findAll();
+        return clientes.stream().map(this::convertirAPerfilDTO).collect(Collectors.toList());
     }
 
     /**

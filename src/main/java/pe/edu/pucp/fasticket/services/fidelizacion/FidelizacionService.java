@@ -339,8 +339,9 @@ public class FidelizacionService {
     public void eliminarCodigoPromocional(Integer id) {
         CodigoPromocional codigo = codigoPromocionalRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado con ID: " + id));
-        
-        codigoPromocionalRepository.delete(codigo);
+
+        codigo.setActivo(false);
+        codigoPromocionalRepository.save(codigo);
         log.info("Código promocional eliminado con ID: {}", id);
     }
 

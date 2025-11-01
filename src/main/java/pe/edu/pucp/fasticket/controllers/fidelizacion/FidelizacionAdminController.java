@@ -501,5 +501,50 @@ public class FidelizacionAdminController {
         
         return ResponseEntity.ok(StandardResponse.success("Código eliminado exitosamente.", null));
     }
+
+    // ============ GESTIÓN DE PUNTOS DE CLIENTE ============
+
+    @Operation(
+            summary = "Obtener historial de puntos de un cliente (Admin)",
+            description = "Muestra todas las transacciones de puntos (activos y anulados) de un cliente específico.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Historial obtenido"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos (requiere rol ADMIN)"),
+            @ApiResponse(responseCode = "404", description = "Cliente no encontrado")
+    })
+    @GetMapping("/clientes/{idCliente}/historial-puntos")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<PuntosDTO>>> getHistorialPuntos(
+            @Parameter(description = "ID del cliente a consultar", required = true)
+            @PathVariable Integer idCliente) {
+
+        List<PuntosDTO> historial = fidelizacionService.listarPuntosPorCliente(idCliente);
+        return ResponseEntity.ok(StandardResponse.success("Historial de puntos obtenido", historial));
+    }
+
+    @Operation(
+            summary = "Anular un registro de historial de puntos (Admin)",
+            description = "Anula (soft delete) un registro de puntos y recalcula el saldo total del cliente.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Registro anulado exitosamente"),
+            @ApiResponse(responseCode = "400", description = "No se puede anular (ej. ya está anulado, saldo negativo)"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos"),
+            @ApiResponse(responseCode = "404", description = "Registro o Cliente no encontrado")
+    })
+    @DeleteMapping("/clientes/{idCliente}/historial-puntos/{idPuntos}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> borrarRegistroDePuntos(
+            @Parameter(description = "ID del cliente", required = true)
+            @PathVariable Integer idCliente,
+            @Parameter(description = "ID del registro de puntos a anular", required = true)
+            @PathVariable Integer idPuntos) {
+
+        fidelizacionService.borrarRegistroPuntos(idCliente, idPuntos);
+        return ResponseEntity.ok(StandardResponse.success("Registro de puntos anulado exitosamente."));
+    }
 }
 

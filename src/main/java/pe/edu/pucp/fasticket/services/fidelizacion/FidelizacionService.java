@@ -124,6 +124,36 @@ public class FidelizacionService {
     }
 
     @Transactional
+    public void borrarRegistroPuntos(Integer idCliente, Integer idPuntos) {
+        log.warn("Solicitud de ANULACIÓN de registro de puntos ID: {} para cliente ID: {}", idPuntos, idCliente);
+        Puntos puntos = puntosRepository.findById(idPuntos)
+                .orElseThrow(() -> new ResourceNotFoundException("Registro de puntos no encontrado con ID: " + idPuntos));
+        Cliente cliente = puntos.getCliente();
+        if (!cliente.getIdPersona().equals(idCliente)) {
+            throw new SecurityException("Este registro de puntos no pertenece al cliente especificado.");
+        }
+        if (!puntos.getActivo()) {
+            throw new BusinessException("Solo se pueden anular registros que estén ACTIVOS.");
+        }
+        int puntosActuales = (cliente.getPuntosAcumulados() != null) ? cliente.getPuntosAcumulados() : 0;
+        int efectoNeto = 0;
+        if (puntos.getTipoTransaccion() == TipoTransaccion.GANADO) {
+            efectoNeto = puntos.getCantPuntos();
+        } else if (puntos.getTipoTransaccion() == TipoTransaccion.PERDIDO) {
+            efectoNeto = -puntos.getCantPuntos();
+        }
+        int puntosNuevos = puntosActuales - efectoNeto;
+        if (puntosNuevos < 0) {
+            throw new BusinessException("No se puede anular este registro porque resultaría en un saldo de puntos negativo.");
+        }
+        cliente.setPuntosAcumulados(puntosNuevos);
+        clienteRepository.save(cliente);
+        puntos.setActivo(false);
+        puntosRepository.save(puntos);
+        log.info("Registro de puntos ID: {} ANULADO. Saldo de cliente ID {} actualizado a {}.", idPuntos, idCliente, puntosNuevos);
+    }
+
+    @Transactional
     public Integer calcularPuntosAcumulados(Integer idCliente) {
         Integer puntos = puntosRepository.calcularPuntosAcumulados(idCliente, TipoTransaccion.GANADO);
         return puntos != null ? puntos : 0;

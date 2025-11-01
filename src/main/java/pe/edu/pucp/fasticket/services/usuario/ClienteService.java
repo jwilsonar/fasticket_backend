@@ -16,7 +16,9 @@ import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
@@ -35,6 +37,7 @@ public class ClienteService {
 
     private final ClienteRepository clienteRepository;
     private final PersonasRepositorio personasRepositorio;
+    private final DistritoRepository distritoRepositorio;
 
     /**
      * RF-030: Obtiene el perfil del cliente por email.
@@ -137,8 +140,10 @@ public class ClienteService {
             cliente.setDocIdentidad(dto.getDocIdentidad());
         }
 
-        if (dto.getDistrito() != null){
-            cliente.setDistrito(dto.getDistrito());
+        if (dto.getIdDistrito() != null){
+            Distrito distrito = distritoRepositorio.findById(dto.getIdDistrito())
+                    .orElseThrow(() -> new ResourceNotFoundException("Distrito no encontrado con ID: " + dto.getIdDistrito()));
+            cliente.setDistrito(distrito);
         }
 
         // Validar que el nuevo email no esté en uso por otro cliente

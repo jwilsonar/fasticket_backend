@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.dto.usuario;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -47,7 +48,6 @@ public class ClientePerfilEditDTO {
     @Size(max = 150, message = "El email no puede exceder 150 caracteres")
     private String email;
 
-    @Schema(description = "Distrito de estadia del cliente", example = "San Miguel")
-    @Size(min = 2, max = 30, message = "Distritos en la lista despegable")
-    private Distrito distrito;
+    @NotNull(message = "El distrito es obligatorio")
+    private Integer idDistrito;
 }

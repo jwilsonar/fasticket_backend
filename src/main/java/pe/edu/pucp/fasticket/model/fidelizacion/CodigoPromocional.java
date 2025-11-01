@@ -47,5 +47,8 @@ public class CodigoPromocional {
 
     @Column(name = "cantidadPorCliente")
     private Integer cantidadPorCliente;
+
+    @Column(name = "activo", nullable = false, columnDefinition = "BOOLEAN DEFAULT true")
+    private Boolean activo = true;
 }
 

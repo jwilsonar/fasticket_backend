@@ -6,13 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -284,6 +278,42 @@ public class ClienteController {
         log.info("GET /api/v1/clientes/listar");
         List<ClientePerfilResponseDTO> listaClientes = clienteService.listarTodos();
         return ResponseEntity.ok(StandardResponse.success("Lista de clientes obtenida exitosamente", listaClientes));
+    }
+
+    @Operation(
+            summary = "Desactivar (borrado lógico) de un cliente",
+            description = "Permite al administrador desactivar la cuenta de un cliente. El cliente no será borrado, solo marcado como inactivo.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Cliente desactivado exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "El cliente ya estaba desactivado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol ADMIN)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Cliente no encontrado"
+            )
+    })
+    @DeleteMapping("/{idCliente}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> desactivarCliente(
+            @Parameter(description = "ID del cliente a desactivar", required = true)
+            @PathVariable Integer idCliente) {
+
+        log.info("DELETE /api/v1/clientes/{}", idCliente);
+
+        clienteService.desactivarCliente(idCliente);
+
+        return ResponseEntity.ok(StandardResponse.success("Cliente desactivado exitosamente."));
     }
 }
 

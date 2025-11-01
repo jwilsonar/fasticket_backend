@@ -236,5 +236,18 @@ public class ClienteService {
         dto.setFechaCreacion(cliente.getFechaCreacion());
         return dto;
     }
+
+    @Transactional
+    public void desactivarCliente(Integer idCliente) {
+        log.warn("Solicitud de desactivación (borrado lógico) para cliente ID: {}", idCliente);
+        Cliente cliente = clienteRepository.findById(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
+        if (!cliente.getActivo()) {
+            throw new BusinessException("El cliente ya se encuentra desactivado.");
+        }
+        cliente.setActivo(false);
+        clienteRepository.save(cliente);
+        log.info("Cliente ID: {} desactivado exitosamente.", idCliente);
+    }
 }
 

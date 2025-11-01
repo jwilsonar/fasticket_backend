@@ -134,8 +134,8 @@ public class FidelizacionClienteController {
         
         var cliente = clienteRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + userDetails.getUsername()));
-        
-        List<PuntosDTO> historial = fidelizacionService.listarPuntosPorCliente(cliente.getIdPersona());
+
+        List<PuntosDTO> historial = fidelizacionService.listarPuntosActivosPorCliente(cliente.getIdPersona());
         
         return ResponseEntity.ok(StandardResponse.success("Historial obtenido exitosamente.", historial));
     }

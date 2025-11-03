@@ -385,7 +385,7 @@ class OrdenServiceTest {
         // Configurar mocks de Repositorios y Servicios - SOLO LOS ESENCIALES
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
-
+        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> {
             OrdenCompra orden = invocation.getArgument(0);
             orden.setIdOrdenCompra(1);

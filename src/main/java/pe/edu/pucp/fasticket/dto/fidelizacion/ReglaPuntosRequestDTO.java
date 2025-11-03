@@ -19,6 +19,6 @@ public class ReglaPuntosRequestDTO {
     private TipoRegla tipoRegla;
     
     private Boolean activo = true;
-    private Boolean estado = true;
+    private String estado = "true";
 }
 

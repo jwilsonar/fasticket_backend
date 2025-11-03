@@ -15,13 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
@@ -140,40 +137,59 @@ class OrdenServiceTest {
 
     @Test
     void testCrearOrden_Exitoso() {
-        // Arrange: Configura el comportamiento de los mocks
-        // 1. Simula que el cliente existe
+        // --- Arrange: Configura mocks esenciales ---
+        // Cliente existe
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
-        // 2. Simula que el tipo de ticket existe
+
+        // Tipo de ticket existe
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
-        // 2.1. Simula que se encuentra el evento asociado al tipo de ticket
-        Evento eventoMock = new Evento();
-        eventoMock.setIdEvento(1);
-        eventoMock.setNombre("Evento de Prueba");
-        eventoMock.setEdadMinima(18);
-        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
-        // 3. Simula que hay tickets disponibles
+
+        // Evento asociado al tipo de ticket
+        lenient().when(tipoTicketRepositorio.findEventoByTipoTicket(1))
+                .thenReturn(Optional.of(eventoMock));
+
+        // Tickets disponibles
         List<Ticket> ticketsDisponibles = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            Ticket t = new Ticket(); t.setIdTicket(i+1); t.setEstado(EstadoTicket.DISPONIBLE);
+            Ticket t = new Ticket();
+            t.setIdTicket(i + 1);
+            t.setEstado(EstadoTicket.DISPONIBLE);
+            t.setTipoTicket(tipoTicketMock);
             ticketsDisponibles.add(t);
         }
         when(ticketRepository.findAvailableTicketsByTypeAndState(
                 eq(tipoTicketMock), eq(EstadoTicket.DISPONIBLE), any(PageRequest.class))
         ).thenReturn(ticketsDisponibles);
-        // 4. Simula la respuesta del save (devuelve el mismo objeto)
-        when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        
-        // 5. Mock fidelizacionService
-        when(fidelizacionService.calcularDescuentoPorMembresia(any(TipoMembresia.class), any(Integer.class))).thenReturn(0.0);
 
-        // Act: Llama al método del servicio
+        // Guardar ItemCarrito devuelve el mismo objeto
+        when(itemCarritoRepositorio.save(any(ItemCarrito.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Guardar OrdenCompra asigna ID y devuelve el objeto
+        when(ordenCompraRepositorio.save(any(OrdenCompra.class)))
+                .thenAnswer(invocation -> {
+                    OrdenCompra orden = invocation.getArgument(0);
+                    if (orden.getIdOrdenCompra() == null) {
+                        orden.setIdOrdenCompra(1); // Simula asignación de ID al guardar
+                    }
+                    return orden;
+                });
+
+        // Guardar tickets devuelve el mismo ticket
+
+
+        // Fidelización (opcional)
+        lenient().when(fidelizacionService.calcularDescuentoPorMembresia(any(), any()))
+                .thenReturn(0.0);
+
+        // --- Act ---
         OrdenCompra ordenCreada = ordenServicio.crearOrden(crearOrdenDTO);
 
-        // Assert: Verifica los resultados
+        // --- Assert ---
         assertThat(ordenCreada).isNotNull();
         assertThat(ordenCreada.getEstado()).isEqualTo(EstadoCompra.PENDIENTE);
         assertThat(ordenCreada.getCliente()).isEqualTo(clienteMock);
-        assertThat(ordenCreada.getFechaExpiracion()).isAfter(LocalDateTime.now().plusMinutes(14)); // Aprox 15 mins
+        assertThat(ordenCreada.getFechaExpiracion()).isAfter(LocalDateTime.now().plusMinutes(14));
         assertThat(ordenCreada.getItems()).hasSize(1);
 
         ItemCarrito itemCreado = ordenCreada.getItems().get(0);
@@ -182,13 +198,15 @@ class OrdenServiceTest {
         assertThat(itemCreado.getTipoTicket()).isEqualTo(tipoTicketMock);
         assertThat(itemCreado.getTickets()).hasSize(2);
 
-        // Verifica que los tickets se reservaron y se les asignó el asistente
+        // Verifica tickets reservados y asignación de asistentes
         Ticket ticketReservado = itemCreado.getTickets().get(0);
         assertThat(ticketReservado.getEstado()).isEqualTo(EstadoTicket.RESERVADA);
         assertThat(ticketReservado.getNombreAsistente()).isEqualTo("Asis");
 
-        // Verifica que se llamó al save del repositorio de órdenes
-        verify(ordenCompraRepositorio, times(1)).save(any(OrdenCompra.class));
+        // Verifica llamadas a repositorios
+        verify(ordenCompraRepositorio, times(2)).save(any(OrdenCompra.class)); // 1 inicial + 1 final
+        verify(itemCarritoRepositorio, times(1)).save(any(ItemCarrito.class));
+        verify(ticketRepository, times(1)).saveAll(anyList());
     }
 
     @Test
@@ -223,7 +241,6 @@ class OrdenServiceTest {
         // Arrange
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
-        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         // Simula que solo hay 1 ticket disponible cuando se piden 2
         List<Ticket> ticketsDisponibles = List.of(new Ticket());
         when(ticketRepository.findAvailableTicketsByTypeAndState(
@@ -327,85 +344,101 @@ class OrdenServiceTest {
         tipoTicketMock.setLimitePorPersona(2);
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
-        when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
-        
-        // Simular que el cliente ya compró 2 tickets de este tipo
+
+        // Simular que el cliente ya compró 2 tickets de este tipo (límite alcanzado)
         when(ticketRepository.countTicketsByClienteAndTipoTicket(1, 1)).thenReturn(2);
 
         // Crear DTO de orden que excede el límite
         CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
         ordenDTO.setIdCliente(1);
-        
+
         ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
         item.setIdTipoTicket(1);
         item.setCantidad(1); // Intentar comprar 1 más cuando ya tiene 2 (límite es 2)
-        
+
         DatosAsistenteDTO asistente = new DatosAsistenteDTO();
         asistente.setNombres("Test");
         asistente.setApellidos("User");
         asistente.setTipoDocumento(TipoDocumento.DNI);
         asistente.setNumeroDocumento("12345678");
         item.setAsistentes(Collections.singletonList(asistente));
-        
+
         ordenDTO.setItems(Collections.singletonList(item));
 
         // Ejecutar y verificar que lanza BusinessException
-        BusinessException exception = assertThrows(BusinessException.class, () -> ordenServicio.crearOrden(ordenDTO));
+        BusinessException exception = assertThrows(BusinessException.class, () -> {
+            ordenServicio.crearOrden(ordenDTO);
+        });
+
         assertTrue(exception.getMessage().contains("límite de tickets por persona"));
+
+        // Verificar que NO se intentó guardar la orden (porque la validación falló antes)
+        verify(ordenCompraRepositorio, never()).save(any(OrdenCompra.class));
     }
 
     @Test
     void testCrearOrden_CreaTicketsCorrectamente() {
-        // Configurar mocks
+        // Configurar TipoTicket con Evento
+        eventoMock.setIdEvento(1);
+        tipoTicketMock.setEvento(eventoMock);
+
+        // Configurar mocks de Repositorios y Servicios - SOLO LOS ESENCIALES
         when(tipoTicketRepositorio.findById(1)).thenReturn(Optional.of(tipoTicketMock));
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteMock));
         when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
-        
-        // Crear tickets disponibles
-        List<Ticket> ticketsDisponibles = new ArrayList<>();
-        Ticket ticket1 = new Ticket();
-        ticket1.setIdTicket(1);
-        ticket1.setEstado(EstadoTicket.DISPONIBLE);
-        ticket1.setTipoTicket(tipoTicketMock);
-        ticketsDisponibles.add(ticket1);
-        
-        Ticket ticket2 = new Ticket();
-        ticket2.setIdTicket(2);
-        ticket2.setEstado(EstadoTicket.DISPONIBLE);
-        ticket2.setTipoTicket(tipoTicketMock);
-        ticketsDisponibles.add(ticket2);
-        
-        when(ticketRepository.findAvailableTicketsByTypeAndState(any(), any(), any()))
-                .thenReturn(ticketsDisponibles);
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenAnswer(invocation -> {
             OrdenCompra orden = invocation.getArgument(0);
             orden.setIdOrdenCompra(1);
             return orden;
         });
-        when(ticketRepository.save(any(Ticket.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(fidelizacionService.calcularDescuentoPorMembresia(any(TipoMembresia.class), any(Integer.class))).thenReturn(0.0);
+
+        when(itemCarritoRepositorio.save(any(ItemCarrito.class)))
+                .thenAnswer(invocation -> {
+                    ItemCarrito item = invocation.getArgument(0);
+                    item.setIdItemCarrito(99);
+                    return item;
+                });
+
+        // Crear tickets disponibles (con referencias al Evento)
+        List<Ticket> ticketsDisponibles = new ArrayList<>();
+
+        Ticket ticket1 = new Ticket();
+        ticket1.setIdTicket(1);
+        ticket1.setEstado(EstadoTicket.DISPONIBLE);
+        ticket1.setTipoTicket(tipoTicketMock);
+        ticket1.setEvento(eventoMock);
+        ticketsDisponibles.add(ticket1);
+
+        Ticket ticket2 = new Ticket();
+        ticket2.setIdTicket(2);
+        ticket2.setEstado(EstadoTicket.DISPONIBLE);
+        ticket2.setTipoTicket(tipoTicketMock);
+        ticket2.setEvento(eventoMock);
+        ticketsDisponibles.add(ticket2);
+
+        when(ticketRepository.findAvailableTicketsByTypeAndState(any(), any(), any()))
+                .thenReturn(ticketsDisponibles);
 
         // Crear DTO de orden
         CrearOrdenDTO ordenDTO = new CrearOrdenDTO();
         ordenDTO.setIdCliente(1);
-        
+
         ItemSeleccionadoDTO item = new ItemSeleccionadoDTO();
         item.setIdTipoTicket(1);
         item.setCantidad(2);
-        
+
         DatosAsistenteDTO asistente1 = new DatosAsistenteDTO();
         asistente1.setNombres("Test");
         asistente1.setApellidos("User1");
         asistente1.setTipoDocumento(TipoDocumento.DNI);
         asistente1.setNumeroDocumento("12345678");
-        
+
         DatosAsistenteDTO asistente2 = new DatosAsistenteDTO();
         asistente2.setNombres("Test");
         asistente2.setApellidos("User2");
         asistente2.setTipoDocumento(TipoDocumento.DNI);
         asistente2.setNumeroDocumento("87654321");
-        
+
         item.setAsistentes(List.of(asistente1, asistente2));
         ordenDTO.setItems(Collections.singletonList(item));
 
@@ -416,7 +449,7 @@ class OrdenServiceTest {
         assertThat(ordenCreada).isNotNull();
         assertThat(ordenCreada.getItems()).hasSize(1);
         assertThat(ordenCreada.getItems().get(0).getTickets()).hasSize(2);
-        
+
         // Verificar que los tickets tienen el evento asignado
         for (Ticket ticket : ordenCreada.getItems().get(0).getTickets()) {
             assertThat(ticket.getEvento()).isNotNull();
@@ -425,9 +458,9 @@ class OrdenServiceTest {
             assertThat(ticket.getEstado()).isEqualTo(EstadoTicket.RESERVADA);
             assertThat(ticket.getCodigoQr()).isNotNull();
         }
-        
+
         // Verificar que se guardaron los tickets
-        verify(ticketRepository, times(2)).save(any(Ticket.class));
-        verify(clienteRepository, times(1)).save(any(Cliente.class));
+        verify(ticketRepository, times(1)).saveAll(anyList());
+
     }
 }

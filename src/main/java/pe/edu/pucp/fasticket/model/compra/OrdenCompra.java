@@ -87,7 +87,7 @@ public class OrdenCompra {
     @JoinColumn(name = "idCliente", nullable = false)
     private Cliente cliente; //
 
-    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY,orphanRemoval = true)
+    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemCarrito> items = new ArrayList<>();
 
     @OneToOne(fetch = FetchType.LAZY)

@@ -74,7 +74,7 @@ public class CarroCompras {
         recalcularTotales();
     }
 
-    private void recalcularTotales() {
+    public void recalcularTotales() {
         this.subtotal = items.stream()
             .mapToDouble(item -> item.getPrecio() * item.getCantidad())
             .sum();

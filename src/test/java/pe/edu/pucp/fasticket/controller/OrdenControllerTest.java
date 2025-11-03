@@ -207,12 +207,12 @@ public class OrdenControllerTest {
     @Test
     @WithMockUser(roles = "CLIENTE")
     void testCrearOrden_ClienteSinStock() throws Exception {
-        DatosAsistenteDTO asistente = new DatosAsistenteDTO();
         DatosAsistenteDTO asistenteValido = new DatosAsistenteDTO();
-        asistenteValido.setTipoDocumento(TipoDocumento.DNI); // O String "DNI"
+        asistenteValido.setTipoDocumento(TipoDocumento.DNI);
         asistenteValido.setNumeroDocumento("99999999");
         asistenteValido.setNombres("Asistente");
         asistenteValido.setApellidos("Temporal");
+
         ItemSeleccionadoDTO itemVip = new ItemSeleccionadoDTO();
         itemVip.setIdTipoTicket(tipoTicketVip.getIdTipoTicket());
         itemVip.setCantidad(10);
@@ -225,7 +225,7 @@ public class OrdenControllerTest {
         mockMvc.perform(post("/api/v1/ordenes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.mensaje").value(containsString("No hay suficientes tickets disponibles")));
     }

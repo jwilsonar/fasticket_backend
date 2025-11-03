@@ -47,78 +47,73 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     @Override
     @Transactional
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
-        log.info("Agregando item al carrito para cliente ID: {}", request.getIdCliente());
+        log.info("Agregando item (simple) al carrito para cliente ID: {}", request.getIdCliente());
+
         validarItemYAsistentes(request);
+
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + request.getIdTipoTicket()));
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
+
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + request.getIdCliente()));
-        Integer edadCliente = cliente.calcularEdad();
-        // Obtener evento a través del repositorio
-        pe.edu.pucp.fasticket.model.eventos.Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
-                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
-        Integer edadMinima = evento.getEdadMinima();
-        if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
-            throw new IllegalArgumentException(
-                    String.format("El evento '%s' requiere una edad mínima de %d años.", evento.getNombre(), edadMinima)
-            );
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
+
+        validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
+
+        if (tipoTicket.getCantidadDisponible() < request.getCantidad()) {
+            throw new BusinessException("Stock insuficiente para: " + tipoTicket.getNombre());
         }
+
         CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
                 .orElseGet(() -> {
+                    log.info("Creando nuevo carrito para cliente ID: {}", cliente.getIdPersona());
                     CarroCompras nuevoCarro = new CarroCompras();
                     nuevoCarro.setCliente(cliente);
                     nuevoCarro.setFechaCreacion(LocalDateTime.now());
-                    nuevoCarro.setActivo(true);
+                    nuevoCarro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
                     return nuevoCarro;
                 });
+
         carro.setActivo(true);
-        
-        // Validar que no se puedan agregar items de eventos diferentes
-        if (!carro.getItems().isEmpty()) {
-            Integer eventoActual = carro.getIdEventoActual();
-            Integer eventoNuevo = evento.getIdEvento();
-            if (eventoActual != null && !eventoActual.equals(eventoNuevo)) {
-                throw new BusinessException("No puedes agregar tickets de diferentes eventos al mismo carrito");
+
+        if (carro.getIdEventoActual() != null) {
+            if (!carro.getIdEventoActual().equals(tipoTicket.getEvento().getIdEvento())) {
+                throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
+            }
+        } else {
+            carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
+        }
+
+        ItemCarrito itemExistente = null;
+        for (ItemCarrito item : carro.getItems()) {
+            if (item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket())) {
+                itemExistente = item;
+                break;
             }
         }
-        
-        int totalTicketsEnCarrito = carro.getItems().stream().mapToInt(ItemCarrito::getCantidad).sum();
-        if (totalTicketsEnCarrito + request.getCantidad() > LIMITE_MAXIMO_TICKETS_POR_CLIENTE) {
-            throw new BusinessException(
-                    String.format("No puedes tener más de %d tickets en el carrito.", LIMITE_MAXIMO_TICKETS_POR_CLIENTE)
-            );
-        }
-        
-        // Validar límite por persona para este tipo de ticket
-        validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
-        List<Ticket> ticketsReservados = reservarTickets(tipoTicket, request.getCantidad());
-        ItemCarrito nuevoItem = new ItemCarrito();
-        nuevoItem.setTipoTicket(tipoTicket);
-        nuevoItem.setCantidad(request.getCantidad());
-        nuevoItem.setPrecio(tipoTicket.getPrecio());
-        nuevoItem.setFechaAgregado(LocalDate.now());
-        nuevoItem.setCarroCompra(carro);
-        nuevoItem.calcularPrecioFinal();
-        for (int i = 0; i < ticketsReservados.size(); i++) {
-            Ticket ticket = ticketsReservados.get(i);
-            DatosAsistenteDTO asistente = request.getAsistentes().get(i);
-            ticket.setEstado(EstadoTicket.RESERVADA);
-            ticket.setCliente(cliente);
-            ticket.setNombreAsistente(asistente.getNombres());
-            ticket.setApellidoAsistente(asistente.getApellidos());
-            ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
-            ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
-            String codigoQr = generarCodigoQrUnico();
-            ticket.setQrImage(generarQrComoBytes(codigoQr));
-            ticket.setCodigoQr(codigoQr);
-            nuevoItem.addTicket(ticket);
-        }
-        carro.addItem(nuevoItem);
-        carro.setIdEventoActual(evento.getIdEvento());
-        carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
-        CarroCompras carroGuardado = carroComprasRepository.save(carro);
-        itemCarritoRepository.save(nuevoItem);
 
+        if (itemExistente != null) {
+            int nuevaCantidad = itemExistente.getCantidad() + request.getCantidad();
+            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente);
+
+            if (tipoTicket.getCantidadDisponible() < nuevaCantidad) {
+                throw new BusinessException("Stock insuficiente (sumando lo que ya tenías en el carro).");
+            }
+            itemExistente.setCantidad(nuevaCantidad);
+            itemExistente.calcularPrecioFinal();
+        } else {
+            ItemCarrito nuevoItem = new ItemCarrito();
+            nuevoItem.setTipoTicket(tipoTicket);
+            nuevoItem.setCantidad(request.getCantidad());
+            nuevoItem.setPrecio(tipoTicket.getPrecio());
+            nuevoItem.setFechaAgregado(LocalDate.now());
+            nuevoItem.setCarroCompra(carro);
+            nuevoItem.calcularPrecioFinal();
+            carro.addItem(nuevoItem);
+        }
+
+        carro.recalcularTotales();
+        carro.setFechaActualizacion(LocalDateTime.now());
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
     }
 
@@ -188,13 +183,13 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private String generarCodigoQrUnico() {
         return java.util.UUID.randomUUID().toString();
     }
-    
+
     private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
         if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
             // Verificar cuántos tickets de este tipo ha comprado el cliente
             Integer ticketsComprados = ticketRepository.countTicketsByClienteAndTipoTicket(cliente.getIdPersona(), tipoTicket.getIdTipoTicket());
             if (ticketsComprados + cantidad > tipoTicket.getLimitePorPersona()) {
-                throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " + 
+                throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " +
                     tipoTicket.getLimitePorPersona() + ". Ya has comprado " + ticketsComprados + " tickets de este tipo.");
             }
         }

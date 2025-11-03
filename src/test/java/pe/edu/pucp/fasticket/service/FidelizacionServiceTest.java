@@ -113,14 +113,14 @@ class FidelizacionServiceTest {
         reglaCompra.setSolesPorPunto(10.0);
         reglaCompra.setTipoRegla(TipoRegla.COMPRA);
         reglaCompra.setActivo(true);
-        reglaCompra.setEstado(true);
+        reglaCompra.setEstado("true");
         reglaCompra = reglaPuntosRepository.save(reglaCompra);
 
         reglaCanje = new ReglaPuntos();
         reglaCanje.setSolesPorPunto(5.0);
         reglaCanje.setTipoRegla(TipoRegla.CANJE);
         reglaCanje.setActivo(true);
-        reglaCanje.setEstado(true);
+        reglaCanje.setEstado("true");
         reglaCanje = reglaPuntosRepository.save(reglaCanje);
     }
 
@@ -132,7 +132,7 @@ class FidelizacionServiceTest {
         request.setSolesPorPunto(15.0);
         request.setTipoRegla(TipoRegla.COMPRA);
         request.setActivo(true);
-        request.setEstado(true);
+        request.setEstado("true");
 
         // When
         var resultado = fidelizacionService.crearReglaPuntos(request);

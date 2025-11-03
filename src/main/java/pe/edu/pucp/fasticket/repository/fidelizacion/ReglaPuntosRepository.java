@@ -10,6 +10,6 @@ import pe.edu.pucp.fasticket.model.fidelizacion.TipoRegla;
 public interface ReglaPuntosRepository extends JpaRepository<ReglaPuntos, Integer> {
     List<ReglaPuntos> findByActivoTrue();
     List<ReglaPuntos> findByTipoReglaAndActivoTrue(TipoRegla tipoRegla);
-    List<ReglaPuntos> findByEstadoTrueAndActivoTrue();
+    List<ReglaPuntos> findByEstadoAndActivoTrue(String estado);
 }
 

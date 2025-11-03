@@ -78,6 +78,10 @@ public class OrdenServicio {
         Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+
+        validarLimitesPorPersona(datosOrden.getItems(), cliente);
+        validarStockDisponible(datosOrden.getItems());
+
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(cliente);
         orden.setFechaOrden(LocalDate.now());
@@ -85,6 +89,7 @@ public class OrdenServicio {
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
         log.info("Orden PENDIENTE ID: {} creada.", ordenGuardada.getIdOrdenCompra());
+
         List<ItemCarrito> items = construirYGuardarItems(datosOrden.getItems(), cliente, ordenGuardada);
         ordenGuardada.setItems(items);
         ordenGuardada.calcularTotal();
@@ -93,6 +98,31 @@ public class OrdenServicio {
         cliente.getOrdenesCompra().add(ordenFinal);
         clienteRepository.save(cliente);
         return ordenFinal;
+    }
+
+    private void validarLimitesPorPersona(List<ItemSeleccionadoDTO> itemsDTO, Cliente cliente) {
+        for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+
+            validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
+        }
+    }
+
+    private void validarStockDisponible(List<ItemSeleccionadoDTO> itemsDTO) {
+        for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+
+            List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
+                    tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
+            );
+
+            if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
+                throw new BusinessException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre() +
+                        ". Solicitados: " + itemDTO.getCantidad() + ", Disponibles: " + ticketsDisponibles.size());
+            }
+        }
     }
 
     private void calcularDescuentoPorMembresia(OrdenCompra orden, Cliente cliente) {
@@ -150,6 +180,7 @@ public class OrdenServicio {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
+
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
             item.setPrecio(tipoTicket.getPrecio());
@@ -158,19 +189,25 @@ public class OrdenServicio {
             item.setOrdenCompra(orden);
             item.calcularPrecioFinal();
             ItemCarrito itemGuardado = itemCarritoRepositorio.save(item);
+
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
                 throw new RuntimeException("Stock insuficiente para " + tipoTicket.getNombre());
             }
+
             List<Ticket> ticketsReservados = new ArrayList<>();
             for (int i = 0; i < ticketsDisponibles.size(); i++) {
                 Ticket ticket = ticketsDisponibles.get(i);
                 DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
                 ticket.setEstado(EstadoTicket.RESERVADA);
                 ticket.setCliente(cliente);
-                ticket.setEvento(tipoTicket.getEvento());
+
+                Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
+                        .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
+                ticket.setEvento(evento);
+
                 ticket.setItemCarrito(itemGuardado);
                 ticket.setOrdenCompra(orden);
                 ticket.setNombreAsistente(asistente.getNombres());

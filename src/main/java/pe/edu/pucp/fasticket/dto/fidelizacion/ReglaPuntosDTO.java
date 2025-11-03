@@ -14,7 +14,7 @@ public class ReglaPuntosDTO {
     private Double solesPorPunto;
     private TipoRegla tipoRegla;
     private Boolean activo;
-    private Boolean estado;
+    private String estado;
 
     public ReglaPuntosDTO(ReglaPuntos regla) {
         this.idRegla = regla.getIdRegla();

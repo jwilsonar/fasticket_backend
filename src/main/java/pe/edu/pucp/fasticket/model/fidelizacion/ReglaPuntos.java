@@ -43,7 +43,7 @@ public class ReglaPuntos {
     private Boolean activo = true;
 
     @Column(name = "estado")
-    private Boolean estado;
+    private String estado;
 
     // --------- relaciones -----------
 

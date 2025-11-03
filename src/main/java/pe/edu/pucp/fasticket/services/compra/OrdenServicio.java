@@ -78,41 +78,21 @@ public class OrdenServicio {
         Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
-
-        List<ItemCarrito> items = construirItemsDesdeDTO(datosOrden.getItems(), cliente);
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(cliente);
         orden.setFechaOrden(LocalDate.now());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
-        for (ItemCarrito item : items) {
-            item.setOrdenCompra(orden);
-            for (Ticket ticket : item.getTickets()) {
-                ticket.setItemCarrito(item);
-                ticket.setOrdenCompra(orden); // Asociar ticket con la orden
-                ticket.setEstado(EstadoTicket.RESERVADA);
-            }
-        }
-        orden.setItems(items);
-        orden.calcularTotal(); // Primero calcular el subtotal
-        
-        // Calcular descuento por membresía
-        calcularDescuentoPorMembresia(orden, cliente);
-        
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
-        
-        // Guardar explícitamente todos los tickets
-        for (ItemCarrito item : ordenGuardada.getItems()) {
-            for (Ticket ticket : item.getTickets()) {
-                ticketRepository.save(ticket);
-            }
-        }
-        
-        // Actualizar el historial de compras del cliente
-        cliente.getOrdenesCompra().add(ordenGuardada);
+        log.info("Orden PENDIENTE ID: {} creada.", ordenGuardada.getIdOrdenCompra());
+        List<ItemCarrito> items = construirYGuardarItems(datosOrden.getItems(), cliente, ordenGuardada);
+        ordenGuardada.setItems(items);
+        ordenGuardada.calcularTotal();
+        calcularDescuentoPorMembresia(ordenGuardada, cliente);
+        OrdenCompra ordenFinal = ordenCompraRepositorio.save(ordenGuardada);
+        cliente.getOrdenesCompra().add(ordenFinal);
         clienteRepository.save(cliente);
-        
-        return ordenGuardada;
+        return ordenFinal;
     }
 
     private void calcularDescuentoPorMembresia(OrdenCompra orden, Cliente cliente) {
@@ -120,20 +100,20 @@ public class OrdenServicio {
         int totalEntradas = orden.getItems().stream()
                 .mapToInt(ItemCarrito::getCantidad)
                 .sum();
-        
+
         // Obtener el tipo de membresía del cliente
         TipoMembresia tipoMembresia = cliente.getNivel();
-        
+
         // Calcular el porcentaje de descuento según las reglas de negocio
         double porcentajeDescuento = fidelizacionService.calcularDescuentoPorMembresia(tipoMembresia, totalEntradas);
-        
+
         // Aplicar descuento al subtotal
         Double descuento = orden.getSubtotal() * porcentajeDescuento;
         orden.setDescuentoPorMembrecia(descuento);
-        
+
         // Recalcular el total después de aplicar el descuento
         orden.aplicarDescuentoYRecalcular();
-        
+
         log.info("Descuento por membresía aplicado: {} ({}) para cliente ID: {}", descuento, porcentajeDescuento * 100 + "%", cliente.getIdPersona());
     }
 
@@ -161,66 +141,56 @@ public class OrdenServicio {
     }
 
 
-    private List<ItemCarrito> construirItemsDesdeDTO(List<ItemSeleccionadoDTO> itemsDTO, Cliente cliente) {
-        List<ItemCarrito> items = new ArrayList<>();
+    private List<ItemCarrito> construirYGuardarItems(List<ItemSeleccionadoDTO> itemsDTO,
+                                                     Cliente cliente, OrdenCompra orden) {
+        List<ItemCarrito> itemsGuardados = new ArrayList<>();
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             validarItemYAsistentes(itemDTO);
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
-                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con ID: " + itemDTO.getIdTipoTicket()));
-            Integer edadCliente = cliente.calcularEdad();
-            // Necesitamos encontrar el evento asociado a este tipo de ticket
-            // Como TipoTicket no tiene relación directa con Evento, necesitamos buscarlo
-            Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
-                    .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
-            Integer edadMinima = evento.getEdadMinima();
-            if (edadMinima != null && edadMinima > 0 && edadCliente != null && edadCliente < edadMinima) {
-                throw new IllegalArgumentException("El evento '%s' requiere edad mínima...");
-            }
-            
-            // Validar límite por persona
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
+            ItemCarrito item = new ItemCarrito();
+            item.setCantidad(itemDTO.getCantidad());
+            item.setPrecio(tipoTicket.getPrecio());
+            item.setFechaAgregado(LocalDate.now());
+            item.setTipoTicket(tipoTicket);
+            item.setOrdenCompra(orden);
+            item.calcularPrecioFinal();
+            ItemCarrito itemGuardado = itemCarritoRepositorio.save(item);
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
-                throw new RuntimeException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre());
+                throw new RuntimeException("Stock insuficiente para " + tipoTicket.getNombre());
             }
-            ItemCarrito item = new ItemCarrito();
-            item.setCantidad(itemDTO.getCantidad());
-            item.setPrecio(tipoTicket.getPrecio());
-            item.setDescuento(0.0);
-            item.setActivo(true);
-            item.setFechaAgregado(LocalDate.now());
-            item.setTipoTicket(tipoTicket);
-            item.calcularPrecioFinal();
-            if (ticketsDisponibles.size() != itemDTO.getAsistentes().size()) {
-                throw new IllegalStateException("Inconsistencia entre tickets encontrados y asistentes.");
-            }
-            List<Ticket> tickets = new ArrayList<>();
+            List<Ticket> ticketsReservados = new ArrayList<>();
             for (int i = 0; i < ticketsDisponibles.size(); i++) {
                 Ticket ticket = ticketsDisponibles.get(i);
                 DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
                 ticket.setEstado(EstadoTicket.RESERVADA);
-                ticket.setItemCarrito(item);
                 ticket.setCliente(cliente);
-                ticket.setEvento(evento); // Asignar el evento al ticket
-                ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
-                ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
+                ticket.setEvento(tipoTicket.getEvento());
+                ticket.setItemCarrito(itemGuardado);
+                ticket.setOrdenCompra(orden);
                 ticket.setNombreAsistente(asistente.getNombres());
                 ticket.setApellidoAsistente(asistente.getApellidos());
+                ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
+                ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
                 ticket.setQrImage(generarQrComoBytes(codigoQr));
-                tickets.add(ticket);
+
+                ticketsReservados.add(ticket);
             }
-            item.setTickets(tickets);
-            items.add(item);
+            ticketRepository.saveAll(ticketsReservados);
+            itemGuardado.setTickets(ticketsReservados);
+            itemsGuardados.add(itemGuardado);
             int cantidadReservada = itemDTO.getCantidad();
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - cantidadReservada);
             tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() + cantidadReservada);
         }
-        return items;
+        return itemsGuardados;
     }
 
 

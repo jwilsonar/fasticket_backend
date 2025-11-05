@@ -44,8 +44,8 @@ public class PagoServicio {
     private TipoTicketRepositorio tipoTicketRepositorio;
 
     public ComprobanteDTO registrarPagoFinal(RegistrarPagoDTO dto) {
-        var orden = ordenRepository.findById(dto.getIdOrden())
-                .orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+        var orden = ordenRepository.findByIdWithPagoActivo(dto.getIdOrden())
+                .orElseThrow(() -> new RuntimeException("Orden no encontrada o con pago inactivo"));
         if (dto.getNumeroTarjeta() == null || dto.getNumeroTarjeta().length() < 4) {
             throw new RuntimeException("Número de tarjeta inválido");
         }

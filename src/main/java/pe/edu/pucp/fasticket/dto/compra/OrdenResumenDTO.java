@@ -49,4 +49,28 @@ public class OrdenResumenDTO {
             }).collect(Collectors.toList());
         }
     }
+
+    public OrdenResumenDTO(OrdenCompra orden) {
+        this.idOrden = orden.getIdOrdenCompra();
+        this.fecha = orden.getFechaOrden();
+        this.total = orden.getTotal();
+        this.subtotal = orden.getSubtotal();
+        this.estado = orden.getEstado().toString();
+        if (orden.getItems() != null && !orden.getItems().isEmpty()) {
+            Evento evento = orden.getItems().get(0).getTipoTicket().getEvento();
+            if (evento != null) {
+                this.nombreEvento = evento.getNombre();
+                this.fecha = evento.getFechaEvento();
+                this.hora = evento.getHoraInicio();
+                this.nombreLocal = evento.getLocal().getNombre();
+            }
+            this.items = orden.getItems().stream().map(item -> {
+                ItemResumenDTO itemDTO = new ItemResumenDTO();
+                itemDTO.setCantidad(item.getCantidad());
+                itemDTO.setPrecioUnitario(item.getPrecio());
+                itemDTO.setNombreTipoTicket(item.getTipoTicket().getNombre());
+                return itemDTO;
+            }).collect(Collectors.toList());
+        }
+    }
 }

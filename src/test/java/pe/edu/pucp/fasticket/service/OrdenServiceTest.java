@@ -29,6 +29,7 @@ import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
@@ -260,32 +261,37 @@ class OrdenServiceTest {
 
     @Test
     void testConfirmarPagoOrden_Exitoso() {
-        // Arrange
+
+        CarroCompras carroMock = new CarroCompras();
+        carroMock.setIdCarro(99); // ID de prueba
+        carroMock.setCliente(clienteMock);
+
         OrdenCompra ordenPendiente = new OrdenCompra();
         ordenPendiente.setIdOrdenCompra(1);
         ordenPendiente.setEstado(EstadoCompra.PENDIENTE);
-        ordenPendiente.setFechaExpiracion(LocalDateTime.now().plusMinutes(10)); // No expirada
-        // Añadir items y tickets RESERVADOS
+        ordenPendiente.setFechaExpiracion(LocalDateTime.now().plusMinutes(10));
+
         ItemCarrito item = new ItemCarrito();
         Ticket ticket = new Ticket(); ticket.setEstado(EstadoTicket.RESERVADA);
         item.setTickets(List.of(ticket));
         item.setTipoTicket(tipoTicketMock);
         item.setCantidad(1);
+
         ordenPendiente.setItems(List.of(item));
         ordenPendiente.setCliente(clienteMock);
-
+        ordenPendiente.setCarroCompras(carroMock);
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));
         when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
-        when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente); // Devuelve la orden guardada
+        when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente);
         doNothing().when(fidelizacionService).generarPuntosPorCompra(any(), any(), any());
+        when(carroComprasRepository.save(any(CarroCompras.class))).thenReturn(carroMock);
 
-        // Act
         ordenServicio.confirmarPagoOrden(1);
 
-        // Assert
         assertThat(ordenPendiente.getEstado()).isEqualTo(EstadoCompra.APROBADO);
         assertThat(ticket.getEstado()).isEqualTo(EstadoTicket.VENDIDA);
         verify(ordenCompraRepositorio, times(1)).save(ordenPendiente);
+        verify(carroComprasRepository, times(2)).save(any(CarroCompras.class));
     }
 
     // --- Tests para cancelarOrden --- (Ejemplo básico)

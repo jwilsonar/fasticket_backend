@@ -24,6 +24,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
@@ -33,6 +34,9 @@ import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
+import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
+
+import java.util.List;
 
 @Tag(
         name = "Órdenes de Compra",
@@ -142,54 +146,14 @@ public class OrdenController {
         return ResponseEntity.ok(StandardResponse.success("Orden confirmada correctamente.", null));
     }
 
-    @Operation(
-            summary = "Comprar el carrito de un cliente",
-            description = "Convierte los ítems del carrito en una nueva orden de compra y devuelve el resumen.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Carrito comprado correctamente"),
-            @ApiResponse(responseCode = "404", description = "Carrito no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "400", description = "El carrito no puede ser comprado (vacío o inactivo)")
-    })
-    @PostMapping("/comprar-carrito/{idCarrito}")
-    @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenResumenDTO>> comprarCarrito(
-            @Parameter(description = "ID del carrito a comprar", required = true)
-            @PathVariable Integer idCarrito) {
-
-        log.info("POST /api/v1/ordenes/comprar-carrito/{}", idCarrito);
-
-        OrdenCompra orden = ordenServicio.comprarDesdeCarrito(idCarrito);
-
-        OrdenResumenDTO resumen = new OrdenResumenDTO(orden, tipoTicketRepositorio);
-
-        return ResponseEntity.ok(StandardResponse.success(
-                "Carrito comprado correctamente.",
-                resumen
-        ));
-    }
-
-    @Operation(
-            summary = "Registrar asistentes para una orden pendiente",
-            description = "Guarda los datos de los asistentes (nombre, DNI, etc.) en los tickets reservados de una orden.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Asistentes registrados correctamente"),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos o la orden no está pendiente", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PutMapping("/{id}/asistentes")
+    @Operation(summary = "Asignar Asistentes y Crear Orden desde Carrito")
+    @PostMapping("/checkout-carrito/{idCarrito}")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<Void>> registrarAsistentes(
-            @Parameter(description = "ID de la orden pendiente", required = true)
-            @PathVariable Integer id,
-            @Valid @RequestBody RegistrarParticipantesDTO dto) {
-
-        log.info("PUT /api/v1/ordenes/{}/asistentes", id);
-
-        ordenServicio.registrarAsistentes(id, dto);
-        return ResponseEntity.ok(StandardResponse.success("Asistentes registrados correctamente."));
+    public ResponseEntity<StandardResponse<OrdenResumenDTO>> checkoutDesdeCarrito(
+            @PathVariable Integer idCarrito,
+            @Valid @RequestBody CheckoutCarritoRequestDTO request) {
+        OrdenCompra orden = ordenServicio.checkoutDesdeCarrito(idCarrito, request.getItemsConAsistentes());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden)));
     }
 }

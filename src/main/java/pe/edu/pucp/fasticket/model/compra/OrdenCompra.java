@@ -90,7 +90,7 @@ public class OrdenCompra {
     @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<ItemCarrito> items = new ArrayList<>();
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idCarroCompra",nullable = true)
     private CarroCompras carroCompras;
 

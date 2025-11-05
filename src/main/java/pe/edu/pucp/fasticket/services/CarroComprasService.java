@@ -7,5 +7,5 @@ public interface CarroComprasService {
 
     CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request);
     CarroComprasDTO verCarrito(Integer idCliente);
-    CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente);
+    public CarroComprasDTO eliminarTicketIndividualDelCarrito(Integer idTicket, Integer idCliente);
 }

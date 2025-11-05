@@ -12,10 +12,6 @@ import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 @Schema(description = "DTO para datos de asistente en una compra")
 public class DatosAsistenteDTO {
     
-    @Schema(description = "ID del ticket (opcional, se asigna automáticamente)", example = "1")
-    @NotNull(message = "ID del Ticket es obligatorio")
-    private Integer idTicket;
-    
     @Schema(description = "Tipo de documento del asistente", example = "DNI", required = true)
     @NotNull
     private TipoDocumento tipoDocumento;

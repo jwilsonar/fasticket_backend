@@ -14,12 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
-import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
-import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
-import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
-import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
-import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
+import pe.edu.pucp.fasticket.dto.compra.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -40,6 +35,8 @@ import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 
+import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
+
 @Service
 @Slf4j
 public class OrdenServicio {
@@ -48,7 +45,6 @@ public class OrdenServicio {
     private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ClienteRepository clienteRepository;
     private final TicketRepository ticketRepository;
-    private final ApplicationEventPublisher eventPublisher;
     private final ItemCarritoRepository itemCarritoRepositorio;
     private final CarroComprasRepository carroComprasRepository;
     private final FidelizacionService fidelizacionService;
@@ -67,7 +63,6 @@ public class OrdenServicio {
         this.tipoTicketRepositorio = tipoTicketRepositorio;
         this.clienteRepository = clienteRepository;
         this.ticketRepository = ticketRepository;
-        this.eventPublisher = eventPublisher;
         this.itemCarritoRepositorio = itemCarritoRepositorio;
         this.carroComprasRepository = carroComprasRepository;
         this.fidelizacionService = fidelizacionService;
@@ -255,35 +250,76 @@ public class OrdenServicio {
     @Transactional
     public void confirmarPagoOrden(Integer idOrden) {
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
-                .orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada"));
 
+        if (orden.getEstado() != EstadoCompra.PENDIENTE) {
+            throw new BusinessException("Solo se pueden confirmar órdenes en estado PENDIENTE");
+        }
+
+        CarroCompras carrito = orden.getCarroCompras();
+        if (carrito == null) {
+            throw new BusinessException("La orden no tiene carrito asociado.");
+        }
+        List<OrdenCompra> otrasOrdenesActivas = ordenCompraRepositorio
+                .findByCarroComprasIdCarroAndActivoTrue(carrito.getIdCarro());
+        for (OrdenCompra o : otrasOrdenesActivas) {
+            if (!o.getIdOrdenCompra().equals(idOrden)) {
+                o.setActivo(false);
+                o.setEstado(EstadoCompra.ANULADO);
+                ordenCompraRepositorio.save(o);
+                log.warn("Orden ID {} del carrito {} marcada como CANCELADA por conflicto de confirmación.",
+                        o.getIdOrdenCompra(), carrito.getIdCarro());
+            }
+        }
         orden.setEstado(EstadoCompra.APROBADO);
+        orden.setActivo(false);
+        orden.setFechaActualizacion(LocalDate.now());
+        ordenCompraRepositorio.save(orden);
+        log.info("Orden ID {} confirmada exitosamente.", idOrden);
         Map<Evento, Integer> cantidadPorEvento = new HashMap<>();
-
         for (ItemCarrito item : orden.getItems()) {
             for (Ticket ticket : item.getTickets()) {
                 ticket.setEstado(EstadoTicket.VENDIDA);
             }
-            // Obtener evento relacionado
             Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(item.getTipoTicket().getIdTipoTicket())
-                    .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Evento no encontrado para el tipo de ticket " + item.getTipoTicket().getNombre()));
             cantidadPorEvento.merge(evento, item.getCantidad(), Integer::sum);
         }
-        // Actualizar aforo de los eventos involucrados
         for (Map.Entry<Evento, Integer> entry : cantidadPorEvento.entrySet()) {
             Evento evento = entry.getKey();
             Integer cantidadVendida = entry.getValue();
-
             if (evento.getAforoDisponible() != null) {
                 evento.setAforoDisponible(Math.max(evento.getAforoDisponible() - cantidadVendida, 0));
             }
         }
-        ordenCompraRepositorio.save(orden);
-        
-        // Generar puntos por la compra confirmada
-        fidelizacionService.generarPuntosPorCompra(orden.getCliente().getIdPersona(), orden.getTotal(), orden.getIdOrdenCompra());
-        
-        log.info("Puntos generados para orden confirmada ID: {}", idOrden);
+        try {
+            itemCarritoRepositorio.deleteByCarroCompraId(carrito.getIdCarro());
+        } catch (Exception e) {
+            log.warn("No se pudieron eliminar items del carrito ID {}: {}", carrito.getIdCarro(), e.getMessage());
+        }
+        carrito.setActivo(false);
+        carrito.setFechaActualizacion(LocalDateTime.now());
+        carroComprasRepository.save(carrito);
+        log.info("Carrito ID {} marcado como INACTIVO (histórico).", carrito.getIdCarro());
+        CarroCompras nuevoCarro = new CarroCompras();
+        nuevoCarro.setCliente(carrito.getCliente());
+        nuevoCarro.setActivo(true);
+        nuevoCarro.setFechaCreacion(LocalDateTime.now());
+        nuevoCarro.setFechaActualizacion(LocalDateTime.now());
+        nuevoCarro.setSubtotal(0.0);
+        nuevoCarro.setTotal(0.0);
+        carroComprasRepository.save(nuevoCarro);
+        log.info("Nuevo carrito ID {} creado para cliente ID {}.", nuevoCarro.getIdCarro(),
+                nuevoCarro.getCliente() != null ? nuevoCarro.getCliente().getIdPersona() : "N/A");
+
+        fidelizacionService.generarPuntosPorCompra(
+                orden.getCliente().getIdPersona(),
+                orden.getTotal(),
+                orden.getIdOrdenCompra()
+        );
+        log.info("Puntos generados para cliente ID {} (orden {}).",
+                orden.getCliente().getIdPersona(), idOrden);
     }
 
     @Transactional
@@ -372,89 +408,59 @@ public class OrdenServicio {
     }
 
     @Transactional
-    public OrdenCompra comprarDesdeCarrito(Integer idCarrito) {
-        log.info("Iniciando conversión de carrito ID: {}", idCarrito);
+    public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, List<AsistenteParaItemDTO> itemsConAsistentes) {
         CarroCompras carrito = carroComprasRepository.findById(idCarrito)
-                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado con ID: " + idCarrito));
+                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado"));
+
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
-            throw new BusinessException("El carrito está inactivo o vacío y no puede ser comprado.");
+            throw new BusinessException("El carrito está inactivo o vacío.");
         }
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(carrito.getCliente());
-        orden.setFechaOrden(LocalDate.now());
         orden.setEstado(EstadoCompra.PENDIENTE);
-        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
+        orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         orden.setCarroCompras(carrito);
+        asignarAsistentesATicketsDelCarrito(carrito, itemsConAsistentes, orden);
         for (ItemCarrito item : new ArrayList<>(carrito.getItems())) {
-            if (item.getTickets().stream().anyMatch(t -> t.getEstado() != EstadoTicket.RESERVADA)) {
-                throw new BusinessException("Error de consistencia: El item " + item.getIdItemCarrito() + " no tiene todos sus tickets reservados.");
-            }
             carrito.removeItem(item);
             orden.addItem(item);
-            
-            // Asociar todos los tickets del item con la orden
-            for (Ticket ticket : item.getTickets()) {
-                ticket.setOrdenCompra(orden);
-            }
         }
-        orden.calcularTotal(); // Primero calcular el subtotal
-        
-        // Calcular descuento por membresía
+        orden.calcularTotal();
         calcularDescuentoPorMembresia(orden, carrito.getCliente());
-        
         carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
-        log.info("Guardando nueva orden desde carrito ID {} para cliente ID {}", idCarrito, carrito.getCliente().getIdPersona());
-        
+        carroComprasRepository.save(carrito);
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
-        
-        // Guardar explícitamente todos los tickets
-        for (ItemCarrito item : ordenGuardada.getItems()) {
-            for (Ticket ticket : item.getTickets()) {
-                ticketRepository.save(ticket);
-            }
-        }
-        
-        // Actualizar el historial de compras del cliente
-        Cliente cliente = carrito.getCliente();
-        cliente.getOrdenesCompra().add(ordenGuardada);
-        clienteRepository.save(cliente);
-        
+        log.info("Orden ID {} creada desde Carrito ID {}.", ordenGuardada.getIdOrdenCompra(), carrito.getIdCarro());
+
         return ordenGuardada;
     }
 
-    @Transactional
-    public void registrarAsistentes(Integer idOrden, RegistrarParticipantesDTO dto) {
-        log.info("Registrando asistentes para orden ID: {}", idOrden);
-        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
-                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrden));
-        if (orden.getEstado() != EstadoCompra.PENDIENTE) {
-            throw new BusinessException("Solo se pueden registrar asistentes en órdenes pendientes.");
-        }
-        Map<Integer, Ticket> ticketsDeLaOrden = orden.getItems().stream()
-                .flatMap(item -> item.getTickets().stream())
-                .filter(ticket -> ticket.getEstado() == EstadoTicket.RESERVADA)
-                .collect(Collectors.toMap(Ticket::getIdTicket, ticket -> ticket));
-        if (dto.getParticipantes().size() != ticketsDeLaOrden.size()) {
-            throw new IllegalArgumentException(
-                    String.format("La cantidad de participantes enviados (%d) no coincide con los tickets reservados (%d) de la orden.",
-                            dto.getParticipantes().size(), ticketsDeLaOrden.size())
-            );
-        }
-        for (DatosAsistenteDTO participante : dto.getParticipantes()) {
-            Ticket ticket = ticketsDeLaOrden.get(participante.getIdTicket());
-            if (ticket == null) {
-                log.warn("Se intentó registrar asistente para ticket ID {} que no pertenece o no está reservado en la orden {}",
-                        participante.getIdTicket(), idOrden);
-                throw new IllegalArgumentException("Ticket ID " + participante.getIdTicket() + " inválido para esta orden.");
-            }
-            ticket.setNombreAsistente(participante.getNombres());
-            ticket.setApellidoAsistente(participante.getApellidos());
-            ticket.setTipoDocumentoAsistente(participante.getTipoDocumento());
-            ticket.setDocumentoAsistente(participante.getNumeroDocumento());
-        }
+    private void asignarAsistentesATicketsDelCarrito(CarroCompras carrito, List<AsistenteParaItemDTO> itemsConAsistentes, OrdenCompra orden) {
+        Map<Integer, List<DatosAsistenteDTO>> mapaAsistentes = itemsConAsistentes.stream()
+                .collect(Collectors.toMap(AsistenteParaItemDTO::getIdItemCarrito, AsistenteParaItemDTO::getAsistentes));
 
-        orden.setFechaActualizacion(LocalDate.now());
-        log.info("Asistentes registrados correctamente para orden ID: {}", idOrden);
+        for (ItemCarrito item : carrito.getItems()) {
+            List<DatosAsistenteDTO> asistentesParaItem = mapaAsistentes.get(item.getIdItemCarrito());
+            if (asistentesParaItem == null || asistentesParaItem.size() != item.getCantidad()) {
+                throw new IllegalArgumentException("Asistentes no coinciden con el item ID: " + item.getIdItemCarrito());
+            }
+
+            for (int i = 0; i < item.getTickets().size(); i++) {
+                Ticket ticket = item.getTickets().get(i);
+                DatosAsistenteDTO asistente = asistentesParaItem.get(i);
+
+                ticket.setNombreAsistente(asistente.getNombres());
+                ticket.setApellidoAsistente(asistente.getApellidos());
+                ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
+                ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
+
+                String codigoQr = generarCodigoQrUnico();
+                ticket.setCodigoQr(codigoQr);
+                ticket.setQrImage(generarQrComoBytes(codigoQr));
+                ticket.setOrdenCompra(orden);
+            }
+            ticketRepository.saveAll(item.getTickets());
+        }
     }
 }

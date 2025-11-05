@@ -108,22 +108,22 @@ public class CarritoController {
     }
 
     @Operation(
-        summary = "Eliminar item del carrito",
-        description = "Remueve un item del carrito de compras",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Eliminar UN TICKET individual del carrito",
+            description = "Libera un ticket RESERVADO, lo devuelve a DISPONIBLE, y recalcula el total del carrito.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @ApiResponse(responseCode = "200", description = "Item eliminado")
-    @DeleteMapping("/items/{idItemCarrito}")
+    @ApiResponse(responseCode = "200", description = "Ticket eliminado del carrito")
+    @DeleteMapping("/tickets/{idTicket}")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> eliminarItem(
-            @Parameter(description = "ID del item a eliminar")
-            @PathVariable Integer idItemCarrito,
-            @Parameter(description = "ID del cliente")
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> eliminarTicketDelCarrito(
+            @Parameter(description = "ID del Ticket individual a eliminar")
+            @PathVariable Integer idTicket,
+            @Parameter(description = "ID del cliente (para validación)")
             @RequestParam Integer idCliente) {
-        
-        log.info("DELETE /api/v1/carrito/items/{} - Cliente: {}", idItemCarrito, idCliente);
-        CarroComprasDTO carritoActualizado = carroComprasService.eliminarItemDelCarrito(idItemCarrito, idCliente);
-        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Item eliminado del carrito exitosamente", carritoActualizado);
+
+        log.info("DELETE /api/v1/carrito/tickets/{} - Cliente: {}", idTicket, idCliente);
+        CarroComprasDTO carritoActualizado = carroComprasService.eliminarTicketIndividualDelCarrito(idTicket, idCliente);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Ticket eliminado del carrito exitosamente", carritoActualizado);
         return ResponseEntity.ok(response);
     }
 }

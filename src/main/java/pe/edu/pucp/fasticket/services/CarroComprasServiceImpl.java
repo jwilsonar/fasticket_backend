@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.services;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,14 +43,12 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private final TicketRepository ticketRepository;
 
     private static final int LIMITE_MAXIMO_TICKETS_POR_CLIENTE = 10;
-    private static final int TIEMPO_RESERVA_MINUTOS = 15;
+    public static final int TIEMPO_RESERVA_MINUTOS = 15;
 
     @Override
     @Transactional
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
-        log.info("Agregando item (simple) al carrito para cliente ID: {}", request.getIdCliente());
-
-        validarItemYAsistentes(request);
+        log.info("Agregando item (con reserva) al carrito para cliente ID: {}", request.getIdCliente());
 
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
@@ -59,30 +58,32 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
         validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
 
-        if (tipoTicket.getCantidadDisponible() < request.getCantidad()) {
-            throw new BusinessException("Stock insuficiente para: " + tipoTicket.getNombre());
-        }
+        List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
+                tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, request.getCantidad())
+        );
 
+        if (ticketsAReservar.size() < request.getCantidad()) {
+            throw new BusinessException("Stock insuficiente para " + tipoTicket.getNombre() +
+                    ". Solo quedan " + ticketsAReservar.size() + " tickets reales.");
+        }
         CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
                 .orElseGet(() -> {
-                    log.info("Creando nuevo carrito para cliente ID: {}", cliente.getIdPersona());
+                    log.info("No se encontró NINGÚN carrito para cliente ID: {}, creando uno nuevo.", cliente.getIdPersona());
                     CarroCompras nuevoCarro = new CarroCompras();
                     nuevoCarro.setCliente(cliente);
                     nuevoCarro.setFechaCreacion(LocalDateTime.now());
-                    nuevoCarro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
                     return nuevoCarro;
                 });
-
         carro.setActivo(true);
 
-        if (carro.getIdEventoActual() != null) {
-            if (!carro.getIdEventoActual().equals(tipoTicket.getEvento().getIdEvento())) {
+        if (!carro.getItems().isEmpty()) {
+            Integer idEventoActual = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
+            if (!tipoTicket.getEvento().getIdEvento().equals(idEventoActual)) {
                 throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
             }
         } else {
             carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
         }
-
         ItemCarrito itemExistente = null;
         for (ItemCarrito item : carro.getItems()) {
             if (item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket())) {
@@ -92,15 +93,24 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
 
         if (itemExistente != null) {
-            int nuevaCantidad = itemExistente.getCantidad() + request.getCantidad();
-            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente);
+            log.info("Item ID {} ya existe. Añadiendo {} tickets.", itemExistente.getIdItemCarrito(), request.getCantidad());
 
-            if (tipoTicket.getCantidadDisponible() < nuevaCantidad) {
-                throw new BusinessException("Stock insuficiente (sumando lo que ya tenías en el carro).");
-            }
+            int nuevaCantidad = itemExistente.getCantidad() + request.getCantidad();
+            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente); // Valida el total
             itemExistente.setCantidad(nuevaCantidad);
             itemExistente.calcularPrecioFinal();
+
+            for (Ticket ticket : ticketsAReservar) {
+                ticket.setEstado(EstadoTicket.RESERVADA);
+                ticket.setCliente(cliente);
+                ticket.setItemCarrito(itemExistente);
+            }
+            itemExistente.getTickets().addAll(ticketsAReservar);
+            itemCarritoRepository.save(itemExistente); // Guarda el item actualizado
+
         } else {
+            log.info("Creando nuevo ItemCarrito para TipoTicket ID {}", tipoTicket.getIdTipoTicket());
+
             ItemCarrito nuevoItem = new ItemCarrito();
             nuevoItem.setTipoTicket(tipoTicket);
             nuevoItem.setCantidad(request.getCantidad());
@@ -108,12 +118,24 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             nuevoItem.setFechaAgregado(LocalDate.now());
             nuevoItem.setCarroCompra(carro);
             nuevoItem.calcularPrecioFinal();
-            carro.addItem(nuevoItem);
-        }
 
+            ItemCarrito itemGuardado = itemCarritoRepository.save(nuevoItem);
+
+            for (Ticket ticket : ticketsAReservar) {
+                ticket.setEstado(EstadoTicket.RESERVADA);
+                ticket.setCliente(cliente);
+                ticket.setItemCarrito(itemGuardado);
+            }
+
+            itemGuardado.setTickets(ticketsAReservar);
+            carro.addItem(itemGuardado);
+        }
         carro.recalcularTotales();
-        carro.setFechaActualizacion(LocalDateTime.now());
+        carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
+        ticketRepository.saveAll(ticketsAReservar);
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - request.getCantidad());
+        tipoTicketRepositorio.save(tipoTicket);
         return convertirADTO(carroGuardado);
     }
 
@@ -134,59 +156,64 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     @Override
     @Transactional
-    public CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente) {
-        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
-                .orElseThrow(() -> new ResourceNotFoundException("El item con ID " + idItemCarrito + " no existe."));
+    public CarroComprasDTO eliminarTicketIndividualDelCarrito(Integer idTicket, Integer idCliente) {
+        log.info("Eliminando Ticket ID: {} para Cliente ID: {}", idTicket, idCliente);
 
-        if (!item.getCarroCompra().getCliente().getIdPersona().equals(idCliente)) {
-            throw new SecurityException("Acción no permitida.");
+        Ticket ticket = ticketRepository.findById(idTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket no encontrado con ID: " + idTicket));
+
+        if (ticket.getCliente() == null || !ticket.getCliente().getIdPersona().equals(idCliente)) {
+            throw new SecurityException("Acción no permitida. El ticket no pertenece a este cliente.");
+        }
+        if (ticket.getEstado() != EstadoTicket.RESERVADA) {
+            throw new BusinessException("Solo se pueden eliminar tickets que estén RESERVADOS en el carrito.");
         }
 
+        ItemCarrito item = ticket.getItemCarrito();
+        if (item == null) {
+            throw new IllegalStateException("Error de consistencia: El ticket reservado no tiene ItemCarrito.");
+        }
         CarroCompras carro = item.getCarroCompra();
         TipoTicket tipoTicket = item.getTipoTicket();
-        int cantidadLiberada = 0;
 
-        for (Ticket ticket : item.getTickets()) {
-            if (ticket.getEstado() == EstadoTicket.RESERVADA) {
-                ticket.setEstado(EstadoTicket.DISPONIBLE);
-                ticket.setItemCarrito(null);
-                ticket.setCliente(null);
-                ticket.setNombreAsistente(null);
-                ticket.setApellidoAsistente(null);
-                ticket.setTipoDocumentoAsistente(null);
-                ticket.setDocumentoAsistente(null);
-                cantidadLiberada++;
-            }
-        }
-        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + cantidadLiberada);
-        log.info("Liberados {} tickets del tipo {}", cantidadLiberada, tipoTicket.getNombre());
-        carro.removeItem(item); // Elimina del carrito
-        carro.setFechaActualizacion(LocalDateTime.now());
-        CarroCompras carroGuardado = carroComprasRepository.save(carro);
-        return convertirADTO(carroGuardado);
-    }
+        // 1. Liberar el Ticket
+        ticket.setEstado(EstadoTicket.DISPONIBLE);
+        ticket.setCliente(null);
+        ticket.setItemCarrito(null);
+        ticket.setNombreAsistente(null);
+        ticket.setApellidoAsistente(null);
+        ticket.setTipoDocumentoAsistente(null);
+        ticket.setDocumentoAsistente(null);
+        ticket.setCodigoQr(null);
+        ticket.setQrImage(null);
+        ticketRepository.save(ticket); // Guarda el ticket liberado
 
-    private void validarItemYAsistentes(AddItemRequestDTO item) {
-        if (item.getAsistentes() == null || item.getAsistentes().size() != item.getCantidad()) {
-            throw new IllegalArgumentException("La cantidad de asistentes no coincide con la cantidad solicitada");
-        }
-        for (DatosAsistenteDTO a : item.getAsistentes()) {
-            if (a.getNombres() == null || a.getNombres().isBlank())
-                throw new IllegalArgumentException("Nombre asistente obligatorio");
-            if (a.getNumeroDocumento() == null || a.getNumeroDocumento().isBlank())
-                throw new IllegalArgumentException("Documento asistente obligatorio");
-            if (a.getTipoDocumento() == null)
-                throw new IllegalArgumentException("Tipo de documento obligatorio");
-        }
-    }
+        // 2. Actualizar el stock
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + 1);
+        tipoTicketRepositorio.save(tipoTicket);
+        log.info("Liberado 1 ticket del tipo {}", tipoTicket.getNombre());
 
-    private String generarCodigoQrUnico() {
-        return java.util.UUID.randomUUID().toString();
+        // 3. Actualizar el ItemCarrito (Reducir cantidad o borrarlo)
+        if (item.getCantidad() > 1) {
+            item.setCantidad(item.getCantidad() - 1);
+            item.getTickets().remove(ticket); // Quita el ticket de la lista del item
+            item.calcularPrecioFinal();
+            itemCarritoRepository.save(item);
+        } else {
+            // Si era el último ticket, borra el item
+            carro.removeItem(item); // Prepara para orphanRemoval
+            // itemCarritoRepository.delete(item); // No es necesario si CarroCompras tiene orphanRemoval=true
+        }
+
+        // 4. Recalcular el total del Carro (Arreglo Bug #1)
+        carro.recalcularTotales();
+        carroComprasRepository.save(carro);
+
+        return convertirADTO(carro);
     }
 
     private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
         if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
-            // Verificar cuántos tickets de este tipo ha comprado el cliente
             Integer ticketsComprados = ticketRepository.countTicketsByClienteAndTipoTicket(cliente.getIdPersona(), tipoTicket.getIdTipoTicket());
             if (ticketsComprados + cantidad > tipoTicket.getLimitePorPersona()) {
                 throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " +
@@ -195,30 +222,12 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
     }
 
-    private byte[] generarQrComoBytes(String contenido) {
-        try {
-            com.google.zxing.Writer writer = new com.google.zxing.qrcode.QRCodeWriter();
-            var matrix = writer.encode(contenido, com.google.zxing.BarcodeFormat.QR_CODE, 200, 200);
-            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(200, 200, java.awt.image.BufferedImage.TYPE_INT_RGB);
-            for (int x = 0; x < 200; x++) {
-                for (int y = 0; y < 200; y++) {
-                    image.setRGB(x, y, matrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF);
-                }
-            }
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(image, "png", baos);
-            return baos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Error generando QR", e);
-        }
-    }
-
     @Override
     @Transactional(readOnly = true)
     public CarroComprasDTO verCarrito(Integer idCliente) {
-        return carroComprasRepository.findByCliente_IdPersona(idCliente)
-                .map(this::convertirADTO) // Si encuentra el carrito, lo convierte a DTO
-                .orElseGet(() -> crearCarritoVacioDTO()); // Si no, devuelve un DTO de un carrito vacío
+        return carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
+                .map(this::convertirADTO)
+                .orElseGet(() -> crearCarritoVacioDTO(idCliente));
     }
 
     private CarroComprasDTO convertirADTO(CarroCompras carro) {
@@ -244,7 +253,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         return dto;
     }
 
-    private CarroComprasDTO crearCarritoVacioDTO() {
+    private CarroComprasDTO crearCarritoVacioDTO(Integer idCliente) {
         CarroComprasDTO dto = new CarroComprasDTO();
         dto.setIdCarro(null);
         dto.setSubtotal(0.0);

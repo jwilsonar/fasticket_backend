@@ -52,6 +52,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
 
+
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
         validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
@@ -127,13 +128,10 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
         carro.recalcularTotales();
         carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
-
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         ticketRepository.saveAll(ticketsAReservar);
-
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - request.getCantidad());
         tipoTicketRepositorio.save(tipoTicket);
-
         return convertirADTO(carroGuardado);
     }
 

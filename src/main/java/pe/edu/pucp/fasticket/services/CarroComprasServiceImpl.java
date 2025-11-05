@@ -72,12 +72,15 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                     nuevoCarro.setFechaCreacion(LocalDateTime.now());
                     return nuevoCarro;
                 });
+
         carro.setActivo(true);
         if (!carro.getItems().isEmpty()) {
             Integer idEventoActual = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
             if (!tipoTicket.getEvento().getIdEvento().equals(idEventoActual)) {
                 throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
             }
+        } else {
+            carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
         }
         ItemCarrito itemExistente = null;
         for (ItemCarrito item : carro.getItems()) {
@@ -134,6 +137,9 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - request.getCantidad());
         tipoTicketRepositorio.save(tipoTicket);
 
+        carro.recalcularTotales();
+        carro.setFechaActualizacion(LocalDateTime.now());
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
     }
 

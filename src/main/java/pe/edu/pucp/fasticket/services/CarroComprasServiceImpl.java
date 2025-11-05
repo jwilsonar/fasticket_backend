@@ -49,13 +49,15 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     @Transactional
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
         log.info("Agregando item (con reserva) al carrito para cliente ID: {}", request.getIdCliente());
+
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
 
-
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
+
         validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
+
         List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
                 tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, request.getCantidad())
         );
@@ -64,8 +66,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             throw new BusinessException("Stock insuficiente para " + tipoTicket.getNombre() +
                     ". Solo quedan " + ticketsAReservar.size() + " tickets reales.");
         }
-
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
                 .orElseGet(() -> {
                     log.info("No se encontró NINGÚN carrito para cliente ID: {}, creando uno nuevo.", cliente.getIdPersona());
                     CarroCompras nuevoCarro = new CarroCompras();
@@ -74,11 +75,14 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                     return nuevoCarro;
                 });
         carro.setActivo(true);
+
         if (!carro.getItems().isEmpty()) {
             Integer idEventoActual = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
             if (!tipoTicket.getEvento().getIdEvento().equals(idEventoActual)) {
                 throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
             }
+        } else {
+            carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
         }
         ItemCarrito itemExistente = null;
         for (ItemCarrito item : carro.getItems()) {
@@ -92,7 +96,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             log.info("Item ID {} ya existe. Añadiendo {} tickets.", itemExistente.getIdItemCarrito(), request.getCantidad());
 
             int nuevaCantidad = itemExistente.getCantidad() + request.getCantidad();
-            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente);
+            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente); // Valida el total
             itemExistente.setCantidad(nuevaCantidad);
             itemExistente.calcularPrecioFinal();
 
@@ -102,7 +106,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                 ticket.setItemCarrito(itemExistente);
             }
             itemExistente.getTickets().addAll(ticketsAReservar);
-            itemCarritoRepository.save(itemExistente);
+            itemCarritoRepository.save(itemExistente); // Guarda el item actualizado
 
         } else {
             log.info("Creando nuevo ItemCarrito para TipoTicket ID {}", tipoTicket.getIdTipoTicket());

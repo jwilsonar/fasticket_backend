@@ -60,25 +60,28 @@ public class ZonaController {
     @ApiResponse(responseCode = "200", description = "Lista obtenida")
     @GetMapping
     public ResponseEntity<StandardResponse<List<ZonaDTO>>> listar(
-            @Parameter(description = "ID del local para filtrar zonas (opcional)")
-            @RequestParam(required = false) Integer local) {
-        
-        log.info("GET /api/v1/zonas?local={}", local);
-        
+            @Parameter(description = "ID del evento para filtrar zonas")
+            @RequestParam(value = "evento", required = false) Integer idEvento) {
+
         List<Zona> zonas;
-        if (local != null) {
-            zonas = zonaServicio.buscarPorLocal(local);
+        String mensaje;
+
+        if (idEvento != null) {
+            // 2. Llama al servicio usando la variable 'idEvento'
+            log.info("GET /api/v1/zonas?evento={}", idEvento);
+            zonas = zonaServicio.buscarPorEvento(idEvento);
+            mensaje = "Zonas del evento " + idEvento + " obtenidas exitosamente";
+
         } else {
+            // 3. Si NO envían parámetro, lista todo
+            log.info("GET /api/v1/zonas (todas)");
             zonas = zonaServicio.listarTodas();
+            mensaje = "Zonas obtenidas exitosamente";
         }
-        
+
         List<ZonaDTO> zonasDTO = zonas.stream()
                 .map(zonaMapper::toDTO)
                 .collect(Collectors.toList());
-        
-        String mensaje = local != null 
-            ? String.format("Zonas del local %d obtenidas exitosamente", local)
-            : "Zonas obtenidas exitosamente";
             
         StandardResponse<List<ZonaDTO>> response = StandardResponse.success(mensaje, zonasDTO);
         return ResponseEntity.ok(response);
@@ -149,17 +152,15 @@ public class ZonaController {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<ZonaDTO>> crear(
             @Valid @RequestBody ZonaCreateDTO dto) {
-        
-        log.info("POST /api/v1/zonas - Nombre: {}, idLocal: {}", 
-                dto.getNombre(), dto.getIdLocal());
-        
+
+        log.info("POST /api/v1/zonas - Nombre: {}, idEvento: {}",
+                dto.getNombre(), dto.getIdEvento());
+
         try {
             Zona zona = zonaMapper.toEntity(dto);
-            log.info("Zona mapeada - Local: {}", zona.getLocal());
-            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
+            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdEvento());
             ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
-            
-            log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
+            log.info("ZonaDTO creado - idEvento: {}", zonaDTO.getIdEvento());
             StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
@@ -175,7 +176,7 @@ public class ZonaController {
             @RequestParam(value = "imagen", required = false) MultipartFile imagen,
             @RequestParam(value = "nombre", required = false) String nombre,
             @RequestParam(value = "aforoMax", required = false) Integer aforoMax,
-            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+            @RequestParam(value = "idEvento", required = false) Integer idEvento) {
         
         log.info("POST /api/v1/zonas/con-imagen - Nombre: {}", nombre != null ? nombre : "con imagen");
         
@@ -188,11 +189,10 @@ public class ZonaController {
             ZonaCreateDTO dto = new ZonaCreateDTO();
             dto.setNombre(nombre);
             dto.setAforoMax(aforoMax);
-            dto.setIdLocal(idLocal);
+            dto.setIdEvento(idEvento);
             
             Zona zona = zonaMapper.toEntity(dto);
-            log.info("Zona mapeada - Local: {}", zona.getLocal());
-            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdLocal());
+            Zona nuevaZona = zonaServicio.crear(zona, dto.getIdEvento());
             ZonaDTO zonaDTO = zonaMapper.toDTO(nuevaZona);
             
             // Subir imagen si se proporcionó
@@ -203,7 +203,7 @@ public class ZonaController {
                 zonaDTO = zonaMapper.toDTO(zonaActualizada);
             }
             
-            log.info("ZonaDTO creado - idLocal: {}", zonaDTO.getIdLocal());
+            log.info("ZonaDTO creado - idEvento: {}", zonaDTO.getIdEvento());
             StandardResponse<ZonaDTO> response = StandardResponse.success("Zona creada exitosamente", zonaDTO);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
@@ -248,7 +248,7 @@ public class ZonaController {
         try {
             Zona zona = zonaMapper.toEntity(dto);
             zona.setIdZona(id);
-            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
+            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdEvento());
             ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
             
             StandardResponse<ZonaDTO> response = StandardResponse.success("Zona actualizada exitosamente", zonaDTO);
@@ -267,7 +267,7 @@ public class ZonaController {
             @RequestParam(value = "imagen", required = false) MultipartFile imagen,
             @RequestParam(value = "nombre", required = false) String nombre,
             @RequestParam(value = "aforoMax", required = false) Integer aforoMax,
-            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+            @RequestParam(value = "idEvento", required = false) Integer idEvento) {
         
         log.info("PUT /api/v1/zonas/{}/con-imagen", id);
         
@@ -280,11 +280,11 @@ public class ZonaController {
             ZonaCreateDTO dto = new ZonaCreateDTO();
             dto.setNombre(nombre);
             dto.setAforoMax(aforoMax);
-            dto.setIdLocal(idLocal);
+            dto.setIdEvento(idEvento);
             
             Zona zona = zonaMapper.toEntity(dto);
             zona.setIdZona(id);
-            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdLocal());
+            Zona actualizada = zonaServicio.actualizar(zona, dto.getIdEvento());
             ZonaDTO zonaDTO = zonaMapper.toDTO(actualizada);
             
             // Subir imagen si se proporcionó

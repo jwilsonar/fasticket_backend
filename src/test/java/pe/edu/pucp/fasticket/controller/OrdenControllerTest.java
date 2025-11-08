@@ -42,11 +42,7 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.*;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
 @SpringBootTest
@@ -73,7 +69,7 @@ public class OrdenControllerTest {
     private TipoTicketRepositorio tipoTicketRepositorio;
     
     @Autowired
-    private ZonaRepositorio zonaRepositorio;
+    private ZonaRepository zonaRepositorio;
     @Autowired
     private TicketRepository ticketRepository;
     @Autowired
@@ -122,14 +118,14 @@ public class OrdenControllerTest {
         zonaVip.setNombre("Zona VIP");
         zonaVip.setAforoMax(500);
         zonaVip.setActivo(true);
-        zonaVip.setLocal(localTest);
+        zonaVip.setEvento(eventoTest);
         zonaVip = zonaRepositorio.save(zonaVip);
 
         Zona zonaGeneral = new Zona();
         zonaGeneral.setNombre("Zona General");
         zonaGeneral.setAforoMax(2000);
         zonaGeneral.setActivo(true);
-        zonaGeneral.setLocal(localTest);
+        zonaGeneral.setEvento(eventoTest);
         zonaGeneral = zonaRepositorio.save(zonaGeneral);
 
         tipoTicketVip = new TipoTicket();

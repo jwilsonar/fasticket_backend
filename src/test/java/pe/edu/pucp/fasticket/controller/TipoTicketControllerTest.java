@@ -25,7 +25,7 @@ import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -41,7 +41,7 @@ public class TipoTicketControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private ZonaRepositorio zonaRepositorio;
+    private ZonaRepository zonaRepositorio;
 
     private String generarNombreUnico(String prefijo) {
         return prefijo + "_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);

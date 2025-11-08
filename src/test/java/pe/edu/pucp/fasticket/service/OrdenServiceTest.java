@@ -114,7 +114,7 @@ class OrdenServiceTest {
         zonaMock.setNombre("Zona VIP");
         zonaMock.setAforoMax(100);
         zonaMock.setActivo(true);
-        zonaMock.setLocal(localMock);
+        zonaMock.setEvento(eventoMock);
         
         tipoTicketMock.setZona(zonaMock);
 

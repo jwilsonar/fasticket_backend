@@ -31,11 +31,7 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
-import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.*;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
@@ -53,7 +49,7 @@ public class CarroComprasServiceTests {
     @Autowired private TipoTicketRepository tipoTicketRepository;
     @Autowired private TicketRepository ticketRepository;
     @Autowired private CarroComprasRepository carroComprasRepository;
-    @Autowired private ZonaRepositorio zonaRepository;
+    @Autowired private ZonaRepository zonaRepository;
     @Autowired private LocalesRepositorio localRepositorio;
 
     private Cliente clientePrueba;
@@ -122,14 +118,14 @@ public class CarroComprasServiceTests {
         zona1.setNombre("Zona VIP Evento 1");
         zona1.setAforoMax(100);
         zona1.setActivo(true);
-        zona1.setLocal(local1);
+        zona1.setEvento(evento1);
         zona1 = zonaRepository.save(zona1);
 
         Zona zona2 = new Zona();
         zona2.setNombre("Zona General Evento 2");
         zona2.setAforoMax(200);
         zona2.setActivo(true);
-        zona2.setLocal(local2);
+        zona2.setEvento(evento2);
         zona2 = zonaRepository.save(zona2);
 
         // 5. Crear Tipos de Ticket y asignar eventos

@@ -12,11 +12,11 @@ import pe.edu.pucp.fasticket.model.eventos.Zona;
 @Mapper(componentModel = "spring")
 public interface ZonaMapper {
 
-    @Mapping(target = "idLocal", source = "local.idLocal")
+    @Mapping(target = "idEvento", source = "evento.idEvento")
     ZonaDTO toDTO(Zona zona);
 
     @Mapping(target = "idZona", ignore = true)
-    @Mapping(target = "local", ignore = true)
+    @Mapping(target = "evento", ignore = true)
     @Mapping(target = "activo", constant = "true")
     @Mapping(target = "fechaCreacion", ignore = true)
     @Mapping(target = "fechaActualizacion", ignore = true)

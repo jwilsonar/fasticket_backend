@@ -16,7 +16,7 @@ import pe.edu.pucp.fasticket.mapper.TipoTicketMapper;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -24,7 +24,7 @@ import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
 public class TipoTicketServicio {
 
     private final TipoTicketRepositorio tipoTicketRepositorio;
-    private final ZonaRepositorio zonaRepositorio;
+    private final ZonaRepository zonaRepositorio;
     private final TipoTicketMapper tipoTicketMapper;
 
     public List<TipoTicketDTO> listarTodos() {

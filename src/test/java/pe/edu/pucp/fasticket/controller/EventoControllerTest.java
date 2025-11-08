@@ -34,10 +34,7 @@ import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.*;
 
 /**
  * Tests de integración para EventoController.
@@ -61,9 +58,9 @@ public class EventoControllerTest {
     private LocalesRepositorio localRepositorio;
     @Autowired
     private TipoTicketRepositorio tipoTicketRepositorio;
-    
+
     @Autowired
-    private ZonaRepositorio zonaRepositorio;
+    private ZonaRepository zonaRepositorio;
 
     private Evento eventoTest;
     private Local localTest;
@@ -99,9 +96,9 @@ public class EventoControllerTest {
         zonaTest.setNombre("Zona Test");
         zonaTest.setAforoMax(1000);
         zonaTest.setActivo(true);
-        zonaTest.setLocal(localTest);
+        zonaTest.setEvento(eventoTest);
         zonaTest = zonaRepositorio.save(zonaTest);
-        
+
         tipoTicketTest.setZona(zonaTest);
         tipoTicketTest.setActivo(true);
         tipoTicketTest = tipoTicketRepositorio.save(tipoTicketTest);
@@ -176,7 +173,7 @@ public class EventoControllerTest {
     void testCrearEvento_ConImagen() throws Exception {
         // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
+        org.springframework.mock.web.MockMultipartFile imagen =
             new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
@@ -201,7 +198,7 @@ public class EventoControllerTest {
     void testCrearEvento_SoloImagen() throws Exception {
         // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
+        org.springframework.mock.web.MockMultipartFile imagen =
             new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
@@ -216,7 +213,7 @@ public class EventoControllerTest {
     void testCrearEvento_ConImagen_TodosLosCampos() throws Exception {
         // Crear un archivo de prueba
         byte[] imagenBytes = "imagen completa de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
+        org.springframework.mock.web.MockMultipartFile imagen =
             new org.springframework.mock.web.MockMultipartFile("imagen", "complete.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
@@ -256,7 +253,7 @@ public class EventoControllerTest {
     void testActualizarEvento_ConImagen() throws Exception {
         // Crear un archivo de prueba
         byte[] imagenBytes = "imagen actualizada de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
+        org.springframework.mock.web.MockMultipartFile imagen =
             new org.springframework.mock.web.MockMultipartFile("imagen", "updated.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/" + eventoTest.getIdEvento() + "/con-imagen")

@@ -11,7 +11,7 @@ public interface ZonaServicio {
     
     Optional<Zona> buscarPorId(Integer id);
     
-    List<Zona> buscarPorLocal(Integer idLocal);
+    List<Zona> buscarPorEvento(Integer idLocal);
     
     Zona crear(Zona zona, Integer idLocal);
     

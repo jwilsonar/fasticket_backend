@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface ZonaRepository extends JpaRepository<Zona, Integer> {
     
-    List<Zona> findByLocal_IdLocal(Integer idLocal);
+    List<Zona> findByEvento_IdEvento(Integer idEvento);
     
     List<Zona> findByActivoTrue();
 }

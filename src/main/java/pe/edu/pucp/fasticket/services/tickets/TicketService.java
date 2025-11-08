@@ -12,7 +12,7 @@ import pe.edu.pucp.fasticket.model.eventos.*;
 // import pe.edu.pucp.fasticket.model.eventos.TipoEstadoTiket; // <--- LÍNEA ELIMINADA (EL ERROR)
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonasRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 import pe.edu.pucp.fasticket.mapper.TicketMapper;
 
 @Service
@@ -23,7 +23,7 @@ public class TicketService {
 
     private final TicketRepositorio ticketRepository;
     private final EventosRepositorio eventoRepository;
-    private final ZonasRepositorio zonaRepository;
+    private final ZonaRepository zonaRepository;
     private final TicketMapper ticketMapper;
 
     @Transactional

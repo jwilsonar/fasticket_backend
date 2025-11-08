@@ -23,8 +23,8 @@ import pe.edu.pucp.fasticket.model.fidelizacion.Puntos;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 
 @Data
-@EqualsAndHashCode(callSuper = true, exclude = {"carroCompras", "ordenesCompra"})
-@ToString(callSuper = true, exclude = {"carroCompras", "ordenesCompra"})
+@EqualsAndHashCode(callSuper = true, exclude = {"carrosCompras", "ordenesCompra"})
+@ToString(callSuper = true, exclude = {"carrosCompras", "ordenesCompra"})
 @Entity
 @Table(name = "Cliente")
 @PrimaryKeyJoinColumn(name = "idPersona")

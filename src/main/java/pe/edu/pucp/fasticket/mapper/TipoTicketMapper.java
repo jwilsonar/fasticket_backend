@@ -21,5 +21,6 @@ public interface TipoTicketMapper {
     @Mapping(target = "fechaInicioVenta", ignore = true)
     @Mapping(target = "fechaFinVenta", ignore = true)
     @Mapping(target = "tickets", ignore = true)
+    @Mapping(target = "evento", ignore = true)
     TipoTicket toEntity(TipoTicketDTO dto);
 }

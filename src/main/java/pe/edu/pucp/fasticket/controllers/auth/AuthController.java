@@ -135,7 +135,8 @@ public class AuthController {
     @GetMapping("/verificar")
     public ResponseEntity<pe.edu.pucp.fasticket.dto.StandardResponse<String>> verificarToken(
             @AuthenticationPrincipal UserDetails userDetails) {
-        
+
+        log.info("GET /api/v1/auth/verificar - Usuario: {}", userDetails.getUsername());
         return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Token válido", userDetails.getUsername()));
     }
 }

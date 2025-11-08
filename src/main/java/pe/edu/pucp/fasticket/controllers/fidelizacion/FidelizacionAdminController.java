@@ -494,11 +494,8 @@ public class FidelizacionAdminController {
     public ResponseEntity<StandardResponse<Void>> eliminarCodigoPromocional(
         @Parameter(description = "ID del código", required = true)
         @PathVariable Integer id) {
-
-        log.info("DELETE /api/v1/admin/fidelizacion/codigos-promocionales/{}", id);
-        
         fidelizacionService.eliminarCodigoPromocional(id);
-        
+        log.info("DELETE /api/v1/admin/fidelizacion/codigos-promocionales/{}", id);
         return ResponseEntity.ok(StandardResponse.success("Código eliminado exitosamente.", null));
     }
 
@@ -519,8 +516,8 @@ public class FidelizacionAdminController {
     public ResponseEntity<StandardResponse<List<PuntosDTO>>> getHistorialPuntos(
             @Parameter(description = "ID del cliente a consultar", required = true)
             @PathVariable Integer idCliente) {
-
         List<PuntosDTO> historial = fidelizacionService.listarPuntosPorCliente(idCliente);
+        log.info("GET /api/v1/admin/fidelizacion/clientes/{}/historial-puntos", idCliente);
         return ResponseEntity.ok(StandardResponse.success("Historial de puntos obtenido", historial));
     }
 
@@ -542,8 +539,8 @@ public class FidelizacionAdminController {
             @PathVariable Integer idCliente,
             @Parameter(description = "ID del registro de puntos a anular", required = true)
             @PathVariable Integer idPuntos) {
-
         fidelizacionService.borrarRegistroPuntos(idCliente, idPuntos);
+        log.info("DELETE /api/v1/admin/fidelizacion/clientes/{}/historial-puntos/{}", idCliente, idPuntos);
         return ResponseEntity.ok(StandardResponse.success("Registro de puntos anulado exitosamente."));
     }
 }

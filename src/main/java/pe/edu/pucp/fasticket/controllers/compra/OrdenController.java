@@ -153,6 +153,7 @@ public class OrdenController {
             @PathVariable Integer idCarrito,
             @Valid @RequestBody CheckoutCarritoRequestDTO request) {
         OrdenCompra orden = ordenServicio.checkoutDesdeCarrito(idCarrito, request.getItemsConAsistentes());
+        log.info("POST /api/v1/ordenes/checkout-carrito/{} - Orden ID: {}", idCarrito, orden.getIdOrdenCompra());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden)));
     }

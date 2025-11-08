@@ -23,8 +23,8 @@ import lombok.ToString;
  */
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"local"})
-@ToString(exclude = {"local"})
+@EqualsAndHashCode(exclude = {"evento"})
+@ToString(exclude = {"evento"})
 @Entity
 @Table(name = "Zona")
 public class Zona {
@@ -62,7 +62,11 @@ public class Zona {
      * Local al que pertenece esta zona.
      * RF-004: Cada zona debe estar asociada a un local específico.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    /*@ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "idLocal")
-    private Local local;
+    private Local local;*/
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "idEvento")
+    private Evento evento;
 }

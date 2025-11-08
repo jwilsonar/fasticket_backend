@@ -292,7 +292,7 @@ public class EventoService {
         dto.setLocal(localDTO);
 
         // 4. Mapeo limpio de Tipos de Ticket - obtener a través de las zonas del local
-        List<TipoTicketCompraDTO> tiposDTO = evento.getLocal().getZonas().stream()
+        List<TipoTicketCompraDTO> tiposDTO = evento.getZonas().stream()
                 .flatMap(zona -> tipoTicketRepositorio.findByZonaIdZonaAndActivoTrue(zona.getIdZona()).stream())
                 .filter(tt -> tt.getCantidadDisponible() > 0)
                 .map(tt -> {

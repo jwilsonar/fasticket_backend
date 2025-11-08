@@ -15,34 +15,39 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 @Mapper(componentModel = "spring")
 public interface TicketMapper {
 
-    // --- Método toDTO (Revisado) ---
-    // MapStruct should handle enum-to-string conversion if types match (String <-> String)
-    // If TicketDTO.estado is String and Ticket.estado is EstadoTicket (enum),
-    // you might need a custom mapping method or @ValueMapping. Let's assume String for now.
+    // --- Método toDTO (Corregido) ---
     @Mapping(source = "estado", target = "estado")
-    // We assume TicketDTO doesn't need 'stock' as Ticket.java doesn't have it.
-    // If TicketDTO needs stock, where should it come from? Maybe CategoriaEntrada?
+    // --- INICIO CORRECCIÓN ERROR 1 ---
+    // Ignora los campos que están en el DTO pero no en la Entidad
+    @Mapping(target = "nombre", ignore = true)
+    @Mapping(target = "stock", ignore = true)
+    @Mapping(target = "nombreZona", ignore = true)
+    // --- FIN CORRECCIÓN ERROR 1 ---
     TicketDTO toDTO(Ticket ticket);
 
-    // --- Método toEntity (CORREGIDO) ---
+    // --- Método toEntity (Corregido) ---
     @Mapping(target = "idTicket", ignore = true)
-    // --- CORRECCIÓN: 'codigoQr' (lowercase q) SÍ existe ---
-    @Mapping(target = "codigoQr", ignore = true) // Ignoramos porque se genera después
-    // --- FIN CORRECCIÓN ---
-    @Mapping(target = "qrImage", ignore = true)        // Ignorar campo extra
-    @Mapping(target = "asiento", ignore = true)         // Ignorar, se asignará después si aplica
-    @Mapping(target = "fila", ignore = true)            // Ignorar, se asignará después si aplica
-    @Mapping(target = "estado", ignore = true)         // Se asigna en el Service ("DISPONIBLE")
-    @Mapping(target = "activo", ignore = true)         // Se asigna en el Service (true)
-    @Mapping(target = "tipoTicket", ignore = true)      // Ignorar relación
-    @Mapping(target = "itemCarrito", ignore = true)     // Ignorar relación
-    // --- CORRECCIÓN: Usar 'cliente' ---
-    @Mapping(target = "cliente", ignore = true)        // Ignorar relación (se asigna al comprar/transferir)
-    // --- FIN CORRECCIÓN ---
-    @Mapping(target = "nombreAsistente", ignore = true) // Ignorar
-    @Mapping(target = "apellidoAsistente", ignore = true)// Ignorar
-    @Mapping(target = "documentoAsistente", ignore = true)// Ignorar
-    @Mapping(target = "tipoDocumentoAsistente", ignore = true) // Ignorar
+    @Mapping(target = "codigoQr", ignore = true)
+    @Mapping(target = "qrImage", ignore = true)
+    @Mapping(target = "asiento", ignore = true)
+    @Mapping(target = "fila", ignore = true)
+    @Mapping(target = "estado", ignore = true)
+    @Mapping(target = "activo", ignore = true)
+    @Mapping(target = "tipoTicket", ignore = true)
+    @Mapping(target = "itemCarrito", ignore = true)
+    @Mapping(target = "cliente", ignore = true)
+    @Mapping(target = "nombreAsistente", ignore = true)
+    @Mapping(target = "apellidoAsistente", ignore = true)
+    @Mapping(target = "documentoAsistente", ignore = true)
+    @Mapping(target = "tipoDocumentoAsistente", ignore = true)
+
+    // --- INICIO CORRECCIÓN ERROR 2 ---
+    // Ignora los nuevos campos de Transferencia que no vienen en el CreateDTO
+    @Mapping(target = "ordenCompra", ignore = true)
+    @Mapping(target = "contadorTransferencias", ignore = true)
+    @Mapping(target = "fechaUltimaTransferencia", ignore = true)
+    @Mapping(target = "historialTransferencias", ignore = true)
+    // --- FIN CORRECCIÓN ERROR 2 ---
 
     // --- Ignorando campos de auditoría ---
     @Mapping(target = "usuarioCreacion", ignore = true)
@@ -51,10 +56,7 @@ public interface TicketMapper {
     @Mapping(target = "fechaActualizacion", ignore = true)
 
     // --- Mapeos explícitos y automáticos ---
-    // REMOVED: @Mapping(target = "nombre", ...) // 'nombre' NO existe en Ticket.java
-    // REMOVED: @Mapping(target = "stock", ...)  // 'stock' NO existe en Ticket.java
-    @Mapping(target = "precio", source = "dto.precio")   // 'precio' SÍ existe
-    @Mapping(target = "evento", source = "evento")     // Viene del parámetro
+    @Mapping(target = "precio", source = "dto.precio")
+    @Mapping(target = "evento", source = "evento")
     Ticket toEntity(TicketCreateDTO dto, Evento evento);
-    // --- FIN CORRECCIÓN ---
 }

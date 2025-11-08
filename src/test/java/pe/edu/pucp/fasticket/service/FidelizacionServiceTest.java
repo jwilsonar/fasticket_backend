@@ -42,10 +42,7 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepository;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.*;
 import pe.edu.pucp.fasticket.repository.fidelizacion.CodigoPromocionalRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.PuntosRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.ReglaPuntosRepository;
@@ -86,7 +83,7 @@ class FidelizacionServiceTest {
     private TipoTicketRepository tipoTicketRepository;
 
     @Autowired
-    private ZonaRepositorio zonaRepositorio;
+    private ZonaRepository zonaRepositorio;
 
 
     private Cliente clientePrueba;
@@ -326,7 +323,7 @@ class FidelizacionServiceTest {
         zona.setNombre("Zona A");
         zona.setAforoMax(500);
         zona.setActivo(true);
-        zona.setLocal(local);
+        zona.setEvento(evento);
         zona = zonaRepositorio.save(zona);
 
         TipoTicket tipoTicket = new TipoTicket();
@@ -399,7 +396,7 @@ class FidelizacionServiceTest {
         zona.setNombre("Zona B");
         zona.setAforoMax(500);
         zona.setActivo(true);
-        zona.setLocal(local);
+        zona.setEvento(evento);
         zona = zonaRepositorio.save(zona);
 
         TipoTicket tipoTicket = new TipoTicket();

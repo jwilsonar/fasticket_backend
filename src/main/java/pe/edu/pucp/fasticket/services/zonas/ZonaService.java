@@ -17,7 +17,7 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonasRepositorio; // Tu repo existente
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ZonaService { // <-- Renombrado de ZonaServicio a ZonaService
 
-    private final ZonasRepositorio repo_zonas;
+    private final ZonaRepository repo_zonas;
     private final EventosRepositorio eventoRepository; // Nueva dependencia
     private final ZonaMapper zonaMapper; // Nueva dependencia (Mapper)
 
@@ -40,37 +40,36 @@ public class ZonaService { // <-- Renombrado de ZonaServicio a ZonaService
     public ZonaDTO agregarZonaAEvento(Integer idEvento, ZonaCreateDTO zonaDTO) {
         log.info("Agregando zona '{}' al evento ID: {}", zonaDTO.getNombre(), idEvento);
 
-        // 1. Buscar el evento
         Evento evento = eventoRepository.findById(idEvento)
                 .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
 
-        // 2. Validar que el evento esté en BORRADOR
         if (evento.getEstadoEvento() != EstadoEvento.BORRADOR) {
             throw new BusinessException("Solo se pueden agregar zonas a eventos en estado BORRADOR");
         }
 
-        // 3. Obtener el local del evento
         Local local = evento.getLocal();
         if (local == null) {
             throw new BusinessException("El evento ID: " + idEvento + " no tiene un local asociado. No se pueden agregar zonas.");
         }
-
-        // 4. Lógica de Aforo (RF-003): Validar que el aforo de las zonas no supere el aforo total del local
-        // Nota: Asumimos que la relación de Local a Zonas está mapeada
-        Integer aforoZonasActual = local.getZonas().stream()
+        if (local.getAforoTotal() == null || local.getAforoTotal() <= 0) {
+            throw new BusinessException("El local '" + local.getNombre() + "' no tiene un aforo total definido.");
+        }
+        Integer aforoZonasActual = evento.getZonas().stream()
                 .mapToInt(Zona::getAforoMax)
                 .sum();
-
+        log.info("Aforo actual del evento {}: {}. Aforo del local: {}", idEvento, aforoZonasActual, local.getAforoTotal());
         if ((aforoZonasActual + zonaDTO.getAforoMax()) > local.getAforoTotal()) {
-            throw new BusinessException("Se ha superado el aforo máximo del local (" + local.getAforoTotal() + "). Aforo actual de zonas: " + aforoZonasActual);
+            throw new BusinessException(
+                    String.format("Se ha superado el aforo máximo del local (%d). Aforo actual de zonas: %d. Aforo nuevo: %d",
+                            local.getAforoTotal(),
+                            aforoZonasActual,
+                            zonaDTO.getAforoMax()
+                    )
+            );
         }
-
-        // 5. Mapear y guardar la Zona
-        Zona nuevaZona = zonaMapper.toEntity(zonaDTO); // DTO -> Entity
-        nuevaZona.setLocal(local); // Asignar la zona al local del evento
-
+        Zona nuevaZona = zonaMapper.toEntity(zonaDTO);
+        nuevaZona.setEvento(evento);
         Zona zonaGuardada = repo_zonas.save(nuevaZona);
-
         log.info("Zona creada con ID: {}", zonaGuardada.getIdZona());
         return zonaMapper.toDTO(zonaGuardada); // Entity -> DTO
     }

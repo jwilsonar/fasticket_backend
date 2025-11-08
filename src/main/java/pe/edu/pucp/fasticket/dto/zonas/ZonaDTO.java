@@ -13,5 +13,5 @@ public class ZonaDTO {
     private String imagenUrl;
     private Boolean activo;
     private LocalDate fechaCreacion, fechaActualizacion;
-    private Integer idLocal;
+    private Integer idEvento;
 }

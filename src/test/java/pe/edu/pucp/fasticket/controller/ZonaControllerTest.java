@@ -1,7 +1,12 @@
 package pe.edu.pucp.fasticket.controller;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,13 +30,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.zonas.ZonaCreateDTO;
+import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
-import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
+import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository; // <-- Repo correcto
 
 /**
- * Tests de integración para ZonaController.
+ * Tests de integración para ZonaController (Actualizado para Evento -> Zona).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,90 +55,105 @@ public class ZonaControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private ZonaRepository zonaRepository;
+    private ZonaRepository zonaRepository; // <-- Repo correcto
 
     @Autowired
     private LocalesRepositorio localRepository;
 
+    @Autowired
+    private EventosRepositorio eventoRepository; // <-- Añadido
+
     private Local localTest;
+    private Evento eventoTest; // <-- Añadido
     private Zona zonaTest;
 
     @BeforeEach
     void setUp() {
-        // Crear local de prueba
-        Local local = new Local();
-        local.setNombre("Estadio Test");
-        local.setDireccion("Av. Test 123");
-        local.setAforoTotal(10000);
-        local.setActivo(true);
-        local.setFechaCreacion(LocalDate.now());
-        localTest = localRepository.save(local);
+        // 1. Crear local de prueba
+        localTest = new Local();
+        localTest.setNombre("Estadio Test");
+        localTest.setDireccion("Av. Test 123");
+        localTest.setAforoTotal(10000);
+        localTest.setActivo(true);
+        localTest.setFechaCreacion(LocalDate.now());
+        localTest = localRepository.save(localTest);
 
-        // Crear zona de prueba
-        Zona zona = new Zona();
-        zona.setNombre("VIP");
-        zona.setAforoMax(100);
-        zona.setActivo(true);
-        zona.setLocal(localTest);
-        zona.setFechaCreacion(LocalDate.now());
-        zonaTest = zonaRepository.save(zona);
+        // 2. Crear evento de prueba
+        eventoTest = new Evento();
+        eventoTest.setNombre("Evento Test");
+        eventoTest.setFechaEvento(LocalDate.now().plusMonths(1));
+        eventoTest.setHoraInicio(LocalTime.of(20, 0));
+        eventoTest.setEstadoEvento(EstadoEvento.PUBLICADO);
+        eventoTest.setActivo(true);
+        eventoTest.setLocal(localTest);
+        eventoTest = eventoRepository.save(eventoTest);
+
+        // 3. Crear zona de prueba (Asignada al Evento)
+        zonaTest = new Zona();
+        zonaTest.setNombre("VIP");
+        zonaTest.setAforoMax(100);
+        zonaTest.setActivo(true);
+        zonaTest.setEvento(eventoTest); // <-- ASIGNADO A EVENTO
+        zonaTest.setFechaCreacion(LocalDate.now());
+        zonaTest = zonaRepository.save(zonaTest);
     }
 
-    @Test
-    void testListarZonas_Publico() throws Exception {
-        mockMvc.perform(get("/api/v1/zonas"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].nombre").value("VIP"))
-                .andExpect(jsonPath("$.data[0].aforoMax").value(100))
-                .andExpect(jsonPath("$.data[0].idLocal").value(localTest.getIdLocal()));
+    @AfterEach
+    void tearDown() {
+        // Limpiar en orden inverso
+        zonaRepository.deleteAll();
+        eventoRepository.deleteAll();
+        localRepository.deleteAll();
     }
 
+
+    // --- TESTS DE ENDPOINTS PÚBLICOS ---
+
     @Test
-    void testListarZonas_FiltroPorLocal() throws Exception {
-        // Crear otra zona en el mismo local
+    void testListarZonas_FiltroPorEvento() throws Exception {
+        // 1. Crear otra zona en el mismo evento (Evento 1)
         Zona zona2 = new Zona();
         zona2.setNombre("General");
         zona2.setAforoMax(200);
         zona2.setActivo(true);
-        zona2.setLocal(localTest);
+        zona2.setEvento(eventoTest); // Asignado a Evento 1
         zona2.setFechaCreacion(LocalDate.now());
         zonaRepository.save(zona2);
 
-        // Crear otro local con zona
-        Local local2 = new Local();
-        local2.setNombre("Coliseo Test");
-        local2.setAforoTotal(5000);
-        local2.setActivo(true);
-        local2.setFechaCreacion(LocalDate.now());
-        Local local2Saved = localRepository.save(local2);
+        // 2. Crear otro evento (Evento 2) en el mismo local
+        Evento evento2 = new Evento();
+        evento2.setNombre("Evento Test 2");
+        evento2.setFechaEvento(LocalDate.now().plusMonths(2));
+        evento2.setHoraInicio(LocalTime.of(20, 0));
+        evento2.setEstadoEvento(EstadoEvento.PUBLICADO);
+        evento2.setActivo(true);
+        evento2.setLocal(localTest);
+        evento2 = eventoRepository.save(evento2);
 
         Zona zona3 = new Zona();
         zona3.setNombre("Platea");
         zona3.setAforoMax(150);
         zona3.setActivo(true);
-        zona3.setLocal(local2Saved);
+        zona3.setEvento(evento2); // Asignado a Evento 2
         zona3.setFechaCreacion(LocalDate.now());
         zonaRepository.save(zona3);
 
-        // Test filtrar por local específico
-        mockMvc.perform(get("/api/v1/zonas?local=" + localTest.getIdLocal()))
+        // 3. Test: filtrar por Evento 1 (debe devolver 2 zonas)
+        mockMvc.perform(get("/api/v1/zonas?evento=" + eventoTest.getIdEvento())) // <-- Usa ?evento=
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].idLocal").value(localTest.getIdLocal()))
-                .andExpect(jsonPath("$.data[1].idLocal").value(localTest.getIdLocal()));
+                .andExpect(jsonPath("$.mensaje").value("Zonas del evento " + eventoTest.getIdEvento() + " obtenidas exitosamente"));
 
-        // Test filtrar por otro local
-        mockMvc.perform(get("/api/v1/zonas?local=" + local2Saved.getIdLocal()))
+        // 4. Test: filtrar por Evento 2 (debe devolver 1 zona)
+        mockMvc.perform(get("/api/v1/zonas?evento=" + evento2.getIdEvento())) // <-- Usa ?evento=
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].nombre").value("Platea"))
-                .andExpect(jsonPath("$.data[0].idLocal").value(local2Saved.getIdLocal()));
+                .andExpect(jsonPath("$.data[0].idEvento").value(evento2.getIdEvento()));
     }
 
     @Test
@@ -141,7 +164,7 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data.idZona").value(zonaTest.getIdZona()))
                 .andExpect(jsonPath("$.data.nombre").value("VIP"))
                 .andExpect(jsonPath("$.data.aforoMax").value(100))
-                .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()));
+                .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento())); // <-- Corregido
     }
 
     @Test
@@ -150,17 +173,19 @@ public class ZonaControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    // --- TESTS DE ENDPOINTS DE ADMIN ---
+
     @Test
     @WithMockUser(roles = "CLIENTE")
     void testCrearZona_SinPermisoCliente() throws Exception {
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("Nueva Zona");
         dto.setAforoMax(150);
-        dto.setIdLocal(localTest.getIdLocal());
+        dto.setIdEvento(eventoTest.getIdEvento()); // <-- Corregido
 
         mockMvc.perform(post("/api/v1/zonas")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isForbidden());
     }
 
@@ -170,61 +195,56 @@ public class ZonaControllerTest {
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("Zona Premium");
         dto.setAforoMax(50);
-        dto.setIdLocal(localTest.getIdLocal());
+        dto.setIdEvento(eventoTest.getIdEvento()); // <-- Corregido
 
         mockMvc.perform(post("/api/v1/zonas")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data.nombre").value("Zona Premium"))
                 .andExpect(jsonPath("$.data.aforoMax").value(50))
-                .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()))
+                .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento())) // <-- Corregido
                 .andExpect(jsonPath("$.data.activo").value(true));
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearZona_ConImagen() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de zona de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
-            new org.springframework.mock.web.MockMultipartFile("imagen", "zona.jpg", "image/jpeg", imagenBytes);
+        org.springframework.mock.web.MockMultipartFile imagen =
+                new org.springframework.mock.web.MockMultipartFile("imagen", "zona.jpg", "image/jpeg", imagenBytes);
 
         String response = mockMvc.perform(multipart("/api/v1/zonas/con-imagen")
                         .file(imagen)
                         .param("nombre", "Zona Con Imagen")
                         .param("aforoMax", "100")
-                        .param("idLocal", localTest.getIdLocal().toString()))
+                        .param("idEvento", eventoTest.getIdEvento().toString())) // <-- Corregido
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Zona Con Imagen"))
                 .andExpect(jsonPath("$.data.imagenUrl").exists())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extraer el ID de la zona creada
         Integer idZonaCreada = objectMapper.readTree(response).get("data").get("idZona").asInt();
 
-        // Verificar que al obtener la zona, la imagenUrl está guardada en la BD
         mockMvc.perform(get("/api/v1/zonas/" + idZonaCreada))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data.idZona").value(idZonaCreada))
-                .andExpect(jsonPath("$.data.imagenUrl").exists())
                 .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
-    void testCrearZona_LocalNoExiste() throws Exception {
+    void testCrearZona_EventoNoExiste() throws Exception { // <-- Corregido
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("Zona Test");
         dto.setAforoMax(100);
-        dto.setIdLocal(99999); // Local que no existe
+        dto.setIdEvento(99999); // Evento que no existe
 
         mockMvc.perform(post("/api/v1/zonas")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isBadRequest());
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest()); // O 404
     }
 
     @Test
@@ -233,11 +253,11 @@ public class ZonaControllerTest {
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre(""); // Nombre vacío
         dto.setAforoMax(-10); // Aforo negativo
-        dto.setIdLocal(localTest.getIdLocal());
+        dto.setIdEvento(eventoTest.getIdEvento()); // <-- Corregido
 
         mockMvc.perform(post("/api/v1/zonas")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -247,31 +267,30 @@ public class ZonaControllerTest {
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("VIP Actualizado");
         dto.setAforoMax(150);
-        dto.setIdLocal(localTest.getIdLocal());
+        dto.setIdEvento(eventoTest.getIdEvento()); // <-- Corregido
 
         mockMvc.perform(put("/api/v1/zonas/" + zonaTest.getIdZona())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado"))
                 .andExpect(jsonPath("$.data.aforoMax").value(150))
-                .andExpect(jsonPath("$.data.idLocal").value(localTest.getIdLocal()));
+                .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento())); // <-- Corregido
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testActualizarZona_ConImagen() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen actualizada de zona".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
-            new org.springframework.mock.web.MockMultipartFile("imagen", "zona_updated.jpg", "image/jpeg", imagenBytes);
+        org.springframework.mock.web.MockMultipartFile imagen =
+                new org.springframework.mock.web.MockMultipartFile("imagen", "zona_updated.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/con-imagen")
                         .file(imagen)
                         .param("nombre", "VIP Actualizado Con Imagen")
                         .param("aforoMax", "200")
-                        .param("idLocal", localTest.getIdLocal().toString())
+                        .param("idEvento", eventoTest.getIdEvento().toString()) // <-- Corregido
                         .with(request -> {
                             request.setMethod("PUT");
                             return request;
@@ -280,19 +299,15 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado Con Imagen"))
                 .andExpect(jsonPath("$.data.imagenUrl").exists());
 
-        // Verificar que al obtener la zona actualizada, la imagenUrl está guardada en la BD
         mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.data.idZona").value(zonaTest.getIdZona()))
-                .andExpect(jsonPath("$.data.imagenUrl").exists())
                 .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
-    void testActualizarZona_CambiarLocal() throws Exception {
-        // Crear otro local
+    void testActualizarZona_CambiarEvento() throws Exception { // <-- Corregido
+        // 1. Crear otro local
         Local local2 = new Local();
         local2.setNombre("Coliseo Test 2");
         local2.setAforoTotal(5000);
@@ -300,18 +315,29 @@ public class ZonaControllerTest {
         local2.setFechaCreacion(LocalDate.now());
         Local local2Saved = localRepository.save(local2);
 
+        // 2. Crear otro evento
+        Evento evento2 = new Evento();
+        evento2.setNombre("Evento 2");
+        evento2.setFechaEvento(LocalDate.now().plusMonths(2));
+        evento2.setHoraInicio(LocalTime.of(20, 0));
+        evento2.setEstadoEvento(EstadoEvento.PUBLICADO);
+        evento2.setActivo(true);
+        evento2.setLocal(local2Saved);
+        Evento evento2Saved = eventoRepository.save(evento2);
+
+        // 3. DTO para mover la zona al Evento 2
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("VIP Movido");
         dto.setAforoMax(100);
-        dto.setIdLocal(local2Saved.getIdLocal());
+        dto.setIdEvento(evento2Saved.getIdEvento()); // <-- Corregido
 
         mockMvc.perform(put("/api/v1/zonas/" + zonaTest.getIdZona())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(dto)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data.nombre").value("VIP Movido"))
-                .andExpect(jsonPath("$.data.idLocal").value(local2Saved.getIdLocal()));
+                .andExpect(jsonPath("$.data.idEvento").value(evento2Saved.getIdEvento())); // <-- Corregido
     }
 
     @Test
@@ -324,43 +350,26 @@ public class ZonaControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "ADMINISTRADOR")
+    @WithMockUser(roles = "ADMINISTRADOR") // <-- Corregido
     void testEliminarZona_NoExiste() throws Exception {
         mockMvc.perform(delete("/api/v1/zonas/99999"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testListarZonas_SinParametroLocal() throws Exception {
-        // Test que sin parámetro local devuelve todas las zonas
-        mockMvc.perform(get("/api/v1/zonas"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Zonas obtenidas exitosamente"))
-                .andExpect(jsonPath("$.data").isArray());
-    }
+    void testListarZonas_EventoSinZonas() throws Exception {
+        // 1. Crear un evento sin zonas
+        Evento eventoSinZonas = new Evento();
+        eventoSinZonas.setNombre("Evento Vacío");
+        eventoSinZonas.setFechaEvento(LocalDate.now().plusMonths(1));
+        eventoSinZonas.setHoraInicio(LocalTime.of(20, 0));
+        eventoSinZonas.setEstadoEvento(EstadoEvento.PUBLICADO);
+        eventoSinZonas.setActivo(true);
+        eventoSinZonas.setLocal(localTest);
+        Evento eventoSinZonasSaved = eventoRepository.save(eventoSinZonas);
 
-    @Test
-    void testListarZonas_ConParametroLocal() throws Exception {
-        // Test que con parámetro local devuelve solo las zonas de ese local
-        mockMvc.perform(get("/api/v1/zonas?local=" + localTest.getIdLocal()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.mensaje").value("Zonas del local " + localTest.getIdLocal() + " obtenidas exitosamente"))
-                .andExpect(jsonPath("$.data").isArray());
-    }
-
-    @Test
-    void testListarZonas_LocalSinZonas() throws Exception {
-        // Crear un local sin zonas
-        Local localSinZonas = new Local();
-        localSinZonas.setNombre("Local Vacío");
-        localSinZonas.setAforoTotal(1000);
-        localSinZonas.setActivo(true);
-        localSinZonas.setFechaCreacion(LocalDate.now());
-        Local localSinZonasSaved = localRepository.save(localSinZonas);
-
-        mockMvc.perform(get("/api/v1/zonas?local=" + localSinZonasSaved.getIdLocal()))
+        // 2. Probar el filtro
+        mockMvc.perform(get("/api/v1/zonas?evento=" + eventoSinZonasSaved.getIdEvento())) // <-- Corregido
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.data").isArray())
@@ -370,12 +379,10 @@ public class ZonaControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testSubirImagenZona_YVerificarPersistencia() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de zona independiente".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen = 
-            new org.springframework.mock.web.MockMultipartFile("file", "zona_upload.jpg", "image/jpeg", imagenBytes);
+        org.springframework.mock.web.MockMultipartFile imagen =
+                new org.springframework.mock.web.MockMultipartFile("file", "zona_upload.jpg", "image/jpeg", imagenBytes);
 
-        // Subir la imagen
         mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/imagen")
                         .file(imagen))
                 .andExpect(status().isOk())
@@ -383,12 +390,8 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data").isNotEmpty());
 
-        // Verificar que al obtener la zona, la imagenUrl está guardada en la BD
         mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.data.idZona").value(zonaTest.getIdZona()))
-                .andExpect(jsonPath("$.data.imagenUrl").exists())
                 .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
     }
 }

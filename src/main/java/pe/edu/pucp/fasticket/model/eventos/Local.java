@@ -30,8 +30,8 @@ import pe.edu.pucp.fasticket.model.geografia.Distrito;
  */
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(exclude = {"distrito", "zonas"})
-@ToString(exclude = {"distrito", "zonas"})
+@EqualsAndHashCode(exclude = {"distrito"})
+@ToString(exclude = {"distrito"})
 @Entity
 @Table(name = "Local")
 public class Local {
@@ -83,20 +83,19 @@ public class Local {
      * Zonas que componen el local.
      * RF-004: El sistema deberá permitir definir zonas del local (p. ej., VIP, General, Palco).
      * RF-003: La suma de aforos de todas las zonas no debe exceder el aforo total del local.
-     */
+
     @OneToMany(mappedBy = "local", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Zona> zonas = new ArrayList<>();
 
-    /**
      * Calcula la suma de aforos de todas las zonas activas del local.
      * RF-003: Usado para validar que no exceda el aforo total.
      * 
      * @return Suma de aforos de todas las zonas activas
-     */
+
     public Integer getSumaAforosZonas() {
         return zonas.stream()
                 .filter(z -> z.getActivo())
                 .mapToInt(Zona::getAforoMax)
                 .sum();
-    }
+    }*/
 }

@@ -14,6 +14,10 @@ import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 /**
  * Servicio para gestión de administradores.
  * Maneja perfiles y operaciones de administradores del sistema.
@@ -29,6 +33,8 @@ public class AdministradorService {
 
     private final AdministradorRepository administradorRepository;
     private final PersonasRepositorio personasRepositorio;
+
+    private final AuditLogService auditLogService;
 
     /**
      * Obtiene el perfil del administrador por email.
@@ -91,6 +97,16 @@ public class AdministradorService {
         administrador.setFechaActualizacion(java.time.LocalDate.now());
         Administrador administradorActualizado = administradorRepository.save(administrador);
 
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            // Como un admin solo puede actualizarse a sí mismo, el "admin" es el mismo
+            String detalle = "Admin (ID: " + administrador.getIdPersona() + ") actualizó su propio perfil. Campos: Nombres, Apellidos, Email, etc.";
+            auditLogService.registrarAuditoria(administrador, "ACTUALIZAR_PERFIL_ADMIN", "AdministradorService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_PERFIL_ADMIN): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Perfil actualizado exitosamente para: {}", email);
         return convertirAPerfilDTO(administradorActualizado);
     }
@@ -118,4 +134,52 @@ public class AdministradorService {
         dto.setActivo(administrador.getActivo());
         return dto;
     }
+
+    /**
+     * NUEVO MÉTODO PARA RF-042: Desactivar cuenta de admin
+     * Desactiva (borrado lógico) una cuenta de administrador.
+     */
+    @Transactional
+    public void desactivarAdmin(Integer idAdminADesactivar) {
+        log.warn("Solicitud de desactivación (borrado lógico) para admin ID: {}", idAdminADesactivar);
+
+        Administrador adminActual = getAdminActual(); // El admin que realiza la acción
+
+        if (adminActual.getIdPersona().equals(idAdminADesactivar)) {
+            throw new BusinessException("Un administrador no puede desactivar su propia cuenta.");
+        }
+
+        Administrador adminADesactivar = administradorRepository.findById(idAdminADesactivar)
+                .orElseThrow(() -> new ResourceNotFoundException("Administrador a desactivar no encontrado con ID: " + idAdminADesactivar));
+
+        if (!adminADesactivar.getActivo()) {
+            throw new BusinessException("El administrador ya se encuentra desactivado.");
+        }
+
+        adminADesactivar.setActivo(false);
+        administradorRepository.save(adminADesactivar);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "El Admin (ID: " + adminActual.getIdPersona() + ") desactivó la cuenta del Admin: " + adminADesactivar.getEmail() + " (ID: " + idAdminADesactivar + ")";
+            auditLogService.registrarAuditoria(adminActual, "DESACTIVAR_ADMIN", "AdministradorService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (DESACTIVAR_ADMIN): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
+        log.info("Admin ID: {} desactivado exitosamente por Admin ID: {}.", idAdminADesactivar, adminActual.getIdPersona());
+    }
+
+    // --- NUEVO MÉTODO HELPER PARA AUDITORÍA ---
+    private Administrador getAdminActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SecurityException("No hay un usuario autenticado para la auditoría.");
+        }
+        String username = authentication.getName();
+        return administradorRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
+    }
+
 }

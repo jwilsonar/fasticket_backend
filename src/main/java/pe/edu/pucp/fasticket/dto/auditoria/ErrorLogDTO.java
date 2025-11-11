@@ -13,5 +13,6 @@ public class ErrorLogDTO {
     private String severidad;
     private String modulo;
     private String mensajeBreve;
+    private String detalleTecnico;
     private String nombreAdmin; // Nombre del admin (si lo hay)
 }

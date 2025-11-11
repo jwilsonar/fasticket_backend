@@ -21,50 +21,29 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Redis para caché
-  redis:
-    image: redis:7-alpine
-    container_name: fasticket-redis
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    networks:
-      - fasticket-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
   # Backend Spring Boot
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: fasticket-backend
+    env_file:
+      - .env
     ports:
       - "8081:8080"
     environment:
       # Variables de base de datos
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: fasticket
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      
-      # Variables de Redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ""
-      
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-fasticket}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
       # Configuración de Spring
       SPRING_PROFILES_ACTIVE: dev
-      FRONTEND_URL: http://localhost:4200
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
       
-      # Configuración de AWS S3 (para desarrollo local)
+      # Configuración de AWS S3 (valores del .env con fallback local)
       AWS_S3_REGION: ${AWS_S3_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -74,8 +53,6 @@ services:
       JAVA_OPTS: "-Xmx512m -Xms256m"
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - fasticket-network
@@ -90,7 +67,5 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
     driver: local
 

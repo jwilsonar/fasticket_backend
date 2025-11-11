@@ -4,6 +4,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDTO;
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDetalleDTO;
 import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 
@@ -16,6 +17,9 @@ public interface ErrorLogMapper {
     //    y pásalo por el método 'adminToNombre'
     @Mapping(source = "administrador", target = "nombreAdmin", qualifiedByName = "adminToNombre")
     ErrorLogDTO toDTO(ErrorLog errorLog);
+
+    @Mapping(source = "administrador", target = "nombreAdmin", qualifiedByName = "adminToNombre")
+    ErrorLogDetalleDTO toDetalleDTO(ErrorLog errorLog);
 
     // Este es el método helper que convierte el objeto Administrador a un String
     @Named("adminToNombre")

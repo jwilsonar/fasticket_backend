@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDTO;
 import pe.edu.pucp.fasticket.services.auditoria.LogService;
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDetalleDTO;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -96,6 +98,15 @@ public class LogController {
             return "\"" + limpio + "\"";
         }
         return limpio;
+    }
+
+    @GetMapping("/errors/{id}")
+    public ResponseEntity<StandardResponse<ErrorLogDetalleDTO>> consultarLogPorId(
+            @PathVariable Integer id) {
+
+        log.info("GET /api/v1/admin/logs/errors/{}", id);
+        ErrorLogDetalleDTO logDetalle = logService.consultarLogDeErrorPorId(id);
+        return ResponseEntity.ok(StandardResponse.success("Detalle de log obtenido", logDetalle));
     }
 
 }

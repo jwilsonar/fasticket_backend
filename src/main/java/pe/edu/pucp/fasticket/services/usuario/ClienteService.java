@@ -9,15 +9,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.mapper.EventoMapper;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -38,6 +42,8 @@ public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final PersonasRepositorio personasRepositorio;
     private final DistritoRepository distritoRepositorio;
+    private final EventosRepositorio eventoRepositorio; // <-- Inyectar
+    private final EventoMapper eventoMapper;
 
     /**
      * RF-030: Obtiene el perfil del cliente por email.
@@ -248,6 +254,59 @@ public class ClienteService {
         cliente.setActivo(false);
         clienteRepository.save(cliente);
         log.info("Cliente ID: {} desactivado exitosamente.", idCliente);
+    }
+
+    @Transactional
+    public void agregarFavorito(String emailCliente, Integer idEvento) {
+        log.info("Agregando evento ID: {} a favoritos de cliente: {}", idEvento, emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        Evento evento = eventoRepositorio.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        if (cliente.getEventosFavoritos().contains(evento)) {
+            throw new BusinessException("El evento ya está en la lista de favoritos.");
+        }
+
+        cliente.getEventosFavoritos().add(evento);
+        clienteRepository.save(cliente);
+    }
+
+    /**
+     * RF-074: Quita un evento de la lista de favoritos del cliente.
+     */
+    @Transactional
+    public void quitarFavorito(String emailCliente, Integer idEvento) {
+        log.info("Quitando evento ID: {} de favoritos de cliente: {}", idEvento, emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        Evento evento = eventoRepositorio.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        if (!cliente.getEventosFavoritos().remove(evento)) {
+            throw new BusinessException("El evento no estaba en la lista de favoritos.");
+        }
+
+        clienteRepository.save(cliente);
+    }
+
+    /**
+     * RF-074: Lista todos los eventos favoritos de un cliente.
+     */
+    @Transactional(readOnly = true)
+    public List<EventoResponseDTO> listarFavoritos(String emailCliente) {
+        log.info("Listando favoritos de cliente: {}", emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        return cliente.getEventosFavoritos().stream()
+                .map(eventoMapper::toResponseDTO)
+                .collect(Collectors.toList());
     }
 }
 

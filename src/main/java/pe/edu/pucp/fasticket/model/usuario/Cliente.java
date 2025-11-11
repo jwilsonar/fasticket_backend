@@ -3,21 +3,13 @@ package pe.edu.pucp.fasticket.model.usuario;
 import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.PrimaryKeyJoinColumn;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.fidelizacion.Puntos;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
@@ -49,6 +41,14 @@ public class Cliente extends Persona {
 
     @OneToMany(mappedBy = "cliente", fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "cliente_favoritos",
+            joinColumns = @JoinColumn(name = "id_cliente"),
+            inverseJoinColumns = @JoinColumn(name = "id_evento")
+    )
+    private List<Evento> eventosFavoritos = new ArrayList<>();
 
     public Cliente() {
         super();

@@ -76,7 +76,6 @@ public class OrdenServicio {
             AdministradorRepository administradorRepository,
             ConfiguracionRepository configuracionRepository,
             EmailService emailService
-            AdministradorRepository administradorRepository
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;

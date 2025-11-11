@@ -25,7 +25,6 @@ public class LogService {
 
     private final ErrorLogRepository errorLogRepository;
     private final ErrorLogMapper errorLogMapper;
-    private final ErrorLogMapper errorLogMapper; // Necesitaremos crear este mapper
 
     /**
      * Guarda un error en la base de datos (RF-107).

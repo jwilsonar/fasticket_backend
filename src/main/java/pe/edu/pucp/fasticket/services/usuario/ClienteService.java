@@ -53,9 +53,6 @@ public class ClienteService {
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
 
-    private final AuditLogService auditLogService;
-    private final AdministradorRepository administradorRepository;
-
     /**
      * RF-030: Obtiene el perfil del cliente por email.
      * 

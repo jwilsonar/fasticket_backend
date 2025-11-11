@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.controllers.usuario;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +21,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
@@ -314,6 +316,56 @@ public class ClienteController {
         clienteService.desactivarCliente(idCliente);
 
         return ResponseEntity.ok(StandardResponse.success("Cliente desactivado exitosamente."));
+    }
+
+    @Operation(
+            summary = "Obtener lista de eventos favoritos del cliente",
+            description = "RF-074: Obtiene la lista de eventos que el cliente autenticado ha marcado como favoritos.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @GetMapping("/favoritos")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> obtenerFavoritos(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("GET /api/v1/clientes/favoritos - Usuario: {}", userDetails.getUsername());
+        List<EventoResponseDTO> favoritos = clienteService.listarFavoritos(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Favoritos obtenidos exitosamente", favoritos));
+    }
+
+    @Operation(
+            summary = "Agregar un evento a favoritos",
+            description = "RF-074: Marca un evento como favorito para el cliente autenticado.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PostMapping("/favoritos/{idEvento}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> agregarFavorito(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "ID del evento a marcar", required = true)
+            @PathVariable Integer idEvento) {
+
+        log.info("POST /api/v1/clientes/favoritos/{} - Usuario: {}", idEvento, userDetails.getUsername());
+        clienteService.agregarFavorito(userDetails.getUsername(), idEvento);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(StandardResponse.success("Evento añadido a favoritos.", null));
+    }
+
+    @Operation(
+            summary = "Quitar un evento de favoritos",
+            description = "RF-074: Desmarca un evento como favorito para el cliente autenticado.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @DeleteMapping("/favoritos/{idEvento}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> quitarFavorito(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "ID del evento a desmarcar", required = true)
+            @PathVariable Integer idEvento) {
+
+        log.info("DELETE /api/v1/clientes/favoritos/{} - Usuario: {}", idEvento, userDetails.getUsername());
+        clienteService.quitarFavorito(userDetails.getUsername(), idEvento);
+        return ResponseEntity.ok(StandardResponse.success("Evento quitado de favoritos.", null));
     }
 }
 

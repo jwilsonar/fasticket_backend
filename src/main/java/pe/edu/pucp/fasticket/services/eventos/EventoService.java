@@ -48,6 +48,8 @@ import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 
 @Service
 @RequiredArgsConstructor
@@ -65,6 +67,8 @@ public class EventoService {
     // --- NUEVO PARA AUDITORÍA (RF-109) ---
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
+
+    private final EmailService emailService;
 
     public List<EventoResponseDTO> listarTodos() {
         return eventoRepository.findAll().stream()
@@ -314,6 +318,14 @@ public class EventoService {
             
             log.info("📢 Publicando evento EventoCanceladoEvent. Afectados: {} clientes", emailsAfectados.size());
             eventPublisher.publishEvent(new EventoCanceladoEvent(evento, motivo, emailsAfectados));
+
+            // --- INICIO LLAMADA A EMAIL (RF-045) ---
+            if (emailsAfectados != null && !emailsAfectados.isEmpty()) {
+                log.info("📢 Enviando correos de cancelación a {} afectados...", emailsAfectados.size());
+                emailService.enviarCorreoCancelacionEvento(evento, emailsAfectados);
+            }
+            // --- FIN LLAMADA A EMAIL ---
+
         } catch (Exception e) {
             log.error("⚠️ Error al publicar evento de cancelación (no crítico): {}", e.getMessage());
         }

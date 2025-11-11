@@ -42,6 +42,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
+import pe.edu.pucp.fasticket.services.EmailService;
 
 @Service
 @Slf4j
@@ -57,6 +59,8 @@ public class OrdenServicio {
 
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
+    private final ConfiguracionRepository configuracionRepository;
+    private final EmailService emailService;
 
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
@@ -69,7 +73,9 @@ public class OrdenServicio {
             FidelizacionService fidelizacionService,
 
             AuditLogService auditLogService,
-            AdministradorRepository administradorRepository
+            AdministradorRepository administradorRepository,
+            ConfiguracionRepository configuracionRepository,
+            EmailService emailService
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
@@ -81,6 +87,8 @@ public class OrdenServicio {
 
         this.auditLogService = auditLogService;
         this.administradorRepository = administradorRepository;
+        this.configuracionRepository = configuracionRepository;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -88,6 +96,9 @@ public class OrdenServicio {
         Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+
+        // --- VALIDACIÓN DE LÍMITE (RF-046) ---
+        validarLimitePorCompra(datosOrden.getItems());
 
         validarLimitesPorPersona(datosOrden.getItems(), cliente);
         validarStockDisponible(datosOrden.getItems());
@@ -108,6 +119,22 @@ public class OrdenServicio {
         cliente.getOrdenesCompra().add(ordenFinal);
         clienteRepository.save(cliente);
         return ordenFinal;
+    }
+
+    // --- NUEVO MÉTODO HELPER (RF-046) ---
+    private void validarLimitePorCompra(List<ItemSeleccionadoDTO> itemsDTO) {
+        int totalTicketsEnOrden = itemsDTO.stream()
+                .mapToInt(ItemSeleccionadoDTO::getCantidad)
+                .sum();
+
+        // Leer el límite desde la BD (RF-046)
+        int limitePorCompra = configuracionRepository.findById("LIMITE_TICKETS_POR_COMPRA")
+                .map(config -> Integer.parseInt(config.getValue()))
+                .orElse(5); // Valor por defecto si no se encuentra
+
+        if (totalTicketsEnOrden > limitePorCompra) {
+            throw new BusinessException("No puede comprar más de " + limitePorCompra + " tickets por orden.");
+        }
     }
 
     private void validarLimitesPorPersona(List<ItemSeleccionadoDTO> itemsDTO, Cliente cliente) {
@@ -327,6 +354,16 @@ public class OrdenServicio {
         carroComprasRepository.save(nuevoCarro);
         log.info("Nuevo carrito ID {} creado para cliente ID {}.", nuevoCarro.getIdCarro(),
                 nuevoCarro.getCliente() != null ? nuevoCarro.getCliente().getIdPersona() : "N/A");
+
+        // --- INICIO LLAMADA A EMAIL (RF-045) ---
+        try {
+            log.info("📢 Enviando correo de confirmación de compra para orden ID: {}", idOrden);
+            // 'orden' es la variable que ya tienes en este método
+            emailService.enviarCorreoConfirmacionCompra(orden);
+        } catch (Exception e) {
+            log.error("⚠️ Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
+        }
+        // --- FIN LLAMADA A EMAIL ---
 
         fidelizacionService.generarPuntosPorCompra(
                 orden.getCliente().getIdPersona(),

@@ -37,6 +37,12 @@ import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 
 import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+
 @Service
 @Slf4j
 public class OrdenServicio {
@@ -49,6 +55,9 @@ public class OrdenServicio {
     private final CarroComprasRepository carroComprasRepository;
     private final FidelizacionService fidelizacionService;
 
+    private final AuditLogService auditLogService;
+    private final AdministradorRepository administradorRepository;
+
     public OrdenServicio(
             OrdenCompraRepositorio ordenCompraRepositorio,
             TipoTicketRepositorio tipoTicketRepositorio,
@@ -57,7 +66,10 @@ public class OrdenServicio {
             ApplicationEventPublisher eventPublisher,
             ItemCarritoRepository itemCarritoRepositorio,
             CarroComprasRepository carroComprasRepository,
-            FidelizacionService fidelizacionService
+            FidelizacionService fidelizacionService,
+
+            AuditLogService auditLogService,
+            AdministradorRepository administradorRepository
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
@@ -66,6 +78,9 @@ public class OrdenServicio {
         this.itemCarritoRepositorio = itemCarritoRepositorio;
         this.carroComprasRepository = carroComprasRepository;
         this.fidelizacionService = fidelizacionService;
+
+        this.auditLogService = auditLogService;
+        this.administradorRepository = administradorRepository;
     }
 
     @Transactional
@@ -322,20 +337,28 @@ public class OrdenServicio {
                 orden.getCliente().getIdPersona(), idOrden);
     }
 
+    /**
+     * Este método es para la lógica de negocio cuando un PAGO es RECHAZADO.
+     * (RF-090 se cumple aquí: Revertir cupos)
+     * Generalmente es llamado por el sistema, no un admin.
+     */
     @Transactional
     public void cancelarOrden(Integer idOrden) {
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrden).orElseThrow(() -> new RuntimeException("Orden no encontrada"));
-        orden.setEstado(EstadoCompra.RECHAZADO);
-        for (ItemCarrito item : orden.getItems()) {
-            for (Ticket ticket : item.getTickets()) {
-                ticket.setEstado(EstadoTicket.DISPONIBLE);
-                ticket.setActivo(false);
-            }
-            TipoTicket tipo = item.getTipoTicket();
-            tipo.setCantidadDisponible(tipo.getCantidadDisponible() + item.getCantidad());
-            tipoTicketRepositorio.save(tipo);
+
+        // Evitar doble cancelación
+        if (orden.getEstado() == EstadoCompra.RECHAZADO || orden.getEstado() == EstadoCompra.ANULADO) {
+            log.warn("Se intentó cancelar una orden (ID: {}) que ya estaba cancelada.", idOrden);
+            return;
         }
+
+        orden.setEstado(EstadoCompra.RECHAZADO);
+
+        // RF-090: Revertir cupos al stock
+        revertirStockDeOrden(orden);
+
         ordenCompraRepositorio.save(orden);
+        log.info("Orden ID: {} marcada como RECHAZADA (pago fallido o expirada). Stock revertido.", idOrden);
     }
 
     private String generarCodigoQrUnico() {
@@ -463,4 +486,87 @@ public class OrdenServicio {
             ticketRepository.saveAll(item.getTickets());
         }
     }
+
+    /**
+     * NUEVO MÉTODO PARA RF-089 y RF-109
+     * Permite a un ADMINISTRADOR anular una compra APROBADA.
+     * Esto también revierte el stock (RF-090).
+     */
+    @Transactional
+    public void anularCompraAdmin(Integer idOrden) {
+        log.info("Anulación administrativa de la orden ID: {}", idOrden);
+
+        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrden));
+
+        // Validación de negocio (RF-089)
+        if (orden.getEstado() != EstadoCompra.APROBADO) {
+            throw new BusinessException("Solo se pueden anular compras que ya están APROBADAS. " +
+                    "El estado actual es: " + orden.getEstado());
+        }
+
+        // 1. Cambiar estado de la orden
+        orden.setEstado(EstadoCompra.ANULADO);
+        orden.setActivo(false); // Marcar como inactiva
+
+        // 2. RF-090: Revertir cupos al stock
+        revertirStockDeOrden(orden);
+
+        // 3. TODO: Revertir puntos de fidelización (hablar con el encargado de FidelizacionService)
+        // fidelizacionService.revertirPuntosPorAnulacion(orden);
+
+        // 4. Guardar la orden anulada
+        ordenCompraRepositorio.save(orden);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se ANULÓ la orden ID: " + idOrden +
+                    ". Cliente Afectado: " + orden.getCliente().getEmail();
+            auditLogService.registrarAuditoria(admin, "ANULAR_COMPRA", "OrdenServicio", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ANULAR_COMPRA): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
+        log.info("Orden ID: {} ANULADA exitosamente por un administrador.", idOrden);
+
+        // TODO: Enviar correo de notificación al cliente sobre la anulación (RF-045)
+    }
+
+    private void revertirStockDeOrden(OrdenCompra orden) {
+        log.info("Revirtiendo stock para Orden ID: {}", orden.getIdOrdenCompra());
+        for (ItemCarrito item : orden.getItems()) {
+            for (Ticket ticket : item.getTickets()) {
+                // Opción 1: Devolver el ticket al pool
+                ticket.setEstado(EstadoTicket.DISPONIBLE);
+                ticket.setActivo(false); // Opcional: Desactivarlo para que no se use el mismo QR
+                ticket.setCliente(null); // Desasociar cliente
+                // ... etc.
+
+                // Opción 2 (Más simple si la lógica lo permite):
+                // Simplemente actualizar el contador del TipoTicket
+            }
+            TipoTicket tipo = item.getTipoTicket();
+            tipo.setCantidadDisponible(tipo.getCantidadDisponible() + item.getCantidad());
+            tipo.setCantidadVendida(tipo.getCantidadVendida() - item.getCantidad()); // Corregir contador de vendidos
+            tipoTicketRepositorio.save(tipo);
+        }
+    }
+
+    /**
+     * Obtiene la entidad Administrador basada en el usuario actualmente logueado.
+     * @return El Administrador logueado.
+     * @throws ResourceNotFoundException si no se encuentra el admin en la BD o no hay sesión.
+     */
+    private Administrador getAdminActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SecurityException("No hay un usuario autenticado para la auditoría.");
+        }
+        String username = authentication.getName();
+        return administradorRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
+    }
+
 }

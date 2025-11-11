@@ -37,6 +37,12 @@ import pe.edu.pucp.fasticket.repository.fidelizacion.PuntosRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.ReglaPuntosRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -50,6 +56,9 @@ public class FidelizacionService {
     private final DescuentosRealizadosRepository descuentosRealizadosRepository;
     private final ClienteRepository clienteRepository;
     private final OrdenCompraRepositorio ordenCompraRepositorio;
+
+    private final AuditLogService auditLogService;
+    private final AdministradorRepository administradorRepository;
 
     // ============ REGLAS DE PUNTOS ============
     
@@ -73,6 +82,8 @@ public class FidelizacionService {
 
     @Transactional
     public ReglaPuntosDTO crearReglaPuntos(ReglaPuntosRequestDTO request) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         ReglaPuntos regla = new ReglaPuntos();
         regla.setSolesPorPunto(request.getSolesPorPunto());
         regla.setTipoRegla(request.getTipoRegla());
@@ -80,12 +91,24 @@ public class FidelizacionService {
         regla.setEstado(request.getEstado());
         
         ReglaPuntos guardada = reglaPuntosRepository.save(regla);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") CREÓ la Regla de Puntos ID: " + guardada.getIdRegla() + " (Tipo: " + guardada.getTipoRegla() + ")";
+            auditLogService.registrarAuditoria(adminActual, "CREAR_REGLA_PUNTOS", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (CREAR_REGLA_PUNTOS): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Regla de puntos creada con ID: {}", guardada.getIdRegla());
         return new ReglaPuntosDTO(guardada);
     }
 
     @Transactional
     public ReglaPuntosDTO actualizarReglaPuntos(Integer id, ReglaPuntosRequestDTO request) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         ReglaPuntos regla = reglaPuntosRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Regla de puntos no encontrada con ID: " + id));
         
@@ -95,17 +118,39 @@ public class FidelizacionService {
         regla.setEstado(request.getEstado());
         
         ReglaPuntos actualizada = reglaPuntosRepository.save(regla);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") ACTUALIZÓ la Regla de Puntos ID: " + id;
+            auditLogService.registrarAuditoria(adminActual, "ACTUALIZAR_REGLA_PUNTOS", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_REGLA_PUNTOS): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Regla de puntos actualizada con ID: {}", actualizada.getIdRegla());
         return new ReglaPuntosDTO(actualizada);
     }
 
     @Transactional
     public void eliminarReglaPuntos(Integer id) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         ReglaPuntos regla = reglaPuntosRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Regla de puntos no encontrada con ID: " + id));
         
         regla.setActivo(false);
         reglaPuntosRepository.save(regla);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") DESACTIVÓ la Regla de Puntos ID: " + id;
+            auditLogService.registrarAuditoria(adminActual, "DESACTIVAR_REGLA_PUNTOS", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (DESACTIVAR_REGLA_PUNTOS): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Regla de puntos desactivada con ID: {}", id);
     }
 
@@ -126,6 +171,8 @@ public class FidelizacionService {
     @Transactional
     public void borrarRegistroPuntos(Integer idCliente, Integer idPuntos) {
         log.warn("Solicitud de ANULACIÓN de registro de puntos ID: {} para cliente ID: {}", idPuntos, idCliente);
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         Puntos puntos = puntosRepository.findById(idPuntos)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro de puntos no encontrado con ID: " + idPuntos));
         Cliente cliente = puntos.getCliente();
@@ -150,6 +197,16 @@ public class FidelizacionService {
         clienteRepository.save(cliente);
         puntos.setActivo(false);
         puntosRepository.save(puntos);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") BORRÓ el registro de Puntos ID: " + idPuntos + " (Cliente Afectado ID: " + idCliente + ")";
+            auditLogService.registrarAuditoria(adminActual, "BORRAR_REGISTRO_PUNTOS", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (BORRAR_REGISTRO_PUNTOS): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Registro de puntos ID: {} ANULADO. Saldo de cliente ID {} actualizado a {}.", idPuntos, idCliente, puntosNuevos);
     }
 
@@ -294,6 +351,8 @@ public class FidelizacionService {
 
     @Transactional
     public CodigoPromocionalDTO crearCodigoPromocional(CodigoPromocionalRequestDTO request) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         if (codigoPromocionalRepository.existsByCodigo(request.getCodigo())) {
             throw new BusinessException("Ya existe un código promocional con el código: " + request.getCodigo());
         }
@@ -308,12 +367,24 @@ public class FidelizacionService {
         codigo.setCantidadPorCliente(request.getCantidadPorCliente());
         
         CodigoPromocional guardado = codigoPromocionalRepository.save(codigo);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") CREÓ el Código Promocional: " + guardado.getCodigo() + " (ID: " + guardado.getIdCodigoPromocional() + ")";
+            auditLogService.registrarAuditoria(adminActual, "CREAR_CODIGO_PROMO", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (CREAR_CODIGO_PROMO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Código promocional creado con ID: {}", guardado.getIdCodigoPromocional());
         return new CodigoPromocionalDTO(guardado);
     }
 
     @Transactional
     public CodigoPromocionalDTO actualizarCodigoPromocional(Integer id, CodigoPromocionalRequestDTO request) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         CodigoPromocional codigo = codigoPromocionalRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado con ID: " + id));
         
@@ -331,17 +402,39 @@ public class FidelizacionService {
         codigo.setCantidadPorCliente(request.getCantidadPorCliente());
         
         CodigoPromocional actualizado = codigoPromocionalRepository.save(codigo);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") ACTUALIZÓ el Código Promocional: " + actualizado.getCodigo() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(adminActual, "ACTUALIZAR_CODIGO_PROMO", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_CODIGO_PROMO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Código promocional actualizado con ID: {}", actualizado.getIdCodigoPromocional());
         return new CodigoPromocionalDTO(actualizado);
     }
 
     @Transactional
     public void eliminarCodigoPromocional(Integer id) {
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         CodigoPromocional codigo = codigoPromocionalRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado con ID: " + id));
 
         codigo.setActivo(false);
         codigoPromocionalRepository.save(codigo);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") DESACTIVÓ el Código Promocional: " + codigo.getCodigo() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(adminActual, "DESACTIVAR_CODIGO_PROMO", "FidelizacionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (DESACTIVAR_CODIGO_PROMO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Código promocional eliminado con ID: {}", id);
     }
 
@@ -434,6 +527,17 @@ public class FidelizacionService {
         codigoPromocionalRepository.save(codigoPromo);
         
         log.info("Descuento aplicado: {} por código promocional: {}", descuento, codigo);
+    }
+
+    // --- NUEVO MÉTODO HELPER PARA AUDITORÍA ---
+    private Administrador getAdminActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SecurityException("No hay un usuario autenticado para la auditoría.");
+        }
+        String username = authentication.getName();
+        return administradorRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
 }
 

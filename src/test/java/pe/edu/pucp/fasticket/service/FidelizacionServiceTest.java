@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoRegla;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoTransaccion;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
@@ -46,6 +48,7 @@ import pe.edu.pucp.fasticket.repository.eventos.*;
 import pe.edu.pucp.fasticket.repository.fidelizacion.CodigoPromocionalRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.PuntosRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.ReglaPuntosRepository;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
@@ -85,10 +88,14 @@ class FidelizacionServiceTest {
     @Autowired
     private ZonaRepository zonaRepositorio;
 
+    @Autowired
+    private AdministradorRepository administradorRepository;
+
 
     private Cliente clientePrueba;
     private ReglaPuntos reglaCompra;
     private ReglaPuntos reglaCanje;
+    private Administrador adminPrueba;
 
     @BeforeEach
     void setUp() {
@@ -119,10 +126,23 @@ class FidelizacionServiceTest {
         reglaCanje.setActivo(true);
         reglaCanje.setEstado("true");
         reglaCanje = reglaPuntosRepository.save(reglaCanje);
+
+        // Crear un Administrador de prueba
+        Administrador admin = new Administrador();
+        admin.setNombres("Admin");
+        admin.setApellidos("De Prueba");
+        admin.setEmail("admin.test@pucp.edu.pe"); // Email que usaremos para simular
+        admin.setContrasena("test123hashed"); // En un test no importa si no está hasheada
+        admin.setRol(Rol.ADMINISTRADOR);
+        admin.setActivo(true);
+        admin.setTipoDocumento(TipoDocumento.DNI);
+        admin.setDocIdentidad("87654321");
+        adminPrueba = administradorRepository.save(admin);
     }
 
     @Test
     @DisplayName("Debe crear una regla de puntos correctamente")
+    @WithMockUser(username = "admin.test@pucp.edu.pe")
     void debeCrearReglaPuntos() {
         // Given
         ReglaPuntosRequestDTO request = new ReglaPuntosRequestDTO();
@@ -175,6 +195,7 @@ class FidelizacionServiceTest {
 
     @Test
     @DisplayName("Debe crear un código promocional correctamente")
+    @WithMockUser(username = "admin.test@pucp.edu.pe")
     void debeCrearCodigoPromocional() {
         // Given
         CodigoPromocionalRequestDTO request = new CodigoPromocionalRequestDTO();
@@ -198,6 +219,7 @@ class FidelizacionServiceTest {
 
     @Test
     @DisplayName("Debe fallar al crear código promocional duplicado")
+    @WithMockUser(username = "admin.test@pucp.edu.pe")
     void debeFallarAlCrearCodigoPromocionalDuplicado() {
         // Given
         CodigoPromocional codigo = new CodigoPromocional();
@@ -256,6 +278,7 @@ class FidelizacionServiceTest {
 
     @Test
     @DisplayName("Debe eliminar regla de puntos (desactivar)")
+    @WithMockUser(username = "admin.test@pucp.edu.pe")
     void debeEliminarReglaPuntos() {
         // When
         fidelizacionService.eliminarReglaPuntos(reglaCompra.getIdRegla());

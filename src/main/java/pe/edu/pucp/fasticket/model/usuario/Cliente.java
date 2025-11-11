@@ -29,6 +29,9 @@ public class Cliente extends Persona {
     @Column(name = "puntosAcumulados")
     private Integer puntosAcumulados = 0;
 
+    @Column(name = "verificado")
+    private Boolean verificado;
+
     // agregado mikler 30/10 relacion con puntos
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Puntos> puntos = new ArrayList<>();

@@ -42,6 +42,13 @@ import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -54,6 +61,10 @@ public class EventoService {
     private final OrdenCompraRepositorio ordenCompraRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventoMapper eventoMapper;
+
+    // --- NUEVO PARA AUDITORÍA (RF-109) ---
+    private final AuditLogService auditLogService;
+    private final AdministradorRepository administradorRepository;
 
     public List<EventoResponseDTO> listarTodos() {
         return eventoRepository.findAll().stream()
@@ -105,6 +116,16 @@ public class EventoService {
         Evento evento = eventoMapper.toEntity(dto, local);
         Evento eventoGuardado = eventoRepository.save(evento);
 
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se creó el evento: " + eventoGuardado.getNombre() + " (ID: " + eventoGuardado.getIdEvento() + ")";
+            auditLogService.registrarAuditoria(admin, "CREAR_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (CREAR_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Evento creado con ID: {}", eventoGuardado.getIdEvento());
         return eventoMapper.toResponseDTO(eventoGuardado);
     }
@@ -126,6 +147,16 @@ public class EventoService {
         // Actualizar
         eventoMapper.updateEntity(evento, dto, local);
         Evento eventoActualizado = eventoRepository.save(evento);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se actualizó el evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(admin, "ACTUALIZAR_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA --
 
         log.info("Evento actualizado: {}", id);
         return eventoMapper.toResponseDTO(eventoActualizado);
@@ -149,6 +180,16 @@ public class EventoService {
         evento.setFechaActualizacion(LocalDate.now());
         Evento eventoActualizado = eventoRepository.save(evento);
 
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se actualizó la IMAGEN del evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(admin, "ACTUALIZAR_IMAGEN_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_IMAGEN_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("URL de imagen actualizada para evento ID: {}", id);
         return eventoMapper.toResponseDTO(eventoActualizado);
     }
@@ -163,6 +204,16 @@ public class EventoService {
         evento.setActivo(false);
         evento.setFechaActualizacion(LocalDate.now());
         eventoRepository.save(evento);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se desactivó (eliminado lógico) el evento: " + evento.getNombre() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(admin, "DESACTIVAR_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (DESACTIVAR_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
 
         log.info("Evento desactivado: {}", id);
     }
@@ -238,6 +289,16 @@ public class EventoService {
         evento.setEstadoEvento(EstadoEvento.CANCELADO);
         evento.setFechaActualizacion(LocalDate.now());
         eventoRepository.save(evento);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se CANCELÓ el evento: " + evento.getNombre() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(admin, "CANCELAR_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (CANCELAR_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
 
         log.info("Evento cancelado: {}. Se deben enviar notificaciones a los compradores.", id);
         
@@ -555,8 +616,39 @@ public class EventoService {
 
         Evento eventoPublicado = eventoRepository.save(evento);
 
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se PUBLICÓ el evento: " + eventoPublicado.getNombre() + " (ID: " + idEvento + ")";
+            auditLogService.registrarAuditoria(admin, "PUBLICAR_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (PUBLICAR_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("¡Evento ID: {} publicado exitosamente!", idEvento);
         return eventoMapper.toResponseDTO(eventoPublicado);
+    }
+
+    // --- NUEVO MÉTODO HELPER PARA AUDITORÍA ---
+
+    /**
+     * Obtiene la entidad Administrador basada en el usuario actualmente logueado.
+     * @return El Administrador logueado.
+     * @throws ResourceNotFoundException si no se encuentra el admin en la BD o no hay sesión.
+     */
+    private Administrador getAdminActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SecurityException("No hay un usuario autenticado para la auditoría.");
+        }
+
+        String username = authentication.getName(); // Esto suele ser el email o username
+
+        // Asumimos que el 'username' de Spring Security es el email de tu Administrador
+        // Si usas DNI u otro campo, cambia 'findByEmail' por 'findByDni' o el que corresponda.
+        return administradorRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
 }
 

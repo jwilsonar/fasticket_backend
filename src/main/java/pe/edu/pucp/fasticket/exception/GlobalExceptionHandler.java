@@ -3,6 +3,9 @@ package pe.edu.pucp.fasticket.exception;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Arrays;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,9 +15,15 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
+import pe.edu.pucp.fasticket.services.auditoria.LogService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 
@@ -37,7 +46,10 @@ import pe.edu.pucp.fasticket.dto.StandardResponse;
  */
 @RestControllerAdvice
 @Slf4j
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final LogService logService;
 
     /**
      * Maneja excepciones cuando un recurso no es encontrado.
@@ -48,11 +60,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<StandardResponse<ErrorResponse>> handleResourceNotFoundException(
-            ResourceNotFoundException ex, 
+            ResourceNotFoundException ex,
             HttpServletRequest request) {
-        
-        log.error("Recurso no encontrado: {}", ex.getMessage());
-        
+
+        log.warn("Recurso no encontrado: {}", ex.getMessage()); // Log en consola (WARN)
+
+        //Guardar en BD (RF-107)
+        saveErrorLog(ex, request, "WARN", ex.getMessage());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
@@ -60,7 +75,7 @@ public class GlobalExceptionHandler {
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
-        
+
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(StandardResponse.error(ex.getMessage(), error));
     }
@@ -74,11 +89,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<StandardResponse<ErrorResponse>> handleBusinessException(
-            BusinessException ex, 
+            BusinessException ex,
             HttpServletRequest request) {
-        
-        log.error("Error de regla de negocio: {}", ex.getMessage());
-        
+
+        log.warn("Error de regla de negocio: {}", ex.getMessage()); // Log en consola (WARN)
+
+        //Guardar en BD (RF-107)
+        saveErrorLog(ex, request, "WARN", ex.getMessage());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.CONFLICT.value())
@@ -86,7 +104,7 @@ public class GlobalExceptionHandler {
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
-        
+
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(StandardResponse.error(ex.getMessage(), error));
     }
@@ -104,26 +122,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<StandardResponse<Map<String, Object>>> handleValidationExceptions(
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
-        
+
         Map<String, String> fieldErrors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             fieldErrors.put(fieldName, errorMessage);
         });
-        
-        log.error("Errores de validación: {}", fieldErrors);
-        
+
+        log.warn("Errores de validación: {}", fieldErrors); // Log en consola (WARN)
+
         // Obtener el primer error para mostrarlo en el mensaje principal
         String firstErrorMessage = fieldErrors.values().iterator().next();
-        
+
+        //Guardar en BD (RF-107)
+        // Usamos el mapa de errores como el mensaje detallado
+        saveErrorLog(ex, request, "WARN", fieldErrors.toString());
+
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("timestamp", LocalDateTime.now());
         errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
         errorDetails.put("error", "Validation Error");
         errorDetails.put("path", request.getRequestURI());
         errorDetails.put("errors", fieldErrors);
-        
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(StandardResponse.error(firstErrorMessage, errorDetails));
     }
@@ -139,9 +161,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<StandardResponse<ErrorResponse>> handleIllegalArgumentException(
             IllegalArgumentException ex,
             HttpServletRequest request) {
-        
-        log.error("Argumento ilegal: {}", ex.getMessage());
-        
+
+        log.warn("Argumento ilegal: {}", ex.getMessage()); // Log en consola (WARN)
+
+        // Guardar en BD (RF-107)
+        saveErrorLog(ex, request, "WARN", ex.getMessage());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -149,7 +174,7 @@ public class GlobalExceptionHandler {
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
-        
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(StandardResponse.error(ex.getMessage(), error));
     }
@@ -254,11 +279,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<StandardResponse<ErrorResponse>> handleGenericException(
-            Exception ex, 
+            Exception ex,
             HttpServletRequest request) {
-        
-        log.error("Error inesperado: ", ex);
-        
+
+        log.error("Error inesperado: ", ex); // Log en consola (ERROR)
+
+        // NUEVO: Guardar en BD (RF-107)
+        saveErrorLog(ex, request, "ERROR", ex.getMessage());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -267,7 +295,7 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .details(ex.getClass().getSimpleName())
                 .build();
-        
+
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(StandardResponse.error("Ha ocurrido un error inesperado. Por favor, contacte al administrador.", error));
     }
@@ -275,7 +303,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<StandardResponse<ErrorResponse>> handleGenericRuntimeError(
             RuntimeException ex, HttpServletRequest request) {
-        log.error("Error de Runtime detectado: {}", ex.getMessage()); // Loguea como error
+
+        log.warn("Error de Runtime (Bad Request): {}", ex.getMessage()); // Log en consola (WARN)
+
+        // NUEVO: Guardar en BD (RF-107)
+        saveErrorLog(ex, request, "WARN", ex.getMessage());
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value()) // Estado 400
@@ -286,6 +319,46 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .badRequest() // Devuelve 400
                 .body(StandardResponse.error(ex.getMessage(), error));
+    }
+
+    // Agregados
+
+    /**
+     * Método helper para construir y guardar el log de error en la BD. (RF-107)
+     * Llama a LogService.registrarError()
+     */
+    private void saveErrorLog(Exception ex, HttpServletRequest request, String severidad, String mensaje) {
+        try {
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.setFechaHora(LocalDateTime.now());
+            errorLog.setSeveridad(severidad); // "ERROR" (500) o "WARN" (40x)
+            errorLog.setModulo(request.getRequestURI());
+            errorLog.setMensajeBreve(mensaje);
+            errorLog.setDetalleTecnico(ex.getClass().getSimpleName());
+            errorLog.setTraza(stackTraceToString(ex)); // Convierte la traza a String
+
+            // Nota: El campo 'administrador' se deja nulo
+            // Llenarlo requeriría obtener el SecurityContext aquí, lo cual es
+            // más complejo y podemos verlo después si es necesario.
+
+            logService.registrarError(errorLog);
+
+        } catch (Exception e) {
+            // Si falla el logging a la BD, solo lo imprimimos en la consola
+            // para no causar un bucle infinito de excepciones.
+            log.error("CRÍTICO: ¡Fallo al guardar log de error en la base de datos!", e);
+        }
+    }
+
+    /**
+     * Convierte la traza de la pila (StackTrace) de una excepción
+     * a un String legible para guardar en la BD.
+     */
+    private static String stackTraceToString(Exception ex) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        ex.printStackTrace(pw);
+        return sw.toString();
     }
 }
 

@@ -9,6 +9,11 @@ import pe.edu.pucp.fasticket.repository.auditoria.ErrorLogRepository;
 import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDTO;
 import pe.edu.pucp.fasticket.mapper.ErrorLogMapper;
 import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDetalleDTO;
+import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
+import pe.edu.pucp.fasticket.repository.auditoria.ErrorLogRepository;
+// Asumimos que tienes un DTO para la respuesta, si no, lo creamos
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDTO;
+import pe.edu.pucp.fasticket.mapper.ErrorLogMapper; // Asumimos un mapper
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,6 +25,7 @@ public class LogService {
 
     private final ErrorLogRepository errorLogRepository;
     private final ErrorLogMapper errorLogMapper;
+    private final ErrorLogMapper errorLogMapper; // Necesitaremos crear este mapper
 
     /**
      * Guarda un error en la base de datos (RF-107).

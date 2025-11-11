@@ -42,6 +42,7 @@ import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
@@ -70,6 +71,9 @@ class OrdenServiceTest {
     private CarroComprasRepository carroComprasRepository;
     @Mock
     private FidelizacionService fidelizacionService;
+
+    @Mock
+    private ConfiguracionRepository configuracionRepository;
 
     // --- Instancia del Servicio a probar ---
     @InjectMocks // Crea una instancia de OrdenServicio e inyecta los mocks
@@ -132,6 +136,14 @@ class OrdenServiceTest {
         crearOrdenDTO = new CrearOrdenDTO();
         crearOrdenDTO.setIdCliente(1);
         crearOrdenDTO.setItems(List.of(itemSeleccionadoDTO));
+
+        // Simula la llamada a la configuración de límites (RF-046)
+        // Usamos lenient() para que Mockito no se queje si un test no usa esta simulación.
+        // Devolvemos Optional.empty() para que el servicio use el valor por defecto (5)
+        // y no falle la validación.
+        lenient().when(configuracionRepository.findById(eq("LIMITE_TICKETS_POR_COMPRA")))
+                .thenReturn(Optional.empty());
+
     }
 
     // --- Tests para crearOrden ---

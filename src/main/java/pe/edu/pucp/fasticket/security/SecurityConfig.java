@@ -49,7 +49,7 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/actuator/health"
                         ).permitAll()
-                        
+                        .requestMatchers("/api/v1/geografia/**").permitAll()
                         // Endpoints de solo lectura para clientes
                         .requestMatchers(HttpMethod.GET, "/api/v1/eventos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/locales/**").permitAll()

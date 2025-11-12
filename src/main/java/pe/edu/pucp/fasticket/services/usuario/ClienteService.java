@@ -9,18 +9,28 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.mapper.EventoMapper;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * Servicio para gestión de clientes.
@@ -38,6 +48,10 @@ public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final PersonasRepositorio personasRepositorio;
     private final DistritoRepository distritoRepositorio;
+    private final EventosRepositorio eventoRepositorio;
+    private final EventoMapper eventoMapper;
+    private final AuditLogService auditLogService;
+    private final AdministradorRepository administradorRepository;
 
     /**
      * RF-030: Obtiene el perfil del cliente por email.
@@ -119,6 +133,7 @@ public class ClienteService {
     @Transactional
     public ClientePerfilResponseDTO editarPerfil(Integer id, ClientePerfilEditDTO dto) {
         log.info("Actualizando perfil del cliente de ID: {}", id);
+        Administrador adminActual = getAdminActual(); // Obtener admin
 
         Cliente cliente = (Cliente) personasRepositorio.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
@@ -156,6 +171,15 @@ public class ClienteService {
 
         cliente.setFechaActualizacion(java.time.LocalDate.now());
         Cliente clienteActualizado = clienteRepository.save(cliente);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") editó el perfil del Cliente: " + cliente.getEmail() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(adminActual, "EDITAR_PERFIL_CLIENTE", "ClienteService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (EDITAR_PERFIL_CLIENTE): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
 
         log.info("Perfil actualizado exitosamente para: {}", id);
         return convertirAPerfilDTO(clienteActualizado);
@@ -240,6 +264,8 @@ public class ClienteService {
     @Transactional
     public void desactivarCliente(Integer idCliente) {
         log.warn("Solicitud de desactivación (borrado lógico) para cliente ID: {}", idCliente);
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
         Cliente cliente = clienteRepository.findById(idCliente)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
         if (!cliente.getActivo()) {
@@ -247,7 +273,120 @@ public class ClienteService {
         }
         cliente.setActivo(false);
         clienteRepository.save(cliente);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") desactivó la cuenta del Cliente: " + cliente.getEmail() + " (ID: " + idCliente + ")";
+            auditLogService.registrarAuditoria(adminActual, "DESACTIVAR_CLIENTE", "ClienteService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (DESACTIVAR_CLIENTE): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
         log.info("Cliente ID: {} desactivado exitosamente.", idCliente);
+    }
+
+    /**
+     * NUEVO MÉTODO PARA RF-031: Marcar cliente como verificado
+     * Permite a un admin marcar el correo/teléfono de un cliente como verificado.
+     */
+    @Transactional
+    public ClientePerfilResponseDTO marcarComoVerificado(Integer idCliente) {
+        log.info("Solicitud de verificación para cliente ID: {}", idCliente);
+        Administrador adminActual = getAdminActual(); // Obtener admin
+
+        Cliente cliente = clienteRepository.findById(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
+
+        if (Boolean.TRUE.equals(cliente.getVerificado())) {
+            throw new BusinessException("El cliente ya se encuentra verificado.");
+        }
+
+        // Asumimos que tienes un campo 'verificado' en tu entidad Cliente
+        // Si no lo tienes, debes agregarlo: private Boolean verificado;
+        cliente.setVerificado(true);
+        Cliente clienteVerificado = clienteRepository.save(cliente);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") marcó como VERIFICADO al Cliente: " + cliente.getEmail() + " (ID: " + idCliente + ")";
+            auditLogService.registrarAuditoria(adminActual, "VERIFICAR_CLIENTE", "ClienteService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (VERIFICAR_CLIENTE): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
+        log.info("Cliente ID: {} marcado como verificado exitosamente.", idCliente);
+        return convertirAPerfilDTO(clienteVerificado);
+    }
+
+    // --- NUEVO MÉTODO HELPER PARA AUDITORÍA ---
+    private Administrador getAdminActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new SecurityException("No hay un usuario autenticado para la auditoría.");
+        }
+        String username = authentication.getName();
+        return administradorRepository.findByEmail(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
+    }
+
+    /**
+     * RF-074: Añade un evento a la lista de favoritos del cliente.
+     */
+    @Transactional
+    public void agregarFavorito(String emailCliente, Integer idEvento) {
+        log.info("Agregando evento ID: {} a favoritos de cliente: {}", idEvento, emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        Evento evento = eventoRepositorio.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        // Validación para evitar duplicados
+        if (cliente.getEventosFavoritos().contains(evento)) {
+            throw new BusinessException("El evento ya está en la lista de favoritos.");
+        }
+
+        cliente.getEventosFavoritos().add(evento);
+        clienteRepository.save(cliente);
+    }
+
+    /**
+     * RF-074: Quita un evento de la lista de favoritos del cliente.
+     */
+    @Transactional
+    public void quitarFavorito(String emailCliente, Integer idEvento) {
+        log.info("Quitando evento ID: {} de favoritos de cliente: {}", idEvento, emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        Evento evento = eventoRepositorio.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        if (!cliente.getEventosFavoritos().remove(evento)) {
+            throw new BusinessException("El evento no estaba en la lista de favoritos.");
+        }
+
+        clienteRepository.save(cliente);
+    }
+
+    /**
+     * RF-074: Lista todos los eventos favoritos de un cliente.
+     */
+    @Transactional(readOnly = true)
+    public List<EventoResponseDTO> listarFavoritos(String emailCliente) {
+        log.info("Listando favoritos de cliente: {}", emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        // Usamos el EventoMapper para convertir la lista de Entidades a DTOs
+        return cliente.getEventosFavoritos().stream()
+                .map(eventoMapper::toResponseDTO)
+                .collect(Collectors.toList());
     }
 }
 

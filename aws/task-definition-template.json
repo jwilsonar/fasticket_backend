@@ -31,10 +31,6 @@
           "value": "fasticket"
         },
         {
-          "name": "REDIS_PORT",
-          "value": "6379"
-        },
-        {
           "name": "AWS_S3_REGION",
           "value": "us-east-1"
         }
@@ -51,10 +47,6 @@
         {
           "name": "DB_PASSWORD",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:fasticket/db/password"
-        },
-        {
-          "name": "REDIS_HOST",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:fasticket/redis/host"
         },
         {
           "name": "FRONTEND_URL",

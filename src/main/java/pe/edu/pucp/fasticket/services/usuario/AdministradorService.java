@@ -223,21 +223,6 @@ public class AdministradorService {
                 .collect(Collectors.toList());
     }
     
-    
-    /**
-     * Buscar administrador por ID
-     */
-    public AdministradorPerfilResponseDTO obtenerAdminPorId(int id) {
-        Persona admin = personasRepositorio.findByIdPersona(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Administrador no encontrado con ID: " + id));
-        
-        if (admin.getRol() != Rol.ADMINISTRADOR) {
-            throw new BusinessException("El usuario con ID " + id + " no es un administrador");
-        }
-        
-        return convertirAPerfilDTO(admin);
-    }
-    
     private AdministradorPerfilResponseDTO convertirAPerfilDTO(Persona persona) {
         // Verificar que la persona sea realmente un Administrador
         if (!(persona instanceof Administrador)) {

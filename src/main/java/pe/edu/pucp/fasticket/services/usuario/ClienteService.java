@@ -135,7 +135,7 @@ public class ClienteService {
         log.info("Actualizando perfil del cliente de ID: {}", id);
         Administrador adminActual = getAdminActual(); // Obtener admin
 
-        Cliente cliente = (Cliente) personasRepositorio.findById(id)
+        Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con id: " + id));
 
         // Actualizar campos si vienen en el DTO

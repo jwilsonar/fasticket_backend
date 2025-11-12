@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 
@@ -53,6 +54,38 @@ public class EmailService {
         cuerpo = cuerpo.replace("${codigoQr}", "[Contenido del Ticket/QR]");
 
         enviarEmail(orden.getCliente().getEmail(), asunto, cuerpo, true);
+    }
+
+    /**
+     * Envía correos de notificación de transferencia (RF-045).
+     * Uno al emisor y otro al receptor.
+     */
+    public void enviarCorreoTransferencia(Cliente emisor, Cliente receptor, Ticket ticket) {
+        String eventoNombre = ticket.getEvento().getNombre();
+
+        // --- Correo para el EMISOR ---
+        String asuntoEmisor = "Has transferido tu entrada para " + eventoNombre;
+        String cuerpoEmisor = String.format(
+                "Hola %s, has transferido exitosamente tu entrada (Ticket ID: %d) para %s a %s.",
+                emisor.getNombres(),
+                ticket.getIdTicket(),
+                eventoNombre,
+                receptor.getEmail()
+        );
+        enviarEmail(emisor.getEmail(), asuntoEmisor, cuerpoEmisor, false); // false = texto plano
+
+        // --- Correo para el RECEPTOR ---
+        String asuntoReceptor = "¡Has recibido una entrada para " + eventoNombre + "!";
+        String cuerpoReceptor = String.format(
+                "Hola %s, %s (%s) te ha transferido su entrada para el evento %s. " +
+                        "El ticket (ID: %d) ahora está en tu cuenta. ¡Que lo disfrutes!",
+                receptor.getNombres(),
+                emisor.getNombres(),
+                emisor.getEmail(),
+                eventoNombre,
+                ticket.getIdTicket()
+        );
+        enviarEmail(receptor.getEmail(), asuntoReceptor, cuerpoReceptor, false);
     }
 
     /**

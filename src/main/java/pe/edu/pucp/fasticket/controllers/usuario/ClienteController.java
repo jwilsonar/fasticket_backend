@@ -30,6 +30,8 @@ import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
+import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
+import pe.edu.pucp.fasticket.services.compra.TransferenciaService;
 
 /**
  * Controlador para gestión de clientes.
@@ -50,6 +52,7 @@ import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 public class ClienteController {
 
     private final ClienteService clienteService;
+    private final TransferenciaService transferenciaService;
 
     @Operation(
         summary = "Obtener perfil del cliente",
@@ -402,6 +405,32 @@ public class ClienteController {
         log.info("DELETE /api/v1/clientes/favoritos/{} - Usuario: {}", idEvento, userDetails.getUsername());
         clienteService.quitarFavorito(userDetails.getUsername(), idEvento);
         return ResponseEntity.ok(StandardResponse.success("Evento quitado de favoritos.", null));
+    }
+
+    @Operation(
+            summary = "Transferir una entrada (ticket) a otro cliente",
+            description = "RF-092: Permite al cliente autenticado (emisor) transferir la propiedad de un ticket a otro cliente (receptor) usando su email.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Transferencia exitosa"),
+            @ApiResponse(responseCode = "400", description = "Regla de negocio violada (ej. no transferible, mismo usuario)"),
+            @ApiResponse(responseCode = "403", description = "No eres el dueño de este ticket"),
+            @ApiResponse(responseCode = "404", description = "Ticket o Cliente Receptor no encontrado")
+    })
+    @PostMapping("/tickets/{idTicket}/transferir")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> transferirTicket(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Parameter(description = "ID del ticket a transferir", required = true)
+            @PathVariable Integer idTicket,
+            @Valid @RequestBody TransferenciaRequestDTO request) {
+
+        log.info("POST /api/v1/clientes/tickets/{}/transferir - Usuario: {}", idTicket, userDetails.getUsername());
+
+        transferenciaService.transferirTicket(idTicket, userDetails.getUsername(), request);
+
+        return ResponseEntity.ok(StandardResponse.success("Ticket transferido exitosamente.", null));
     }
 }
 

@@ -22,6 +22,7 @@ import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
 import pe.edu.pucp.fasticket.security.JwtUtil;
+import pe.edu.pucp.fasticket.services.EmailService;
 
 import java.time.LocalDate;
 
@@ -42,6 +43,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
 
     /**
      * Determina el rol del usuario basado en el dominio del email.
@@ -150,6 +152,16 @@ public class AuthService {
             cliente.setFechaCreacion(LocalDate.now());
 
             personaGuardada = clienteRepository.save(cliente);
+
+            // PARA ENVIAR CORREO
+            if (personaGuardada instanceof Cliente) {
+                try {
+                    emailService.enviarCorreoBienvenida((Cliente) personaGuardada);
+                } catch (Exception e) {
+                    log.warn("Registro exitoso, pero falló el envío de correo de bienvenida. Causa: {}", e.getMessage());
+                }
+            }
+
             log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
         }
 

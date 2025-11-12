@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import java.util.Optional;
 
 @Repository
 public interface TicketRepository extends JpaRepository<Ticket, Integer> {
@@ -31,7 +32,13 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
             @Param("estado") EstadoTicket estado,
             Pageable pageable
     );
-    
+
     @Query("SELECT COUNT(t) FROM Ticket t WHERE t.cliente.idPersona = :idCliente AND t.tipoTicket.idTipoTicket = :idTipoTicket AND t.estado IN ('VENDIDA', 'RESERVADA')")
     Integer countTicketsByClienteAndTipoTicket(@Param("idCliente") Integer idCliente, @Param("idTipoTicket") Integer idTipoTicket);
+
+    /**
+     * Busca un ticket usando su código QR único.
+     * Es la base para la validación de entradas (RF-094).
+     */
+    Optional<Ticket> findByCodigoQr(String codigoQr);
 }

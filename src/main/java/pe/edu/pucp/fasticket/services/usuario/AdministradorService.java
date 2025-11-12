@@ -11,10 +11,18 @@ import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import pe.edu.pucp.fasticket.model.usuario.Persona;
+import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -181,5 +189,78 @@ public class AdministradorService {
         return administradorRepository.findByEmail(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
+    
+    /**
+     * Obtener todos los administradores
+     */
+    public List<AdministradorPerfilResponseDTO> obtenerTodosLosAdmins() {
+        List<Persona> admins = personasRepositorio.findByRol(Rol.ADMINISTRADOR);
+        
+        return admins.stream()
+                .map(this::convertirAPerfilDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtener administradores activos
+     */
+    public List<AdministradorPerfilResponseDTO> obtenerAdminsActivos() {
+        List<Persona> admins = personasRepositorio.findByRolAndActivo(Rol.ADMINISTRADOR, true);
+        
+        return admins.stream()
+                .map(this::convertirAPerfilDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtener administradores inactivos
+     */
+    public List<AdministradorPerfilResponseDTO> obtenerAdminsInactivos() {
+        List<Persona> admins = personasRepositorio.findByRolAndActivo(Rol.ADMINISTRADOR, false);
+        
+        return admins.stream()
+                .map(this::convertirAPerfilDTO)
+                .collect(Collectors.toList());
+    }
+    
+    
+    /**
+     * Buscar administrador por ID
+     */
+    public AdministradorPerfilResponseDTO obtenerAdminPorId(int id) {
+        Persona admin = personasRepositorio.findByIdPersona(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Administrador no encontrado con ID: " + id));
+        
+        if (admin.getRol() != Rol.ADMINISTRADOR) {
+            throw new BusinessException("El usuario con ID " + id + " no es un administrador");
+        }
+        
+        return convertirAPerfilDTO(admin);
+    }
+    
+    private AdministradorPerfilResponseDTO convertirAPerfilDTO(Persona persona) {
+        // Verificar que la persona sea realmente un Administrador
+        if (!(persona instanceof Administrador)) {
+            throw new BusinessException("El usuario no es un administrador");
+        }
+        
+        Administrador administrador = (Administrador) persona;
+        
+        String ultimoAccesoFormateado = null;
+        if (administrador.getUltimoAcceso() != null) {
+            ultimoAccesoFormateado = administrador.getUltimoAcceso()
+                    .atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        }
 
+        AdministradorPerfilResponseDTO dto = new AdministradorPerfilResponseDTO();
+        dto.setIdAdministrador(persona.getIdPersona());
+        dto.setEmail(persona.getEmail());
+        dto.setNombres(persona.getNombres());
+        dto.setApellidos(persona.getApellidos());
+        dto.setActivo(persona.getActivo());
+        dto.setUltimoAccesoFormateado(ultimoAccesoFormateado);
+        
+        return dto;
+    }
 }

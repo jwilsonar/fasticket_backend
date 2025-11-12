@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.services.auth;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -46,6 +47,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final TokenBlacklistService tokenBlacklistService;
 
     private static final int N_MAX_ATTEMPTS = 5;
     // índices: 1er -> 0 min, 2do -> 0 min, 3ro -> 1 min, 4to -> 5 min, 5to -> 10 min
@@ -94,6 +96,15 @@ public class AuthService {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getContrasena())
             );
+
+            if (persona.getRol() == Rol.ADMINISTRADOR) {
+                // Actualizar último acceso para administradores
+                Administrador admin = (Administrador) persona;
+                admin.setUltimoAcceso(now);
+                administradorRepository.save(admin);
+                String formattedDate = formatInstant(admin.getUltimoAcceso());
+                log.info("Registrado último acceso para admin: {} - {}", persona.getEmail(), formattedDate);
+            }
             
             // ÉXITO: Resetear intentos fallidos y bloqueo
             persona.setFailedAttempts(0);
@@ -258,5 +269,32 @@ public class AuthService {
 
         log.info("Contraseña cambiada exitosamente para usuario: {}", persona.getEmail());
     }
+
+    
+    @Transactional
+    public void logout(String authHeader) {
+        final String BEARER = "Bearer ";
+        if (authHeader == null || !authHeader.startsWith(BEARER)) {
+            throw new BusinessException("Token de autorización inválido");
+        }
+
+        String token = authHeader.substring(BEARER.length()).trim();
+        if (token.isEmpty()) {
+            throw new BusinessException("Token vacío");
+        }
+
+        try {
+            String email = jwtUtil.extractUsername(token);
+            tokenBlacklistService.blacklistToken(token);
+            log.info("Sesión cerrada exitosamente para: {}", email);
+        } catch (io.jsonwebtoken.JwtException e) { // usar la excepción concreta del parser JWT
+            log.warn("Token JWT inválido durante logout; procediendo a blacklist. Detalle:", e);
+            tokenBlacklistService.blacklistToken(token);
+        } catch (Exception e) {
+            log.error("Error inesperado en logout:", e);
+            throw e; // no silenciar errores inesperados
+        }
+    }
+
 }
 

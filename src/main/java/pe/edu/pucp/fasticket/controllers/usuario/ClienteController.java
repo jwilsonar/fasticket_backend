@@ -319,6 +319,42 @@ public class ClienteController {
     }
 
     @Operation(
+            summary = "Marcar un cliente como verificado",
+            description = "RF-031: Permite al administrador marcar la cuenta de un cliente como verificada (correo/teléfono).",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Cliente marcado como verificado"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "El cliente ya estaba verificado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol ADMIN)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Cliente no encontrado"
+            )
+    })
+    @PutMapping("/{idCliente}/verificar") // <-- Endpoint Lógico
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> marcarClienteComoVerificado(
+            @Parameter(description = "ID del cliente a verificar", required = true)
+            @PathVariable Integer idCliente) {
+
+        log.info("PUT /api/v1/clientes/{}/verificar", idCliente);
+
+        ClientePerfilResponseDTO perfilActualizado = clienteService.marcarComoVerificado(idCliente);
+
+        return ResponseEntity.ok(StandardResponse.success("Cliente marcado como verificado exitosamente.", perfilActualizado));
+    }
+
+    @Operation(
             summary = "Obtener lista de eventos favoritos del cliente",
             description = "RF-074: Obtiene la lista de eventos que el cliente autenticado ha marcado como favoritos.",
             security = @SecurityRequirement(name = "Bearer Authentication")

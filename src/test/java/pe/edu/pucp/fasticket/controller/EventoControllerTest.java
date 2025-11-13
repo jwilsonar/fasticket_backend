@@ -190,7 +190,8 @@ public class EventoControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción del evento con imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test
@@ -233,7 +234,8 @@ public class EventoControllerTest {
                 .andExpect(jsonPath("$.data.tipoEvento").value("ELECTRONICA"))
                 .andExpect(jsonPath("$.data.estadoEvento").value("ACTIVO"))
                 .andExpect(jsonPath("$.data.aforoDisponible").value(3000))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test
@@ -274,7 +276,8 @@ public class EventoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción actualizada del evento con imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test

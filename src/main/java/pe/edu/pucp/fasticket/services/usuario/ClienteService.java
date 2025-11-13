@@ -287,6 +287,31 @@ public class ClienteService {
     }
 
     /**
+     * Permite al cliente autenticado desactivar su propia cuenta (borrado lógico).
+     * El cliente no será eliminado físicamente, solo se marcará como inactivo.
+     * 
+     * @param email Email del cliente autenticado
+     * @throws ResourceNotFoundException si el cliente no existe
+     * @throws BusinessException si el cliente ya está desactivado
+     */
+    @Transactional
+    public void desactivarMiCuenta(String email) {
+        log.warn("Solicitud de auto-desactivación (borrado lógico) para cliente con email: {}", email);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
+        
+        if (!cliente.getActivo()) {
+            throw new BusinessException("Su cuenta ya se encuentra desactivada.");
+        }
+        
+        cliente.setActivo(false);
+        clienteRepository.save(cliente);
+
+        log.info("Cliente con email: {} ha desactivado su cuenta exitosamente.", email);
+    }
+
+    /**
      * NUEVO MÉTODO PARA RF-031: Marcar cliente como verificado
      * Permite a un admin marcar el correo/teléfono de un cliente como verificado.
      */

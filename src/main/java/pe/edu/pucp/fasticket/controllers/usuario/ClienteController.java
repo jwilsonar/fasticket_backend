@@ -28,7 +28,6 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
@@ -316,6 +315,47 @@ public class ClienteController {
         clienteService.desactivarCliente(idCliente);
 
         return ResponseEntity.ok(StandardResponse.success("Cliente desactivado exitosamente."));
+    }
+
+    @Operation(
+            summary = "Desactivar mi propia cuenta",
+            description = "Permite al cliente autenticado desactivar su propia cuenta mediante borrado lógico. " +
+                         "La cuenta no será eliminada físicamente, solo se marcará como inactiva. " +
+                         "El cliente no podrá iniciar sesión después de desactivar su cuenta.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Cuenta desactivada exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "La cuenta ya estaba desactivada"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol CLIENTE)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Cliente no encontrado"
+            )
+    })
+    @DeleteMapping("/mi-cuenta")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> desactivarMiCuenta(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("DELETE /api/v1/clientes/mi-cuenta - Usuario: {}", userDetails.getUsername());
+
+        clienteService.desactivarMiCuenta(userDetails.getUsername());
+
+        return ResponseEntity.ok(StandardResponse.success("Su cuenta ha sido desactivada exitosamente."));
     }
 
     @Operation(

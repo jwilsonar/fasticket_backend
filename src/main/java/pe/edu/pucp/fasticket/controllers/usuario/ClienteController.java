@@ -367,5 +367,25 @@ public class ClienteController {
         clienteService.quitarFavorito(userDetails.getUsername(), idEvento);
         return ResponseEntity.ok(StandardResponse.success("Evento quitado de favoritos.", null));
     }
+
+    @Operation(
+        summary = "Eliminar la propia cuenta",
+        description = "Permite al cliente autenticado desactivar (borrado lógico) su propia cuenta. Se inhabilita y anonimiza datos según política.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Cuenta desactivada exitosamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/perfil")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> eliminarCuentaPropia(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("DELETE /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
+        clienteService.eliminarCuentaPropia(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Cuenta desactivada exitosamente.", null));
+    }
 }
 

@@ -388,5 +388,33 @@ public class ClienteService {
                 .map(eventoMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
+
+    @Transactional
+    public void eliminarCuentaPropia(String email) {
+        Cliente cliente = clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+
+        if (!cliente.getActivo()) {
+            throw new BusinessException("La cuenta ya está desactivada");
+        }
+
+        // Borrado lógico
+        cliente.setActivo(false);
+
+        // Anonimizar email (evitar colisiones)
+        String anonId = (cliente.getIdPersona() != null) ? cliente.getIdPersona().toString() : String.valueOf(System.currentTimeMillis());
+        String anonEmail = "deleted+" + anonId + "@deleted.fasticket";
+        cliente.setEmail(anonEmail);
+
+        // Anonimizar otros campos
+        cliente.setNombres("ANONIMO");
+        cliente.setApellidos("");
+        try { cliente.setTelefono(null); } catch (Exception ignored) {}
+        try { cliente.setDireccion(null); } catch (Exception ignored) {}
+        try { cliente.setDocIdentidad(null); } catch (Exception ignored) {}
+
+        clienteRepository.save(cliente);
+        log.info("Cuenta del cliente con email original {} desactivada y anonimizada (id={})", email, anonId);
+    }
 }
 

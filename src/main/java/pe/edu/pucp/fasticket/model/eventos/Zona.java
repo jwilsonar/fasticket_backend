@@ -40,9 +40,6 @@ public class Zona {
     @Column(name = "aforoMax", nullable = false)
     private Integer aforoMax;
 
-    @Column(name = "imagenUrl", length = 500)
-    private String imagenUrl;
-
     @Column(name = "activo")
     private Boolean activo = true;
 

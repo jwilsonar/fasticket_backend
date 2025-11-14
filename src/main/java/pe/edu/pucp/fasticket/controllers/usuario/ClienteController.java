@@ -454,6 +454,7 @@ public class ClienteController {
         log.info("DELETE /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
         clienteService.eliminarCuentaPropia(userDetails.getUsername());
         return ResponseEntity.ok(StandardResponse.success("Cuenta desactivada exitosamente.", null));
+    }
     
     @Operation(
         summary = "Transferir una entrada (ticket) a otro cliente",

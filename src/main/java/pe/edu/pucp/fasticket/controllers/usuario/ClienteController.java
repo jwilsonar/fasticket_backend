@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.tickets.MisEntradasDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
@@ -459,6 +460,25 @@ public class ClienteController {
         transferenciaService.transferirTicket(idTicket, userDetails.getUsername(), request);
 
         return ResponseEntity.ok(StandardResponse.success("Ticket transferido exitosamente.", null));
+    }
+
+    @Operation(
+            summary = "Listar mis entradas (tickets transferibles)",
+            description = "RF-091: Lista todos los tickets del cliente logueado que están VENDIDA y VIGENTES (evento no ha pasado), como se pide en RF-091.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Tickets vigentes obtenidos"),
+            @ApiResponse(responseCode = "403", description = "No autenticado o no es Cliente")
+    })
+    @GetMapping("/mis-entradas")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<List<MisEntradasDTO>>> obtenerMisEntradas(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("GET /api/v1/clientes/mis-entradas - Usuario: {}", userDetails.getUsername());
+        List<MisEntradasDTO> tickets = clienteService.listarTicketsTransferibles(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Tickets vigentes obtenidos", tickets));
     }
 }
 

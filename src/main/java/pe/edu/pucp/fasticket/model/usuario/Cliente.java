@@ -30,7 +30,7 @@ public class Cliente extends Persona {
     private Integer puntosAcumulados = 0;
 
     @Column(name = "verificado")
-    private Boolean verificado;
+    private Boolean verificado = false;
 
     // agregado mikler 30/10 relacion con puntos
     @OneToMany(mappedBy = "cliente", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

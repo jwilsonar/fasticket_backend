@@ -104,6 +104,12 @@ public class OrdenCompra {
     @JoinColumn(name = "idPago", referencedColumnName = "idPago")
     private Pago pago;
 
+    @Column(name = "descuento_promocional")
+    private Double descuentoPromocional = 0.0;
+
+    @Column(name = "codigo_promocional")
+    private String codigoPromocionalAplicado;
+
     public void addItem(ItemCarrito item) {
         items.add(item);
         item.setOrdenCompra(this);
@@ -115,16 +121,27 @@ public class OrdenCompra {
     }
 
     public void calcularTotal() {
-        this.subtotal = this.items.stream().mapToDouble(ItemCarrito::getPrecioFinal).sum();
+        // 1. Calcular subtotal desde los ítems
+        this.subtotal = this.items.stream()
+                .mapToDouble(ItemCarrito::getPrecioFinal)
+                .sum();
+        // 2. Calcular IGV
         double valorVenta = this.subtotal / 1.18;
         this.igv = this.subtotal - valorVenta;
-        
-        // Si hay canje aplicado, el total es 0 (pago completo con puntos)
-        // Si no hay canje, se aplica el descuento por membresía
-        if (this.descuentoPorCanje > 0) {
-            this.total = 0.0; // Pago completo con puntos
-        } else {
-            this.total = this.subtotal - this.descuentoPorMembrecia;
+        // 3. Obtener descuentos seguros (evitar null)
+        double descuentoPromo = this.descuentoPromocional != null ? this.descuentoPromocional : 0.0;
+        double descuentoMembresia = this.descuentoPorMembrecia != null ? this.descuentoPorMembrecia : 0.0;
+        double descuentoCanje = this.descuentoPorCanje != null ? this.descuentoPorCanje : 0.0;
+        // 4. Si hay canje, total = 0 (regla de negocio)
+        if (descuentoCanje > 0) {
+            this.total = 0.0;
+            return;
+        }
+        // 5. Total = subtotal - todos los descuentos
+        this.total = this.subtotal - descuentoPromo - descuentoMembresia;
+        // Evitar valores negativos
+        if (this.total < 0) {
+            this.total = 0.0;
         }
     }
 

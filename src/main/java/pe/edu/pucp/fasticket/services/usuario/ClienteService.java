@@ -388,5 +388,6 @@ public class ClienteService {
                 .map(eventoMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
+
 }
 

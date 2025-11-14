@@ -13,6 +13,7 @@ import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.TipoTicketMapper;
+import pe.edu.pucp.fasticket.model.eventos.PrecioEscalonado;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
@@ -138,9 +139,8 @@ public class TipoTicketServicio {
         // Actualizar campos
         tipoTicket.setNombre(dto.getNombre());
         tipoTicket.setDescripcion(dto.getDescripcion());
-        tipoTicket.setPrecio(dto.getPrecio());
         tipoTicket.setLimitePorPersona(dto.getLimitePorPersona());
-        
+        tipoTicket.setPrecio(dto.getPrecio());
         // Actualizar stock y cantidad disponible
         int diferenciaStock = dto.getStock() - tipoTicket.getStock();
         tipoTicket.setStock(dto.getStock());
@@ -178,5 +178,33 @@ public class TipoTicketServicio {
         tipoTicket.setActivo(false);
         tipoTicketRepositorio.save(tipoTicket);
         log.info("Tipo de ticket desactivado exitosamente");
+    }
+
+    @Transactional
+    public void pausarVenta(Integer idTipoTicket) {
+        log.warn("Pausando venta para TipoTicket ID: {}", idTipoTicket);
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("TipoTicket no encontrado: " + idTipoTicket));
+
+        if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+            throw new BusinessException("Esta categoría de ticket ya está pausada.");
+        }
+
+        tipoTicket.setActivo(false);
+        tipoTicketRepositorio.save(tipoTicket);
+    }
+
+    @Transactional
+    public void reanudarVenta(Integer idTipoTicket) {
+        log.info("Reanudando venta para TipoTicket ID: {}", idTipoTicket);
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("TipoTicket no encontrado: " + idTipoTicket));
+
+        if (Boolean.TRUE.equals(tipoTicket.getActivo())) {
+            throw new BusinessException("Esta categoría de ticket ya está activa.");
+        }
+
+        tipoTicket.setActivo(true);
+        tipoTicketRepositorio.save(tipoTicket);
     }
 }

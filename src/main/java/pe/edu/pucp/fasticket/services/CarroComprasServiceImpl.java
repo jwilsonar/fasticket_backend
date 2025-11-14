@@ -30,6 +30,7 @@ import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +42,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ItemCarritoRepository itemCarritoRepository;
     private final TicketRepository ticketRepository;
+    private final FidelizacionService fidelizacionService;
 
     private static final int LIMITE_MAXIMO_TICKETS_POR_CLIENTE = 10;
     public static final int TIEMPO_RESERVA_MINUTOS = 15;
@@ -53,6 +55,10 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
 
+        if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+            throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
+        }
+        Double precioActual = tipoTicket.getPrecioCalculado();
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
 
@@ -66,7 +72,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             throw new BusinessException("Stock insuficiente para " + tipoTicket.getNombre() +
                     ". Solo quedan " + ticketsAReservar.size() + " tickets reales.");
         }
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersona(cliente.getIdPersona())
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
                 .orElseGet(() -> {
                     log.info("No se encontró NINGÚN carrito para cliente ID: {}, creando uno nuevo.", cliente.getIdPersona());
                     CarroCompras nuevoCarro = new CarroCompras();
@@ -74,7 +80,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                     nuevoCarro.setFechaCreacion(LocalDateTime.now());
                     return nuevoCarro;
                 });
-        carro.setActivo(true);
 
         if (!carro.getItems().isEmpty()) {
             Integer idEventoActual = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
@@ -86,7 +91,8 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
         ItemCarrito itemExistente = null;
         for (ItemCarrito item : carro.getItems()) {
-            if (item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket())) {
+            if (item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket()) &&
+                item.getPrecio().equals(precioActual)) {
                 itemExistente = item;
                 break;
             }
@@ -114,7 +120,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             ItemCarrito nuevoItem = new ItemCarrito();
             nuevoItem.setTipoTicket(tipoTicket);
             nuevoItem.setCantidad(request.getCantidad());
-            nuevoItem.setPrecio(tipoTicket.getPrecio());
+            nuevoItem.setPrecio(precioActual);
             nuevoItem.setFechaAgregado(LocalDate.now());
             nuevoItem.setCarroCompra(carro);
             nuevoItem.calcularPrecioFinal();
@@ -244,8 +250,8 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             if (item.getTipoTicket() != null) {
                 itemDTO.setIdTipoTicket(item.getTipoTicket().getIdTipoTicket());
                 itemDTO.setNombreTicket(item.getTipoTicket().getNombre());
-                itemDTO.setPrecioUnitario(item.getTipoTicket().getPrecio());
-                itemDTO.setSubtotal(item.getTipoTicket().getPrecio() * item.getCantidad());
+                itemDTO.setPrecioUnitario(item.getPrecio());
+                itemDTO.setSubtotal(item.getPrecio() * item.getCantidad());
             }
             return itemDTO;
         }).collect(Collectors.toList()));
@@ -260,5 +266,25 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         dto.setTotal(0.0);
         dto.setItems(Collections.emptyList());
         return dto;
+    }
+
+    @Override
+    @Transactional
+    public CarroComprasDTO aplicarCodigoPromocional(Integer idCarrito, String codigo) {
+        log.info("Aplicando código {} al carrito ID: {}", codigo, idCarrito);
+
+        CarroCompras carro = carroComprasRepository.findById(idCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado: " + idCarrito));
+
+        if (carro.getCodigoPromocionalAplicado() != null) {
+            throw new BusinessException("Ya se ha aplicado un código a este carrito.");
+        }
+        Double descuento = fidelizacionService.validarYCalcularDescuento(codigo, carro.getSubtotal());
+        carro.setCodigoPromocionalAplicado(codigo);
+        carro.setDescuentoPromocional(descuento);
+        carro.recalcularTotales();
+
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+        return convertirADTO(carroGuardado);
     }
 }

@@ -7,7 +7,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,16 +29,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
-import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-import pe.edu.pucp.fasticket.services.usuario.ClienteService;
-import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.services.compra.TransferenciaService;
+import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
  * Controlador para gestión de clientes.
@@ -354,6 +362,27 @@ public class ClienteController {
         ClientePerfilResponseDTO perfilActualizado = clienteService.marcarComoVerificado(idCliente);
 
         return ResponseEntity.ok(StandardResponse.success("Cliente marcado como verificado exitosamente.", perfilActualizado));
+    }
+
+    @Operation(
+            summary = "Desactivar mi cuenta",
+            description = "Permite al cliente autenticado desactivar su propia cuenta.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cuenta desactivada exitosamente"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos (requiere rol CLIENTE)"),
+            @ApiResponse(responseCode = "404", description = "Cliente no encontrado"),
+            @ApiResponse(responseCode = "409", description = "La cuenta ya estaba desactivada")
+    })
+    @DeleteMapping("/mi-cuenta")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> desactivarMiCuenta(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("DELETE /api/v1/clientes/mi-cuenta - Usuario: {}", userDetails.getUsername());
+        clienteService.desactivarMiCuenta(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Su cuenta ha sido desactivada exitosamente."));
     }
 
     @Operation(

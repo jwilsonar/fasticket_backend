@@ -227,13 +227,48 @@ resource "aws_s3_bucket_versioning" "images" {
   }
 }
 
+# Ownership controls: permite que la política del bucket controle el acceso sin ACLs
+resource "aws_s3_bucket_ownership_controls" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+
+  depends_on = [aws_s3_bucket_public_access_block.images]
+}
+
+# Configuración de acceso público: permite políticas públicas pero bloquea ACLs públicas
 resource "aws_s3_bucket_public_access_block" "images" {
   bucket = aws_s3_bucket.images.id
 
   block_public_acls       = true
-  block_public_policy     = true
+  block_public_policy     = false  # Permite políticas públicas para acceso de lectura
   ignore_public_acls      = true
-  restrict_public_buckets = true
+  restrict_public_buckets = false  # Permite acceso público según la política del bucket
+}
+
+# Política del bucket: permite acceso público de lectura (GET) a los objetos
+resource "aws_s3_bucket_policy" "images" {
+  bucket = aws_s3_bucket.images.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.images.arn}/*"
+      }
+    ]
+  })
+
+  depends_on = [
+    aws_s3_bucket_public_access_block.images,
+    aws_s3_bucket_ownership_controls.images
+  ]
 }
 
 resource "aws_s3_bucket_cors_configuration" "images" {
@@ -247,6 +282,11 @@ resource "aws_s3_bucket_cors_configuration" "images" {
     max_age_seconds = 3000
   }
 }
+
+# NOTA: En cuentas de laboratorio educativas (AWS Academy/Labs), el LabRole generalmente
+# ya tiene permisos amplios de S3 (PutObject, GetObject, DeleteObject, ListBucket).
+# No se pueden crear políticas IAM personalizadas en roles existentes como LabRole.
+# El LabRole ya debería tener los permisos necesarios para acceder al bucket S3.
 
 # ============================================================================
 # ECR REPOSITORY

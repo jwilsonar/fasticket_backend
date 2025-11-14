@@ -49,7 +49,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.services.EmailService;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
 
 @Service
 @RequiredArgsConstructor

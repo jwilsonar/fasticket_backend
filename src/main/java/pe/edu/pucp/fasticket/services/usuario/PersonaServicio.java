@@ -39,6 +39,9 @@ public class PersonaServicio {
     public Persona Guardar(Persona persona){
         return (Persona) repo_personas.save(persona);
     }
+    // Nota: Este método 'Guardar' es genérico.
+    // AuthService es el que debe encargarse de encriptar la contraseña
+    // ANTES de llamar a este método.
 
     /**
      * @param id Identificador de la persona a eliminar
@@ -55,11 +58,18 @@ public class PersonaServicio {
         return repo_personas.findByActivo(activo);
     }
 
+
+    /*
+
+    // El método login(email, contrasena) FUE ELIMINADO.
+    // Violaba RNF-001 (texto plano) y RNF-003 (usaba findAll()).
+    // La lógica correcta está en AuthService.login()
+
     /**
      * @param email Email del usuario
      * @param contrasena Contraseña del usuario
      * @return Resultado del login
-     */
+
     public LoginResponse login(String email, String contrasena) {
         try {
             // Buscar persona por email
@@ -89,10 +99,15 @@ public class PersonaServicio {
         }
     }
 
+
+
+    // El método registrarCliente(request) FUE ELIMINADO.
+    // Violaba RNF-001 (texto plano) y RNF-003 (usaba findAll()).
+    // La lógica correcta está en AuthService.registrarCliente()
     /**
      * @param request Datos para registrar un nuevo cliente
      * @return Resultado del registro
-     */
+
     public RegistroResponse registrarCliente(RegistroRequest request) {
         try {
             // Verificar si el email ya existe
@@ -127,4 +142,5 @@ public class PersonaServicio {
             return new RegistroResponse(request.getEmail(), "Error al registrar usuario: " + e.getMessage(), false);
         }
     }
+    */
 }

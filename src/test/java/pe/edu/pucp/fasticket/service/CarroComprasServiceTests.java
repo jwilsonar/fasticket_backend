@@ -168,8 +168,8 @@ public class CarroComprasServiceTests {
     @Test
     void testAgregarItemAlCarrito_Exitoso_Simple() {
         AddItemRequestDTO request = new AddItemRequestDTO();
-        request.setIdCliente(1);
-        request.setIdTipoTicket(1);
+        request.setIdCliente(clientePrueba.getIdPersona());
+        request.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
         request.setCantidad(1);
         CarroComprasDTO carritoDTO = carroComprasService.agregarItemAlCarrito(request);
         System.out.println("Resultado del servicio:");

@@ -113,6 +113,9 @@ public class EventoService {
         if (dto.getIdLocal() != null) {
             local = localRepository.findById(dto.getIdLocal())
                     .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + dto.getIdLocal()));
+            if (Boolean.FALSE.equals(local.getActivo())) {
+                throw new BusinessException("No se pueden crear eventos en un local inactivo: " + local.getNombre());
+            }
         }
 
         // Crear y guardar

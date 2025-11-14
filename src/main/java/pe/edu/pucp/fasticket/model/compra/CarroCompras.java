@@ -52,6 +52,12 @@ public class CarroCompras {
     @Column(name = "idEventoActual")
     private Integer idEventoActual;
 
+    @Column(name = "descuento_promocional")
+    private Double descuentoPromocional = 0.0;
+
+    @Column(name = "codigo_promocional")
+    private String codigoPromocionalAplicado;
+
     public void addItem(ItemCarrito item) {
         items.add(item);
         item.setCarroCompra(this);
@@ -66,8 +72,16 @@ public class CarroCompras {
 
     public void recalcularTotales() {
         this.subtotal = items.stream()
-            .mapToDouble(item -> item.getPrecio() * item.getCantidad())
-            .sum();
-        this.total = this.subtotal;
+                .mapToDouble(item -> item.getPrecio() * item.getCantidad())
+                .sum();
+
+        if (this.descuentoPromocional == null) {
+            this.descuentoPromocional = 0.0;
+        }
+
+        this.total = this.subtotal - this.descuentoPromocional;
+        if (this.total < 0) {
+            this.total = 0.0;
+        }
     }
 }

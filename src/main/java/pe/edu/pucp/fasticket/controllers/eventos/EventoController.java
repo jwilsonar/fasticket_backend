@@ -163,7 +163,6 @@ public class EventoController {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> crearConImagen(
             @RequestParam(value = "imagenUrl", required = false) MultipartFile imagenUrl,
-            @RequestParam(value = "imagenZonasUrl", required = false) MultipartFile imagenZonasUrl,
             @RequestParam(value = "nombre", required = false) String nombre,
             @RequestParam(value = "descripcion", required = false) String descripcion,
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
@@ -208,10 +207,8 @@ public class EventoController {
             // Subir imagen si se proporcionó
             if (imagenUrl != null && !imagenUrl.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-                String imageZonasUrl = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
                 // Guardar la URL de la imagen en la base de datos
                 evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
-                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrl);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);

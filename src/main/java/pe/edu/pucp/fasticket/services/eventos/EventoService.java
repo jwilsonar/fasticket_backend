@@ -380,7 +380,8 @@ public class EventoService {
         dto.setNombre(evento.getNombre());
         dto.setFecha(evento.getFechaEvento());
         dto.setHora(evento.getHoraInicio());
-        dto.setUrlImagen(evento.getImagenUrl());
+        dto.setImagenUrl(evento.getImagenUrl());
+        dto.setImagenZonasUrl(evento.getImagenZonasUrl());
         dto.setDescripcion(evento.getDescripcion());
 
         // 3. Validar y mapear Local

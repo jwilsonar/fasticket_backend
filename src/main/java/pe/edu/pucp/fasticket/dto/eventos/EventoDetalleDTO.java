@@ -13,7 +13,8 @@ public class EventoDetalleDTO {
     private String nombre;
     private LocalDate fecha;
     private LocalTime hora;
-    private String urlImagen;
+    private String imagenUrl;
+    private String imagenZonasUrl;
     private String descripcion;
     private LocalDetalleDTO local;
     private List<TipoTicketCompraDTO> tiposDeTicket;

@@ -206,7 +206,7 @@ public class EventoController {
             EventoResponseDTO evento = eventoService.crear(dto);
 
             // Subir imagen si se proporcionó
-            if (imagenUrl != null && !imagenUrl.isEmpty() && imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+            if (imagenUrl != null && !imagenUrl.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
                 String imageZonasUrl = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
                 // Guardar la URL de la imagen en la base de datos

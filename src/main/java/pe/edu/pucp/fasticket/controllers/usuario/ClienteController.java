@@ -28,7 +28,6 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.services.compra.TransferenciaService;

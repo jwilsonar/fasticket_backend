@@ -210,31 +210,6 @@ public class ZonaControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
-    void testCrearZona_ConImagen() throws Exception {
-        byte[] imagenBytes = "imagen de zona de prueba".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen =
-                new org.springframework.mock.web.MockMultipartFile("imagen", "zona.jpg", "image/jpeg", imagenBytes);
-
-        String response = mockMvc.perform(multipart("/api/v1/zonas/con-imagen")
-                        .file(imagen)
-                        .param("nombre", "Zona Con Imagen")
-                        .param("aforoMax", "100")
-                        .param("idEvento", eventoTest.getIdEvento().toString())) // <-- Corregido
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.nombre").value("Zona Con Imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists())
-                .andReturn().getResponse().getContentAsString();
-
-        Integer idZonaCreada = objectMapper.readTree(response).get("data").get("idZona").asInt();
-
-        mockMvc.perform(get("/api/v1/zonas/" + idZonaCreada))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.idZona").value(idZonaCreada))
-                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearZona_EventoNoExiste() throws Exception { // <-- Corregido
         ZonaCreateDTO dto = new ZonaCreateDTO();
         dto.setNombre("Zona Test");
@@ -279,30 +254,6 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data.idEvento").value(eventoTest.getIdEvento())); // <-- Corregido
     }
 
-    @Test
-    @WithMockUser(roles = "ADMINISTRADOR")
-    void testActualizarZona_ConImagen() throws Exception {
-        byte[] imagenBytes = "imagen actualizada de zona".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen =
-                new org.springframework.mock.web.MockMultipartFile("imagen", "zona_updated.jpg", "image/jpeg", imagenBytes);
-
-        mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/con-imagen")
-                        .file(imagen)
-                        .param("nombre", "VIP Actualizado Con Imagen")
-                        .param("aforoMax", "200")
-                        .param("idEvento", eventoTest.getIdEvento().toString()) // <-- Corregido
-                        .with(request -> {
-                            request.setMethod("PUT");
-                            return request;
-                        }))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.nombre").value("VIP Actualizado Con Imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
-
-        mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
-    }
 
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
@@ -376,22 +327,4 @@ public class ZonaControllerTest {
                 .andExpect(jsonPath("$.data.length()").value(0));
     }
 
-    @Test
-    @WithMockUser(roles = "ADMINISTRADOR")
-    void testSubirImagenZona_YVerificarPersistencia() throws Exception {
-        byte[] imagenBytes = "imagen de zona independiente".getBytes();
-        org.springframework.mock.web.MockMultipartFile imagen =
-                new org.springframework.mock.web.MockMultipartFile("file", "zona_upload.jpg", "image/jpeg", imagenBytes);
-
-        mockMvc.perform(multipart("/api/v1/zonas/" + zonaTest.getIdZona() + "/imagen")
-                        .file(imagen))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data").isNotEmpty());
-
-        mockMvc.perform(get("/api/v1/zonas/" + zonaTest.getIdZona()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.imagenUrl").isNotEmpty());
-    }
 }

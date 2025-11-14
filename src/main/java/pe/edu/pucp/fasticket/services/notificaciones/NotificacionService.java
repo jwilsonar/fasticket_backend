@@ -18,7 +18,7 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
  * Implementa los requerimientos:
  * - RF-048: Verificación de cuenta
  * - RF-049: Confirmación de compra
- * - RF-050: Recordatorios de evento (TODO: implementar con scheduler)
+ * - RF-050: Recordatorios de evento (ToDO: implementar con scheduler)
  * - RF-052: Recuperación de contraseña
  * - RF-086: Envío de tickets
  * 

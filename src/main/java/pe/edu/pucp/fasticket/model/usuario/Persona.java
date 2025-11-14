@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.model.usuario;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -79,6 +80,12 @@ public class Persona {
     
     @Column(name = "activo")
     private Boolean activo = true;
+
+    @Column(name = "failed_attempts", nullable = false)
+    private Integer failedAttempts = 0;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
     
     @JsonProperty("usuario_creacion")
     @Column(name = "usuarioCreacion")

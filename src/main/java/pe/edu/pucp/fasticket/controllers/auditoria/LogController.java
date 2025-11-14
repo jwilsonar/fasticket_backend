@@ -14,6 +14,19 @@ import pe.edu.pucp.fasticket.services.auditoria.LogService;
 import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDetalleDTO;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogRequestDTO;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import pe.edu.pucp.fasticket.exception.ErrorResponse;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -38,16 +51,54 @@ public class LogController {
             @RequestParam(required = false) String severidad) {
 
         log.info("GET /api/v1/admin/logs/errors - Filtros: inicio={}, fin={}, severidad={}", inicio, fin, severidad);
+        /*
         // --- INICIO DE PRUEBA TEMPORAL ---
         if (1 == 1) { // Condición simple para que se ejecute
             log.info("Forzando un error 500 para probar el GlobalExceptionHandler...");
             throw new RuntimeException("¡Prueba de error 500 inesperado!");
         }
         // --- FIN DE PRUEBA TEMPORAL (¡Borrar después!) ---
+        */
 
         List<ErrorLogDTO> logs = logService.consultarLogsDeError(inicio, fin, severidad);
 
         return ResponseEntity.ok(StandardResponse.success("Logs de error obtenidos", logs));
+    }
+
+    @Operation(
+            summary = "Registrar un nuevo log de error manual",
+            description = "Permite registrar manualmente un log de error desde el formulario de admin (RF-108)."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Error registrado exitosamente",
+                    content = @Content(schema = @Schema(implementation = ErrorLogDetalleDTO.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Datos de solicitud inválidos (campos faltantes o incorrectos)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            )
+    })
+    @PostMapping("/errors")
+    public ResponseEntity<StandardResponse<ErrorLogDetalleDTO>> registrarErrorManual(
+            @Valid @RequestBody ErrorLogRequestDTO requestDTO,
+            @AuthenticationPrincipal UserDetails userDetails) { // <-- Igual que en AdminController
+
+        log.info("POST /api/v1/admin/logs/errors - Registrando nuevo error por admin: {}", userDetails.getUsername());
+
+        // Llamamos al nuevo método del servicio
+        ErrorLogDetalleDTO nuevoError = logService.registrarErrorManual(requestDTO, userDetails.getUsername());
+
+        // Devolvemos 201 CREATED
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(StandardResponse.success("Error registrado exitosamente", nuevoError));
     }
 
     // --- NUEVO MÉTODO PARA EXPORTAR (RF-110) ---

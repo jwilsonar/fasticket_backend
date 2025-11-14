@@ -28,10 +28,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
-import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
-import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
-import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
+import pe.edu.pucp.fasticket.dto.eventos.*;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
+import pe.edu.pucp.fasticket.model.eventos.PrecioEscalonado;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
 
@@ -268,6 +267,37 @@ public class TipoTicketController {
         tipoTicketServicio.desactivar(id);
         return ResponseEntity.ok(StandardResponse.success("Tipo de ticket desactivado exitosamente"));
     }
+
+    @Operation(
+            summary = "Pausar la venta de una categoría (Admin)",
+            description = "RF-028: Desactiva un TipoTicket para que no aparezca disponible para la compra.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PutMapping("/{id}/pausar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> pausarVenta(
+            @Parameter(description = "ID del TipoTicket a pausar", required = true)
+            @PathVariable Integer id) {
+
+        tipoTicketServicio.pausarVenta(id);
+        return ResponseEntity.ok(StandardResponse.success("Venta pausada exitosamente.", null));
+    }
+
+    @Operation(
+            summary = "Reanudar la venta de una categoría (Admin)",
+            description = "RF-028: Reactiva un TipoTicket para que vuelva a estar disponible para la compra.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PutMapping("/{id}/reanudar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> reanudarVenta(
+            @Parameter(description = "ID del TipoTicket a reanudar", required = true)
+            @PathVariable Integer id) {
+
+        tipoTicketServicio.reanudarVenta(id);
+        return ResponseEntity.ok(StandardResponse.success("Venta reanudada exitosamente.", null));
+    }
+
 }
 
 

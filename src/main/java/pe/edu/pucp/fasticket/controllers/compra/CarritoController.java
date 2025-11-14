@@ -126,5 +126,26 @@ public class CarritoController {
         StandardResponse<CarroComprasDTO> response = StandardResponse.success("Ticket eliminado del carrito exitosamente", carritoActualizado);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(
+            summary = "Aplicar un código promocional al carrito",
+            description = "RF-027: Valida y aplica un cupón de descuento al total del carrito.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Código aplicado exitosamente"),
+            @ApiResponse(responseCode = "400", description = "Código expirado, sin stock o inválido"),
+            @ApiResponse(responseCode = "404", description = "Carrito o código no encontrado")
+    })
+    @PutMapping("/{idCarrito}/aplicar-cupon")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> aplicarCupon(
+            @PathVariable Integer idCarrito,
+            @RequestParam String codigo) {
+
+        log.info("PUT /api/v1/carrito/{}/aplicar-cupon?codigo={}", idCarrito, codigo);
+        CarroComprasDTO carritoActualizado = carroComprasService.aplicarCodigoPromocional(idCarrito, codigo);
+        return ResponseEntity.ok(StandardResponse.success("Cupón aplicado.", carritoActualizado));
+    }
 }
 

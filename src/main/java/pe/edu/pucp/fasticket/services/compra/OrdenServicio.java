@@ -173,15 +173,12 @@ public class OrdenServicio {
 
         // Calcular el porcentaje de descuento según las reglas de negocio
         double porcentajeDescuento = fidelizacionService.calcularDescuentoPorMembresia(tipoMembresia, totalEntradas);
+        double subtotalBase = orden.getSubtotal() != null ? orden.getSubtotal() : 0.0;
+        double descuentoPromocional = orden.getDescuentoPromocional() != null ? orden.getDescuentoPromocional() : 0.0;
 
-        // Aplicar descuento al subtotal
-        Double descuento = orden.getSubtotal() * porcentajeDescuento;
-        orden.setDescuentoPorMembrecia(descuento);
-
-        // Recalcular el total después de aplicar el descuento
-        orden.aplicarDescuentoYRecalcular();
-
-        log.info("Descuento por membresía aplicado: {} ({}) para cliente ID: {}", descuento, porcentajeDescuento * 100 + "%", cliente.getIdPersona());
+        double subtotalDescontado = Math.max(subtotalBase - descuentoPromocional, 0.0);
+        double descuentoMembresia = subtotalDescontado * porcentajeDescuento;
+        orden.setDescuentoPorMembrecia(descuentoMembresia);
     }
 
     protected OrdenCompra registrarOrdenCompra(Cliente cliente, List<ItemCarrito> itemsCarrito) {
@@ -220,7 +217,7 @@ public class OrdenServicio {
 
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
-            item.setPrecio(tipoTicket.getPrecio());
+            item.setPrecio(tipoTicket.getPrecioCalculado());
             item.setFechaAgregado(LocalDate.now());
             item.setTipoTicket(tipoTicket);
             item.setOrdenCompra(orden);
@@ -277,7 +274,8 @@ public class OrdenServicio {
             ItemResumenDTO itemResumen = new ItemResumenDTO();
             itemResumen.setNombreTipoTicket(tipoTicket.getNombre());
             itemResumen.setCantidad(item.getCantidad());
-            itemResumen.setPrecioUnitario(tipoTicket.getPrecio());
+            double precioActual = tipoTicket.getPrecioCalculado();
+            itemResumen.setPrecioUnitario(precioActual);
             subtotal += tipoTicket.getPrecio() * item.getCantidad();
             resumenItems.add(itemResumen);
         }
@@ -475,21 +473,31 @@ public class OrdenServicio {
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
             throw new BusinessException("El carrito está inactivo o vacío.");
         }
+
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(carrito.getCliente());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         orden.setCarroCompras(carrito);
+
         asignarAsistentesATicketsDelCarrito(carrito, itemsConAsistentes, orden);
+
         for (ItemCarrito item : new ArrayList<>(carrito.getItems())) {
             carrito.removeItem(item);
             orden.addItem(item);
         }
+
         orden.calcularTotal();
+        orden.setCodigoPromocionalAplicado(carrito.getCodigoPromocionalAplicado());
+        orden.setDescuentoPromocional(carrito.getDescuentoPromocional());
+
         calcularDescuentoPorMembresia(orden, carrito.getCliente());
+        orden.aplicarDescuentoYRecalcular();
+
         carrito.setActivo(false);
         carrito.setFechaActualizacion(LocalDateTime.now());
         carroComprasRepository.save(carrito);
+
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
         log.info("Orden ID {} creada desde Carrito ID {}.", ordenGuardada.getIdOrdenCompra(), carrito.getIdCarro());
 

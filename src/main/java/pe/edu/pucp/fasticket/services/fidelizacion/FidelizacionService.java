@@ -539,5 +539,28 @@ public class FidelizacionService {
         return administradorRepository.findByEmail(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
+
+    @Transactional
+    public Double validarYCalcularDescuento(String codigo, Double subtotal) {
+        CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
+                .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado: " + codigo));
+        if (codigoPromo.getStock() <= 0) {
+            throw new BusinessException("El código promocional no tiene stock disponible");
+        }
+        if (codigoPromo.getFechaFin() != null && codigoPromo.getFechaFin().isBefore(java.time.LocalDateTime.now())) {
+            throw new BusinessException("El código promocional ha expirado");
+        }
+        Double descuento = 0.0;
+        if (codigoPromo.getTipo() == TipoCodigoPromocional.PORCENTAJE) {
+            descuento = subtotal * (codigoPromo.getValor() / 100.0);
+        } else {
+            descuento = codigoPromo.getValor();
+        }
+        codigoPromo.setStock(codigoPromo.getStock() - 1);
+        codigoPromocionalRepository.save(codigoPromo);
+
+        log.info("Descuento calculado: {} por código promocional: {}", descuento, codigo);
+        return descuento;
+    }
 }
 

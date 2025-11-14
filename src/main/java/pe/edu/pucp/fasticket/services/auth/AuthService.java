@@ -5,7 +5,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -127,6 +129,7 @@ public class AuthService {
                     .nombreCompleto(persona.getNombres() + " " + persona.getApellidos())
                     .rol(persona.getRol().name())
                     .expiracion(86400000L) // 24 horas
+                    .primerLogin(persona.getPrimerLogin())
                     .build();
 
         } catch (BadCredentialsException ex) {
@@ -280,6 +283,9 @@ public class AuthService {
         persona.setFechaActualizacion(LocalDate.now());
         personasRepositorio.save(persona);
 
+        // Cambio de la bandera (válido para ambos tipos de Usuario, útil solo para Administradores
+        persona.setPrimerLogin(false);
+
         log.info("Contraseña cambiada exitosamente para usuario: {}", persona.getEmail());
     }
 
@@ -307,6 +313,25 @@ public class AuthService {
             log.error("Error inesperado en logout:", e);
             throw e; // no silenciar errores inesperados
         }
+    }
+
+    @Transactional
+    public void resetearContrasena(String email){
+
+        log.info("Cambio de contraseña para usuario con el correo: {}", email);
+        //1. Buscar al usuario
+        Persona persona = personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        // 2. Generar token automáticamente
+        String token = jwtUtil.generateToken(persona.getEmail(), persona.getRol().name());
+        //este token podría ser diferente?
+
+        String link = "http://frontend.com/ejemplo/resetear-contrasena?token=" + token;
+
+        String subject = "Restablecer contraseña";
+        String body = "Haz clic en el siguiente enlace para restablecer tu contraseña:\n" + link;
+
+        emailService.enviarCorreoResetContrasena(email,subject,body);
     }
 
 }

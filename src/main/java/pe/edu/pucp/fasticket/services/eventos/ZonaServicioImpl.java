@@ -124,18 +124,4 @@ public class ZonaServicioImpl implements ZonaServicio {
         return zonaRepository.findByActivoTrue();
     }
 
-    @Override
-    public Zona actualizarImagenUrl(Integer id, String imagenUrl) {
-        log.info("Actualizando URL de imagen para zona ID: {}", id);
-
-        Zona zona = zonaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Zona no encontrada con ID: " + id));
-
-        zona.setImagenUrl(imagenUrl);
-        zona.setFechaActualizacion(LocalDate.now());
-        Zona zonaActualizada = zonaRepository.save(zona);
-
-        log.info("URL de imagen actualizada para zona ID: {}", id);
-        return zonaActualizada;
-    }
 }

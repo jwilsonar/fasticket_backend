@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class ZonaDTO {
     private Integer idZona, aforoMax, usuarioCreacion, usuarioActualizacion;
     private String nombre;
-    private String imagenUrl;
+    //private String imagenUrl; // esto está raro
     private Boolean activo;
     private LocalDate fechaCreacion, fechaActualizacion;
     private Integer idEvento;

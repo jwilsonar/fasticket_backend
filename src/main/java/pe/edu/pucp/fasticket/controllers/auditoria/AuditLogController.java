@@ -15,7 +15,6 @@ import java.util.List;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/admin/audit") // Endpoint para auditoría

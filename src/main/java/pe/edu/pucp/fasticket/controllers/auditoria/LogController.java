@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/admin/logs") // Endpoint base para logs y auditoría de admin
@@ -38,14 +37,13 @@ public class LogController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fin,
             @RequestParam(required = false) String severidad) {
 
+        log.info("GET /api/v1/admin/logs/errors - Filtros: inicio={}, fin={}, severidad={}", inicio, fin, severidad);
         // --- INICIO DE PRUEBA TEMPORAL ---
         if (1 == 1) { // Condición simple para que se ejecute
             log.info("Forzando un error 500 para probar el GlobalExceptionHandler...");
             throw new RuntimeException("¡Prueba de error 500 inesperado!");
         }
         // --- FIN DE PRUEBA TEMPORAL (¡Borrar después!) ---
-
-        log.info("GET /api/v1/admin/logs/errors - Filtros: inicio={}, fin={}, severidad={}", inicio, fin, severidad);
 
         List<ErrorLogDTO> logs = logService.consultarLogsDeError(inicio, fin, severidad);
 

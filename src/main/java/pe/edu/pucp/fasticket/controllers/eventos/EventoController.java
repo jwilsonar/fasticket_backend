@@ -162,7 +162,8 @@ public class EventoController {
     @PostMapping(value = "/con-imagen", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> crearConImagen(
-            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "imagenUrl", required = false) MultipartFile imagenUrl,
+            @RequestParam(value = "imagenZonasUrl", required = false) MultipartFile imagenZonasUrl,
             @RequestParam(value = "nombre", required = false) String nombre,
             @RequestParam(value = "descripcion", required = false) String descripcion,
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
@@ -205,10 +206,12 @@ public class EventoController {
             EventoResponseDTO evento = eventoService.crear(dto);
 
             // Subir imagen si se proporcionó
-            if (imagen != null && !imagen.isEmpty()) {
-                String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
+            if (imagenUrl != null && !imagenUrl.isEmpty() && imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
+                String imageZonasUrl = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
                 // Guardar la URL de la imagen en la base de datos
                 evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
+                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrl);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
@@ -246,7 +249,8 @@ public class EventoController {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
             @PathVariable Integer id,
-            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "imagenUrl", required = false) MultipartFile imagenUrl,
+            @RequestParam(value = "imagenZonasUrl", required = false) MultipartFile imagenZonasUrl,
             @RequestParam(value = "nombre", required = false) String nombre,
             @RequestParam(value = "descripcion", required = false) String descripcion,
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
@@ -289,10 +293,12 @@ public class EventoController {
             EventoResponseDTO evento = eventoService.actualizar(id, dto);
 
             // Subir imagen si se proporcionó
-            if (imagen != null && !imagen.isEmpty()) {
-                String imageUrl = s3Service.uploadFile(imagen, "eventos", evento.getIdEvento());
+            if (imagenUrl != null && !imagenUrl.isEmpty() && imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
+                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
                 // Guardar la URL de la imagen en la base de datos
                 evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
+                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
@@ -410,6 +416,59 @@ public class EventoController {
             log.error("Error al subir imagen del evento {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(StandardResponse.error("Error al subir la imagen: " + e.getMessage()));
+        }
+    }
+
+    @Operation(
+            summary = "Subir imagen de zonas del evento",
+            description = "Sube una imagen de la zonas para un evento específico. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Imagen subida exitosamente",
+                    content = @Content(schema = @Schema(implementation = String.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Archivo inválido",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol ADMINISTRADOR)"
+            )
+    })
+    @PostMapping("/{id}/imagen/zonas")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<String>> subirImagenZonasEvento(
+            @Parameter(description = "ID del evento", required = true)
+            @PathVariable Integer id,
+            @Parameter(description = "Archivo de imagen", required = true)
+            @RequestParam("file") MultipartFile file) {
+
+        log.info("POST /api/v1/eventos/{}/imagen/zonas", id);
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(StandardResponse.error("El archivo no puede estar vacío"));
+        }
+
+        try {
+            String imageUrl = s3Service.uploadFile(file, "eventos", id);
+            // Guardar la URL de la imagen en la base de datos
+            eventoService.actualizarImagenZonasUrl(id, imageUrl);
+            StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error al subir imagen de zonas del evento {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(StandardResponse.error("Error al subir la imagen de zonas: " + e.getMessage()));
         }
     }
 

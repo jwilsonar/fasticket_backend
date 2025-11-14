@@ -21,6 +21,7 @@ public class EventoDTO {
     private LocalDate fechaEvento, fechaCreacion, fechaActualizacion;
     private LocalTime horaInicio, horaFin;
     private String urlImagen;
+    private String urlImagenZonas;
     private Boolean activo;
     private EstadoEvento estado;
     private TipoEvento tipo;

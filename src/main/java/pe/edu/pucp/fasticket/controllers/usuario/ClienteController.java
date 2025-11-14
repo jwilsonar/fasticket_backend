@@ -28,7 +28,6 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.services.compra.TransferenciaService;
@@ -322,39 +321,44 @@ public class ClienteController {
     }
 
     @Operation(
-            summary = "Marcar un cliente como verificado",
-            description = "RF-031: Permite al administrador marcar la cuenta de un cliente como verificada (correo/teléfono).",
+            summary = "Desactivar mi propia cuenta",
+            description = "Permite al cliente autenticado desactivar su propia cuenta mediante borrado lógico. " +
+                         "La cuenta no será eliminada físicamente, solo se marcará como inactiva. " +
+                         "El cliente no podrá iniciar sesión después de desactivar su cuenta.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Cliente marcado como verificado"
+                    description = "Cuenta desactivada exitosamente"
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "El cliente ya estaba verificado"
+                    description = "La cuenta ya estaba desactivada"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Sin permisos (requiere rol ADMIN)"
+                    description = "Sin permisos (requiere rol CLIENTE)"
             ),
             @ApiResponse(
                     responseCode = "404",
                     description = "Cliente no encontrado"
             )
     })
-    @PutMapping("/{idCliente}/verificar") // <-- Endpoint Lógico
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<ClientePerfilResponseDTO>> marcarClienteComoVerificado(
-            @Parameter(description = "ID del cliente a verificar", required = true)
-            @PathVariable Integer idCliente) {
+    @DeleteMapping("/mi-cuenta")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> desactivarMiCuenta(
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("PUT /api/v1/clientes/{}/verificar", idCliente);
+        log.info("DELETE /api/v1/clientes/mi-cuenta - Usuario: {}", userDetails.getUsername());
 
-        ClientePerfilResponseDTO perfilActualizado = clienteService.marcarComoVerificado(idCliente);
+        clienteService.desactivarMiCuenta(userDetails.getUsername());
 
-        return ResponseEntity.ok(StandardResponse.success("Cliente marcado como verificado exitosamente.", perfilActualizado));
+        return ResponseEntity.ok(StandardResponse.success("Su cuenta ha sido desactivada exitosamente."));
     }
 
     @Operation(
@@ -408,29 +412,23 @@ public class ClienteController {
     }
 
     @Operation(
-            summary = "Transferir una entrada (ticket) a otro cliente",
-            description = "RF-092: Permite al cliente autenticado (emisor) transferir la propiedad de un ticket a otro cliente (receptor) usando su email.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
+        summary = "Eliminar la propia cuenta",
+        description = "Permite al cliente autenticado desactivar (borrado lógico) su propia cuenta. Se inhabilita y anonimiza datos según política.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Transferencia exitosa"),
-            @ApiResponse(responseCode = "400", description = "Regla de negocio violada (ej. no transferible, mismo usuario)"),
-            @ApiResponse(responseCode = "403", description = "No eres el dueño de este ticket"),
-            @ApiResponse(responseCode = "404", description = "Ticket o Cliente Receptor no encontrado")
+        @ApiResponse(responseCode = "200", description = "Cuenta desactivada exitosamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    @PostMapping("/tickets/{idTicket}/transferir")
+    @DeleteMapping("/perfil")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<Void>> transferirTicket(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Parameter(description = "ID del ticket a transferir", required = true)
-            @PathVariable Integer idTicket,
-            @Valid @RequestBody TransferenciaRequestDTO request) {
+    public ResponseEntity<StandardResponse<Void>> eliminarCuentaPropia(
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("POST /api/v1/clientes/tickets/{}/transferir - Usuario: {}", idTicket, userDetails.getUsername());
-
-        transferenciaService.transferirTicket(idTicket, userDetails.getUsername(), request);
-
-        return ResponseEntity.ok(StandardResponse.success("Ticket transferido exitosamente.", null));
+        log.info("DELETE /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
+        clienteService.eliminarCuentaPropia(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Cuenta desactivada exitosamente.", null));
     }
 }
 

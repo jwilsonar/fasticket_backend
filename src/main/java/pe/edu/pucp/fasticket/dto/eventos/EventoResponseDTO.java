@@ -38,6 +38,9 @@ public class EventoResponseDTO {
     
     @Schema(description = "URL de imagen", example = "https://example.com/imagen.jpg")
     private String imagenUrl;
+
+    @Schema(description = "URL de imagen de zonas", example = "https://example.com/imagen_zonas.jpg")
+    private String imagenZonasUrl;
     
     @Schema(description = "Tipo de evento", example = "CONCIERTO")
     private TipoEvento tipoEvento;

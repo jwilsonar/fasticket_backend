@@ -223,7 +223,7 @@ public class OrdenControllerTest {
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.ok").value(false))
-                .andExpect(jsonPath("$.mensaje").value(containsString("No hay suficientes tickets disponibles")));
+                .andExpect(jsonPath("$.mensaje").value(containsString("No puede comprar más de 5 tickets por orden.")));
     }
 
     @Test

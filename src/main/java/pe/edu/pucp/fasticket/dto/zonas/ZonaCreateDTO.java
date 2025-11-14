@@ -17,9 +17,9 @@ public class ZonaCreateDTO {
     @Positive(message = "El aforo debe ser un número positivo")
     private Integer aforoMax; // Ej: 1000
 
-    @NotNull(message = "El id del local es obligatorio")
-    @Positive(message = "El id del local debe ser un número positivo")
-    private Integer idEvento; // id del Local al que pertenece la zona
+    @NotNull(message = "El id del evento es obligatorio")
+    @Positive(message = "El id del evento debe ser un número positivo")
+    private Integer idEvento; // id del Evento al que pertenece la zona
 
-    private String imagenUrl; // URL de la imagen de la zona
+    //private String imagenUrl; // URL de la imagen de la zona / NO DEBE IR 
 }

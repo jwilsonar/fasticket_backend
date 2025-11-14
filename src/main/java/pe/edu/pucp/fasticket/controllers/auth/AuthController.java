@@ -139,5 +139,33 @@ public class AuthController {
         log.info("GET /api/v1/auth/verificar - Usuario: {}", userDetails.getUsername());
         return ResponseEntity.ok(pe.edu.pucp.fasticket.dto.StandardResponse.success("Token válido", userDetails.getUsername()));
     }
+
+    @Operation(
+        summary = "Cerrar sesión",
+        description = "Invalida el token JWT actual para cerrar la sesión del usuario"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Sesión cerrada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
+    @PostMapping("/logout")
+    public ResponseEntity<StandardResponse<Void>> logout(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam String email) {
+        
+        log.info("POST /api/v1/auth/logout - Email: {}", email);
+        
+        authService.logout(authHeader);
+        
+        StandardResponse<Void> response = StandardResponse.success("Sesión cerrada exitosamente", null);
+        return ResponseEntity.ok(response);
+    }
 }
 

@@ -21,12 +21,4 @@ public interface ZonaServicio {
     
     List<Zona> buscarActivas();
     
-    /**
-     * Actualiza únicamente la URL de la imagen de una zona.
-     * 
-     * @param id ID de la zona
-     * @param imagenUrl URL de la imagen a guardar
-     * @return Zona actualizada con la nueva URL de imagen
-     */
-    Zona actualizarImagenUrl(Integer id, String imagenUrl);
 }

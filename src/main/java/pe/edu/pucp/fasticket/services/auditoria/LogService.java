@@ -3,6 +3,12 @@ package pe.edu.pucp.fasticket.services.auditoria;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
+import pe.edu.pucp.fasticket.repository.auditoria.ErrorLogRepository;
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDTO;
+import pe.edu.pucp.fasticket.mapper.ErrorLogMapper;
+import pe.edu.pucp.fasticket.dto.auditoria.ErrorLogDetalleDTO;
 import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
 import pe.edu.pucp.fasticket.repository.auditoria.ErrorLogRepository;
 // Asumimos que tienes un DTO para la respuesta, si no, lo creamos
@@ -18,7 +24,7 @@ import java.util.stream.Collectors;
 public class LogService {
 
     private final ErrorLogRepository errorLogRepository;
-    private final ErrorLogMapper errorLogMapper; // Necesitaremos crear este mapper
+    private final ErrorLogMapper errorLogMapper;
 
     /**
      * Guarda un error en la base de datos (RF-107).
@@ -53,5 +59,13 @@ public class LogService {
         return logs.stream()
                 .map(errorLogMapper::toDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public ErrorLogDetalleDTO consultarLogDeErrorPorId(Integer id) {
+        ErrorLog log = errorLogRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Log de error no encontrado con ID: " + id));
+
+        return errorLogMapper.toDetalleDTO(log);
     }
 }

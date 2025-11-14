@@ -2,7 +2,6 @@
 # 
 # Este Makefile automatiza la gestión del stack completo de FastTicket:
 # - PostgreSQL 16 (Base de datos principal)
-# - Redis 7 (Caché y sesiones)
 # - Spring Boot (Backend API REST)
 #
 # REQUISITOS:
@@ -21,15 +20,13 @@
 # PUERTOS:
 #   - Backend:    http://localhost:8081
 #   - PostgreSQL: localhost:5432
-#   - Redis:      localhost:6379
 #
 # ==============================================================================
 
-.PHONY: help build up down restart logs logs-backend logs-db logs-redis clean rebuild status health shell-backend shell-db test docker-check check-docker check-maven check-java check-all run-local package install
+.PHONY: help build up down restart logs logs-backend logs-db clean rebuild status health shell-backend shell-db test docker-check check-docker check-maven check-java check-all run-local package install deploy
 
 COMPOSE = docker-compose
 BACKEND_SERVICE = backend
-REDIS_SERVICE = redis
 DB_SERVICE = postgres
 
 docker-check:
@@ -50,10 +47,10 @@ help:
 	@echo   build rebuild up down restart status
 	@cmd /c echo.
 	@echo LOGS Y MONITOREO:
-	@echo   logs logs-backend logs-db logs-redis health urls
+	@echo   logs logs-backend logs-db health urls
 	@cmd /c echo.
 	@echo SHELL ACCESO:
-	@echo   shell-backend shell-db shell-redis
+	@echo   shell-backend shell-db
 	@cmd /c echo.
 	@echo DESARROLLO:
 	@echo   dev watch run-local package install compile test
@@ -74,7 +71,7 @@ build: docker-check
 	@echo [OK] Imagenes construidas
 
 up: docker-check
-	@echo [*] Iniciando servicios (PostgreSQL + Redis + Backend)...
+	@echo [*] Iniciando servicios (PostgreSQL + Backend)...
 	$(COMPOSE) up -d
 	@echo [OK] Servicios iniciados
 	@cmd /c echo.
@@ -114,9 +111,6 @@ logs-backend:
 logs-db:
 	$(COMPOSE) logs -f $(DB_SERVICE)
 
-logs-redis:
-	$(COMPOSE) logs -f $(REDIS_SERVICE)
-
 status:
 	@echo [*] Estado de los servicios:
 	@$(COMPOSE) ps
@@ -130,7 +124,6 @@ urls:
 	@echo   Backend API:      http://localhost:8081
 	@echo   Health Check:     http://localhost:8081/actuator/health
 	@echo   PostgreSQL:       localhost:5432 (usuario: postgres, db: fasticket)
-	@echo   Redis:            localhost:6379
 
 # SHELL - Acceso a contenedores
 
@@ -139,9 +132,6 @@ shell-backend:
 
 shell-db:
 	$(COMPOSE) exec $(DB_SERVICE) psql -U postgres -d fasticket
-
-shell-redis:
-	$(COMPOSE) exec $(REDIS_SERVICE) redis-cli
 
 # DESARROLLO
 
@@ -153,7 +143,7 @@ watch:
 	@$(MAKE) logs-backend
 
 run-local:
-	@echo [*] Ejecutando localmente (requiere PostgreSQL y Redis activos)...
+	@echo [*] Ejecutando localmente (requiere PostgreSQL activo)...
 	mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
 package:
@@ -163,6 +153,10 @@ package:
 
 install:
 	mvn clean install
+
+deploy:
+	@echo [*] Desplegando a produccion...
+	@powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-quick.ps1
 
 # BASE DE DATOS - PostgreSQL
 

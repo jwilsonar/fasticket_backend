@@ -48,6 +48,8 @@ import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
 
 @Service
 @RequiredArgsConstructor
@@ -65,6 +67,8 @@ public class EventoService {
     // --- NUEVO PARA AUDITORÍA (RF-109) ---
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
+
+    private final EmailService emailService;
 
     public List<EventoResponseDTO> listarTodos() {
         return eventoRepository.findAll().stream()
@@ -197,6 +201,38 @@ public class EventoService {
         return eventoMapper.toResponseDTO(eventoActualizado);
     }
 
+    /**
+     * Actualiza únicamente la URL de la imagen de las zonas de un evento.
+     * 
+     * @param id ID del evento
+     * @param imagenUrl URL de la imagen de las zonas del evento a guardar
+     * @return EventoResponseDTO con la información actualizada
+     */
+    @Transactional
+    public EventoResponseDTO actualizarImagenZonasUrl(Integer id, String imagenUrl) {
+        log.info("Actualizando URL de imagen de zonas para evento ID: {}", id);
+
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
+
+        evento.setImagenZonasUrl(imagenUrl);
+        evento.setFechaActualizacion(LocalDate.now());
+        Evento eventoActualizado = eventoRepository.save(evento);
+
+        // --- INICIO AUDITORÍA RF-109 ---
+        try {
+            Administrador admin = getAdminActual();
+            String detalle = "Se actualizó la IMAGEN DE ZONAS del evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
+            auditLogService.registrarAuditoria(admin, "ACTUALIZAR_IMAGEN_ZONAS_EVENTO", "EventoService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_IMAGEN_ZONAS_EVENTO): {}", e.getMessage());
+        }
+        // --- FIN AUDITORÍA ---
+
+        log.info("URL de imagen de zonas actualizada para evento ID: {}", id);
+        return eventoMapper.toResponseDTO(eventoActualizado);
+    }
+
     @Transactional
     public void eliminarLogico(Integer id) {
         log.info("Eliminación lógica del evento ID: {}", id);
@@ -317,6 +353,14 @@ public class EventoService {
             
             log.info("📢 Publicando evento EventoCanceladoEvent. Afectados: {} clientes", emailsAfectados.size());
             eventPublisher.publishEvent(new EventoCanceladoEvent(evento, motivo, emailsAfectados));
+
+            // --- INICIO LLAMADA A EMAIL (RF-045) ---
+            if (emailsAfectados != null && !emailsAfectados.isEmpty()) {
+                log.info("📢 Enviando correos de cancelación a {} afectados...", emailsAfectados.size());
+                emailService.enviarCorreoCancelacionEvento(evento, emailsAfectados);
+            }
+            // --- FIN LLAMADA A EMAIL ---
+
         } catch (Exception e) {
             log.error("⚠️ Error al publicar evento de cancelación (no crítico): {}", e.getMessage());
         }
@@ -339,7 +383,8 @@ public class EventoService {
         dto.setNombre(evento.getNombre());
         dto.setFecha(evento.getFechaEvento());
         dto.setHora(evento.getHoraInicio());
-        dto.setUrlImagen(evento.getImagenUrl());
+        dto.setImagenUrl(evento.getImagenUrl());
+        dto.setImagenZonasUrl(evento.getImagenZonasUrl());
         dto.setDescripcion(evento.getDescripcion());
 
         // 3. Validar y mapear Local

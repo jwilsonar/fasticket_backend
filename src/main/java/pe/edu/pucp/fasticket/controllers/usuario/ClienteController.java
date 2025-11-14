@@ -28,7 +28,6 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
 
 /**
@@ -319,6 +318,47 @@ public class ClienteController {
     }
 
     @Operation(
+            summary = "Desactivar mi propia cuenta",
+            description = "Permite al cliente autenticado desactivar su propia cuenta mediante borrado lógico. " +
+                         "La cuenta no será eliminada físicamente, solo se marcará como inactiva. " +
+                         "El cliente no podrá iniciar sesión después de desactivar su cuenta.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Cuenta desactivada exitosamente"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "La cuenta ya estaba desactivada"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos (requiere rol CLIENTE)"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Cliente no encontrado"
+            )
+    })
+    @DeleteMapping("/mi-cuenta")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> desactivarMiCuenta(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("DELETE /api/v1/clientes/mi-cuenta - Usuario: {}", userDetails.getUsername());
+
+        clienteService.desactivarMiCuenta(userDetails.getUsername());
+
+        return ResponseEntity.ok(StandardResponse.success("Su cuenta ha sido desactivada exitosamente."));
+    }
+
+    @Operation(
             summary = "Obtener lista de eventos favoritos del cliente",
             description = "RF-074: Obtiene la lista de eventos que el cliente autenticado ha marcado como favoritos.",
             security = @SecurityRequirement(name = "Bearer Authentication")
@@ -366,6 +406,26 @@ public class ClienteController {
         log.info("DELETE /api/v1/clientes/favoritos/{} - Usuario: {}", idEvento, userDetails.getUsername());
         clienteService.quitarFavorito(userDetails.getUsername(), idEvento);
         return ResponseEntity.ok(StandardResponse.success("Evento quitado de favoritos.", null));
+    }
+
+    @Operation(
+        summary = "Eliminar la propia cuenta",
+        description = "Permite al cliente autenticado desactivar (borrado lógico) su propia cuenta. Se inhabilita y anonimiza datos según política.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Cuenta desactivada exitosamente"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/perfil")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Void>> eliminarCuentaPropia(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("DELETE /api/v1/clientes/perfil - Usuario: {}", userDetails.getUsername());
+        clienteService.eliminarCuentaPropia(userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Cuenta desactivada exitosamente.", null));
     }
 }
 

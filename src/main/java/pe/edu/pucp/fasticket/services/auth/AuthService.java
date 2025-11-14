@@ -2,7 +2,9 @@ package pe.edu.pucp.fasticket.services.auth;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,10 +22,13 @@ import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
-import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
 import pe.edu.pucp.fasticket.security.JwtUtil;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Servicio de autenticación y autorización.
@@ -42,6 +47,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final TokenBlacklistService tokenBlacklistService;
+
+    private static final int N_MAX_ATTEMPTS = 5;
+    // índices: 1er -> 0 min, 2do -> 0 min, 3ro -> 1 min, 4to -> 5 min, 5to -> 10 min
+    private static final int[] LOCK_TIME_DURATION = {0, 0, 1, 5, 10}; // en minutos
+
 
     /**
      * Determina el rol del usuario basado en el dominio del email.
@@ -55,37 +66,99 @@ public class AuthService {
         return Rol.CLIENTE;
     }
 
+    private String formatInstant(Instant instant) {
+    return instant.atZone(ZoneId.systemDefault())
+                  .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+}
+
     @Transactional
     public LoginResponseDTO login(LoginRequestDTO request) {
         log.info("Intento de login para email: {}", request.getEmail());
 
-        // Autenticar con Spring Security
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getContrasena())
-        );
-
         // Cargar usuario
         Persona persona = personasRepositorio.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
 
+        Instant now = Instant.now();
+
+        // 1. Validar si está bloqueado PRIMERO
+        if (persona.getLockedUntil() != null && persona.getLockedUntil().isAfter(now)) {
+             String formattedDate = formatInstant(persona.getLockedUntil());
+            throw new BusinessException("La cuenta está bloqueada hasta " + formattedDate);
+        }
+
+        // 2. Validar si está activo SEGUNDO
         if (!persona.getActivo()) {
             throw new BusinessException("La cuenta está desactivada");
         }
 
-        // Generar token
-        String token = jwtUtil.generateToken(persona.getEmail(), persona.getRol().name());
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getContrasena())
+            );
 
-        log.info("Login exitoso para: {}", persona.getEmail());
+            if (persona.getRol() == Rol.ADMINISTRADOR) {
+                // Actualizar último acceso para administradores
+                Administrador admin = (Administrador) persona;
+                admin.setUltimoAcceso(now);
+                administradorRepository.save(admin);
+                String formattedDate = formatInstant(admin.getUltimoAcceso());
+                log.info("Registrado último acceso para admin: {} - {}", persona.getEmail(), formattedDate);
+            }
+            
+            // ÉXITO: Resetear intentos fallidos y bloqueo
+            persona.setFailedAttempts(0);
+            persona.setLockedUntil(null);
+            personasRepositorio.save(persona);
 
-        return LoginResponseDTO.builder()
-                .token(token)
-                .tipo("Bearer")
-                .idUsuario(persona.getIdPersona())
-                .email(persona.getEmail())
-                .nombreCompleto(persona.getNombres() + " " + persona.getApellidos())
-                .rol(persona.getRol().name())
-                .expiracion(86400000L) // 24 horas
-                .build();
+            // Generar token
+            String token = jwtUtil.generateToken(persona.getEmail(), persona.getRol().name());
+
+            log.info("Login exitoso para: {}", persona.getEmail());
+
+            return LoginResponseDTO.builder()
+                    .token(token)
+                    .tipo("Bearer")
+                    .idUsuario(persona.getIdPersona())
+                    .email(persona.getEmail())
+                    .nombreCompleto(persona.getNombres() + " " + persona.getApellidos())
+                    .rol(persona.getRol().name())
+                    .expiracion(86400000L) // 24 horas
+                    .build();
+
+        } catch (BadCredentialsException ex) {
+            int attempts = (persona.getFailedAttempts() == null ? 0 : persona.getFailedAttempts()) + 1;
+            persona.setFailedAttempts(attempts);
+
+            if (attempts >= 1 && attempts <= N_MAX_ATTEMPTS) {
+                int idx = attempts - 1;
+                int minutes = LOCK_TIME_DURATION[idx];
+                if (minutes > 0) {
+                    Instant lockUntil = now.plus(Duration.ofMinutes(minutes));
+                    persona.setLockedUntil(lockUntil);
+                     String formattedDate = formatInstant(persona.getLockedUntil());
+                    log.warn("Login fallido para {} (intentos={}). Bloqueo hasta {} ({} min)", 
+                            persona.getEmail(), attempts, formattedDate, minutes);
+                } else {
+                    // minutes == 0: Solo contar intento, NO modificar lockedUntil
+                    // Mantener el bloqueo actual si existe, o null si no hay bloqueo
+                    if (attempts == 1) {
+                        log.warn("Primer intento fallido para {}", persona.getEmail());
+                    } else {
+                        log.warn("Login fallido para {} (intentos={}), el próximo intento tendrá penalidad)", 
+                                persona.getEmail(), attempts);
+                    }
+                }
+            } else {
+                persona.setFailedAttempts(0);
+                persona.setLockedUntil(null); // Desbloquear la cuenta
+                log.warn("Superó el límite de intentos para {}. Reseteando contador de intentos, tenga más cuidado la próxima vez.", 
+                        persona.getEmail());
+            }
+
+            personasRepositorio.save(persona);
+            throw new BadCredentialsException("Credenciales inválidas");
+        }
     }
 
     @Transactional
@@ -196,5 +269,32 @@ public class AuthService {
 
         log.info("Contraseña cambiada exitosamente para usuario: {}", persona.getEmail());
     }
+
+    
+    @Transactional
+    public void logout(String authHeader) {
+        final String BEARER = "Bearer ";
+        if (authHeader == null || !authHeader.startsWith(BEARER)) {
+            throw new BusinessException("Token de autorización inválido");
+        }
+
+        String token = authHeader.substring(BEARER.length()).trim();
+        if (token.isEmpty()) {
+            throw new BusinessException("Token vacío");
+        }
+
+        try {
+            String email = jwtUtil.extractUsername(token);
+            tokenBlacklistService.blacklistToken(token);
+            log.info("Sesión cerrada exitosamente para: {}", email);
+        } catch (io.jsonwebtoken.JwtException e) { // usar la excepción concreta del parser JWT
+            log.warn("Token JWT inválido durante logout; procediendo a blacklist. Detalle:", e);
+            tokenBlacklistService.blacklistToken(token);
+        } catch (Exception e) {
+            log.error("Error inesperado en logout:", e);
+            throw e; // no silenciar errores inesperados
+        }
+    }
+
 }
 

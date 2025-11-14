@@ -13,8 +13,5 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     List<Cliente> findByNivel(TipoMembresia nivel);
     Optional<Cliente> findByEmail(String email);
-    @Override
-    Optional<Cliente> findById(Integer id);
     Boolean existsByEmail(String email);
 }
-

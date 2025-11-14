@@ -172,7 +172,7 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "postgres" {
   identifier     = "fasticket-db"
   engine         = "postgres"
-  engine_version = "16.6"
+  engine_version = "16.8"
   instance_class = "db.t3.micro"
   
   db_name  = "fasticket"

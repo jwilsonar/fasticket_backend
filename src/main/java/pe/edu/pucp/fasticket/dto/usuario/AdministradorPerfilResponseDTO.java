@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.dto.usuario;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -53,4 +54,8 @@ public class AdministradorPerfilResponseDTO {
     
     @Schema(description = "Estado activo", example = "true")
     private Boolean activo;
+
+    @Schema(description = "Fecha del último acceso formateada", example = "15/06/2024 10:15")
+    private String ultimoAccesoFormateado;
+
 }

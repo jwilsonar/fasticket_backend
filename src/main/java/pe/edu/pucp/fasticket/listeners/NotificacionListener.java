@@ -102,7 +102,7 @@ public class NotificacionListener {
                     notificacionService.enviarNotificacionEventoCancelado(
                         event.getEvento(),
                         email,
-                        "Cliente", // TODO: Obtener nombre real del cliente
+                        "Cliente", // ToDO: Obtener nombre real del cliente
                         event.getMotivoCancelacion()
                     );
                 } catch (Exception e) {

@@ -109,4 +109,26 @@ public class AdministradorController {
         return ResponseEntity.ok(StandardResponse.success("Perfil actualizado exitosamente", perfilActualizado));
     }
 
+    @Operation(
+        summary = "Desactivar administrador",
+        description = "Realiza un borrado lógico de la cuenta de un administrador indicado por su ID",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Administrador desactivado exitosamente"),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "404", description = "Administrador no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PutMapping("/desactivar/{id}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> desactivarAdministrador(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @org.springframework.web.bind.annotation.PathVariable("id") Integer idAdmin) {
+
+        log.warn("PUT /api/v1/administrador/desactivar/{} - Admin: {}", idAdmin, userDetails.getUsername());
+        administradorService.desactivarAdmin(idAdmin);
+        return ResponseEntity.ok(StandardResponse.success("Administrador desactivado exitosamente", null));
+    }
+
 }

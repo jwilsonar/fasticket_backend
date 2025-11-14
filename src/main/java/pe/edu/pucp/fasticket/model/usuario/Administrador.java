@@ -1,5 +1,7 @@
 package pe.edu.pucp.fasticket.model.usuario;
 
+import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.PrimaryKeyJoinColumn;
@@ -18,6 +20,9 @@ public class Administrador extends Persona {
 
     @Column(name = "cargo", length = 100)
     private String cargo;
+
+    @Column(name = "ultimo_acceso")
+    private Instant ultimoAcceso;
 
     public Administrador() {
         super();

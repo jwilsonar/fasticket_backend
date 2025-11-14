@@ -30,6 +30,7 @@ public class EventoMapper {
                 .horaInicio(evento.getHoraInicio())
                 .horaFin(evento.getHoraFin())
                 .imagenUrl(evento.getImagenUrl())
+                .imagenZonasUrl(evento.getImagenZonasUrl())
                 .tipoEvento(evento.getTipoEvento())
                 .estadoEvento(evento.getEstadoEvento())
                 .aforoDisponible(evento.getAforoDisponible())
@@ -48,6 +49,7 @@ public class EventoMapper {
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
         evento.setImagenUrl(dto.getImagenUrl());
+        evento.setImagenZonasUrl(dto.getImagenZonasUrl());
         evento.setTipoEvento(dto.getTipoEvento());
         evento.setEstadoEvento(dto.getEstadoEvento() != null ? dto.getEstadoEvento() : EstadoEvento.ACTIVO);
         evento.setAforoDisponible(dto.getAforoDisponible());
@@ -64,6 +66,7 @@ public class EventoMapper {
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
         evento.setImagenUrl(dto.getImagenUrl());
+        evento.setImagenZonasUrl(dto.getImagenZonasUrl());
         evento.setTipoEvento(dto.getTipoEvento());
         if (dto.getEstadoEvento() != null) {
             evento.setEstadoEvento(dto.getEstadoEvento());

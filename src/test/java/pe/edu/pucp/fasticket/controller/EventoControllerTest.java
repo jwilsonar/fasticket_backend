@@ -171,13 +171,17 @@ public class EventoControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearEvento_ConImagen() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de prueba".getBytes();
         org.springframework.mock.web.MockMultipartFile imagen =
-            new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
+            new org.springframework.mock.web.MockMultipartFile("imagenUrl", "test.jpg", "image/jpeg", imagenBytes);
+
+        byte[] imagenZonasBytes = "imagen zonas de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagenZonas =
+            new org.springframework.mock.web.MockMultipartFile("imagenZonasUrl", "zones.jpg", "image/jpeg", imagenZonasBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen)
+                        .file(imagenZonas)
                         .param("nombre", "Evento Con Imagen")
                         .param("descripcion", "Descripción del evento con imagen")
                         .param("fechaEvento", "2025-12-31")
@@ -190,7 +194,8 @@ public class EventoControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción del evento con imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test
@@ -199,7 +204,7 @@ public class EventoControllerTest {
         // Crear un archivo de prueba
         byte[] imagenBytes = "imagen de prueba".getBytes();
         org.springframework.mock.web.MockMultipartFile imagen =
-            new org.springframework.mock.web.MockMultipartFile("imagen", "test.jpg", "image/jpeg", imagenBytes);
+            new org.springframework.mock.web.MockMultipartFile("imagenUrl", "test.jpg", "image/jpeg", imagenBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen))
@@ -211,13 +216,17 @@ public class EventoControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearEvento_ConImagen_TodosLosCampos() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen completa de prueba".getBytes();
         org.springframework.mock.web.MockMultipartFile imagen =
-            new org.springframework.mock.web.MockMultipartFile("imagen", "complete.jpg", "image/jpeg", imagenBytes);
+            new org.springframework.mock.web.MockMultipartFile("imagenUrl", "complete.jpg", "image/jpeg", imagenBytes);
+
+        byte[] imagenZonasBytes = "imagen zonas completa de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagenZonas =
+            new org.springframework.mock.web.MockMultipartFile("imagenZonasUrl", "zones_complete.jpg", "image/jpeg", imagenZonasBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen)
+                        .file(imagenZonas)
                         .param("nombre", "Evento Completo Con Imagen")
                         .param("descripcion", "Descripción completa del evento con todos los campos")
                         .param("fechaEvento", "2026-06-15")
@@ -233,7 +242,8 @@ public class EventoControllerTest {
                 .andExpect(jsonPath("$.data.tipoEvento").value("ELECTRONICA"))
                 .andExpect(jsonPath("$.data.estadoEvento").value("ACTIVO"))
                 .andExpect(jsonPath("$.data.aforoDisponible").value(3000))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test
@@ -251,13 +261,17 @@ public class EventoControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testActualizarEvento_ConImagen() throws Exception {
-        // Crear un archivo de prueba
         byte[] imagenBytes = "imagen actualizada de prueba".getBytes();
         org.springframework.mock.web.MockMultipartFile imagen =
-            new org.springframework.mock.web.MockMultipartFile("imagen", "updated.jpg", "image/jpeg", imagenBytes);
+            new org.springframework.mock.web.MockMultipartFile("imagenUrl", "updated.jpg", "image/jpeg", imagenBytes);
+
+        byte[] imagenZonasBytes = "imagen zonas actualizada de prueba".getBytes();
+        org.springframework.mock.web.MockMultipartFile imagenZonas =
+            new org.springframework.mock.web.MockMultipartFile("imagenZonasUrl", "zones_updated.jpg", "image/jpeg", imagenZonasBytes);
 
         mockMvc.perform(multipart("/api/v1/eventos/" + eventoTest.getIdEvento() + "/con-imagen")
                         .file(imagen)
+                        .file(imagenZonas)
                         .param("nombre", "Evento Actualizado Con Imagen")
                         .param("descripcion", "Descripción actualizada del evento con imagen")
                         .param("fechaEvento", "2025-12-31")
@@ -274,7 +288,8 @@ public class EventoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción actualizada del evento con imagen"))
-                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test

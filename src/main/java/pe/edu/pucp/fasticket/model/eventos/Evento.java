@@ -47,6 +47,9 @@ public class Evento {
     @Column(name = "imagenUrl", length = 500)
     private String imagenUrl;
 
+    @Column(name = "imagenZonasUrl", length = 500)
+    private String imagenZonasUrl;
+
     @Column(name = "tipoEvento")
     @Enumerated(EnumType.STRING)
     private TipoEvento tipoEvento;

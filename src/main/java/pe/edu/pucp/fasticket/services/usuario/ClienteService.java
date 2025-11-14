@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.services.usuario;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.tickets.MisEntradasDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
@@ -18,10 +20,12 @@ import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -52,7 +56,7 @@ public class ClienteService {
     private final EventoMapper eventoMapper;
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
-
+    private final TicketRepository ticketRepositorio;
     /**
      * RF-030: Obtiene el perfil del cliente por email.
      * 
@@ -287,6 +291,31 @@ public class ClienteService {
     }
 
     /**
+     * Permite al cliente autenticado desactivar su propia cuenta (borrado lógico).
+     * El cliente no será eliminado físicamente, solo se marcará como inactivo.
+     * 
+     * @param email Email del cliente autenticado
+     * @throws ResourceNotFoundException si el cliente no existe
+     * @throws BusinessException si el cliente ya está desactivado
+     */
+    @Transactional
+    public void desactivarMiCuenta(String email) {
+        log.warn("Solicitud de auto-desactivación (borrado lógico) para cliente con email: {}", email);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
+        
+        if (!cliente.getActivo()) {
+            throw new BusinessException("Su cuenta ya se encuentra desactivada.");
+        }
+        
+        cliente.setActivo(false);
+        clienteRepository.save(cliente);
+
+        log.info("Cliente con email: {} ha desactivado su cuenta exitosamente.", email);
+    }
+
+    /**
      * NUEVO MÉTODO PARA RF-031: Marcar cliente como verificado
      * Permite a un admin marcar el correo/teléfono de un cliente como verificado.
      */
@@ -415,6 +444,23 @@ public class ClienteService {
 
         clienteRepository.save(cliente);
         log.info("Cuenta del cliente con email original {} desactivada y anonimizada (id={})", email, anonId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MisEntradasDTO> listarTicketsTransferibles(String emailCliente) {
+        log.info("Listando tickets transferibles (vigentes y VENDIDA) para: {}", emailCliente);
+
+        Cliente cliente = (Cliente) personasRepositorio.findByEmail(emailCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + emailCliente));
+
+        List<Ticket> tickets = ticketRepositorio.findTicketsTransferiblesByCliente(
+                cliente.getIdPersona(),
+                LocalDate.now()
+        );
+
+        return tickets.stream()
+                .map(MisEntradasDTO::new)
+                .collect(Collectors.toList());
     }
 }
 

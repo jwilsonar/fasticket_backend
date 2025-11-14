@@ -1,7 +1,10 @@
 package pe.edu.pucp.fasticket.services.auth;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -10,7 +13,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import pe.edu.pucp.fasticket.dto.auth.*;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.auth.CambioContrasenaDTO;
+import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
+import pe.edu.pucp.fasticket.dto.auth.RegistroRequestDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
@@ -23,12 +32,7 @@ import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.security.JwtUtil;
-
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
+import pe.edu.pucp.fasticket.services.EmailService;
 
 /**
  * Servicio de autenticación y autorización.
@@ -47,12 +51,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
     private final TokenBlacklistService tokenBlacklistService;
 
-    private static final int N_MAX_ATTEMPTS = 5;
-    // índices: 1er -> 0 min, 2do -> 0 min, 3ro -> 1 min, 4to -> 5 min, 5to -> 10 min
-    private static final int[] LOCK_TIME_DURATION = {0, 0, 1, 5, 10}; // en minutos
-
+    private static final int[] LOCK_TIME_DURATION = {0, 1, 15};
+    private static final int N_MAX_ATTEMPTS = LOCK_TIME_DURATION.length;
 
     /**
      * Determina el rol del usuario basado en el dominio del email.
@@ -223,6 +226,16 @@ public class AuthService {
             cliente.setFechaCreacion(LocalDate.now());
 
             personaGuardada = clienteRepository.save(cliente);
+
+            // PARA ENVIAR CORREO
+            if (personaGuardada instanceof Cliente) {
+                try {
+                    emailService.enviarCorreoBienvenida((Cliente) personaGuardada);
+                } catch (Exception e) {
+                    log.warn("Registro exitoso, pero falló el envío de correo de bienvenida. Causa: {}", e.getMessage());
+                }
+            }
+
             log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
         }
 

@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 
 @Data
 @NoArgsConstructor
@@ -75,4 +77,32 @@ public class TipoTicket {
     @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Ticket> tickets = new ArrayList<>();
 
+    @OneToMany(mappedBy = "tipoTicket", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    private List<PrecioEscalonado> preciosEscalonados = new ArrayList<>();
+
+    public Double getPrecioCalculado() {
+        if (this.evento == null || this.evento.getFechaEvento() == null) {
+            return this.precio;
+        }
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaEvento = this.evento.getFechaEvento();
+        // Si la compra es después del evento, no se vende
+        if (hoy.isAfter(fechaEvento)) {
+            throw new BusinessException("El evento ya pasó. No se pueden comprar tickets.");
+        }
+        // 1. PREVENTA (14+ días antes)
+        if (hoy.isBefore(fechaEvento.minusDays(14))) {
+            return this.precio * 0.80; // 20% Descuento
+        }
+        // 2. EARLY BIRD (Entre 7 y 14 días antes)
+        if (hoy.isBefore(fechaEvento.minusDays(7))) {
+            return this.precio * 0.90; // 10% Descuento
+        }
+        // 3. REGULAR (Entre 3 y 7 días antes)
+        if (hoy.isBefore(fechaEvento.minusDays(3))) {
+            return this.precio * 1.0; // 1.0 (Precio Base)
+        }
+        // 4. LATE (3 días antes o menos, hasta el día del evento)
+        return this.precio * 1.15; // 15% Recargo
+    }
 }

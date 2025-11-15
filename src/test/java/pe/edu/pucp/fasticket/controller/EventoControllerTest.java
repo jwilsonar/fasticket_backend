@@ -181,6 +181,7 @@ public class EventoControllerTest {
         
             mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen)
+                        .file(imagenZonas)
                         .param("nombre", "Evento Con Imagen")
                         .param("descripcion", "Descripción del evento con imagen")
                         .param("fechaEvento", "2025-12-31")

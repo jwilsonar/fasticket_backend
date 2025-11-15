@@ -1,7 +1,10 @@
 package pe.edu.pucp.fasticket.controller;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -22,10 +25,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import pe.edu.pucp.fasticket.config.TestConfig;
+import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.CrearTipoTicketRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
+import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
+import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
+import pe.edu.pucp.fasticket.repository.eventos.LocalesRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
+import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -43,6 +53,43 @@ public class TipoTicketControllerTest {
     @Autowired
     private ZonaRepository zonaRepositorio;
 
+    @Autowired
+    private LocalesRepositorio localesRepositorio;
+
+    @Autowired
+    private EventosRepositorio eventosRepositorio;
+
+    @Autowired
+    private TipoTicketRepositorio tipoTicketRepositorio;
+
+    private Evento eventoTest;
+    private Zona zonaTest;
+
+    private Zona crearZonaDePrueba() {
+        Local local = new Local();
+        local.setNombre("Local para Test");
+        local.setAforoTotal(100);
+        local.setActivo(true);
+        localesRepositorio.save(local);
+
+        Evento evento = new Evento();
+        evento.setNombre("Evento para Test");
+        evento.setFechaEvento(LocalDate.now().plusDays(1));
+        evento.setHoraInicio(LocalTime.now());
+        evento.setEstadoEvento(EstadoEvento.PUBLICADO);
+        evento.setActivo(true);
+        evento.setLocal(local);
+        eventoTest = eventosRepositorio.save(evento);
+
+        Zona zona = new Zona();
+        zona.setNombre("Zona Test");
+        zona.setAforoMax(100);
+        zona.setActivo(true);
+        zona.setEvento(eventoTest);
+        zonaTest = zonaRepositorio.save(zona);
+        return zonaTest;
+    }
+
     private String generarNombreUnico(String prefijo) {
         return prefijo + "_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
@@ -58,12 +105,7 @@ public class TipoTicketControllerTest {
 
     @Test
     public void testListarTiposTicket_FiltroPorZona() throws Exception {
-        // Crear una zona para el test
-        Zona zona = new Zona();
-        zona.setNombre("Zona Test Filtro");
-        zona.setAforoMax(100);
-        zona.setActivo(true);
-        zona = zonaRepositorio.save(zona);
+        Zona zona = crearZonaDePrueba();
 
         mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona()))
                 .andExpect(status().isOk())
@@ -75,17 +117,9 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testObtenerTipoTicketPorId_Publico() throws Exception {
-        // Primero crear un tipo de ticket para poder obtenerlo
-        Zona zona = zonaRepositorio.findAll().stream().findFirst().orElse(null);
-        if (zona == null) {
-            zona = new Zona();
-            zona.setNombre("Zona Test");
-            zona.setAforoMax(100);
-            zona.setActivo(true);
-            zona = zonaRepositorio.save(zona);
-        }
-
+        Zona zona = crearZonaDePrueba();
         String nombreUnico = generarNombreUnico("VIP Test");
+
         CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
         createRequest.setIdZona(zona.getIdZona());
         createRequest.setNombre(nombreUnico);
@@ -93,20 +127,17 @@ public class TipoTicketControllerTest {
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
 
-        // Crear el tipo de ticket
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extraer el ID del tipo de ticket creado
         TipoTicketDTO createdTicket = objectMapper.readValue(
                 objectMapper.readTree(createResponse).get("data").toString(),
                 TipoTicketDTO.class
         );
 
-        // Ahora obtener el tipo de ticket creado
         mockMvc.perform(get("/api/v1/tipos-ticket/" + createdTicket.getIdTipoTicket()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -123,16 +154,7 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testCrearTipoTicket_ConPermisoAdmin() throws Exception {
-        // Buscar una zona existente
-        Zona zona = zonaRepositorio.findAll().stream().findFirst().orElse(null);
-        if (zona == null) {
-            // Si no hay zonas, crear una para el test
-            zona = new Zona();
-            zona.setNombre("Zona Test");
-            zona.setAforoMax(100);
-            zona.setActivo(true);
-            zona = zonaRepositorio.save(zona);
-        }
+        Zona zona = crearZonaDePrueba();
 
         String nombreUnico = generarNombreUnico("VIP Test");
         CrearTipoTicketRequestDTO request = new CrearTipoTicketRequestDTO();
@@ -155,6 +177,7 @@ public class TipoTicketControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "CLIENTE")
     public void testCrearTipoTicket_SinPermisoCliente() throws Exception {
         CrearTipoTicketRequestDTO request = new CrearTipoTicketRequestDTO();
         request.setIdZona(1);
@@ -188,12 +211,7 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testCrearTipoTicket_StockExcedeAforo() throws Exception {
-        // Crear una zona específica para este test con aforo pequeño
-        Zona zona = new Zona();
-        zona.setNombre("Zona Test Stock Excedido");
-        zona.setAforoMax(50); // Aforo pequeño para el test
-        zona.setActivo(true);
-        zona = zonaRepositorio.save(zona);
+        Zona zona = crearZonaDePrueba();
 
         String nombreUnico = generarNombreUnico("VIP Test Stock Excedido");
         CrearTipoTicketRequestDTO request = new CrearTipoTicketRequestDTO();
@@ -201,7 +219,7 @@ public class TipoTicketControllerTest {
         request.setNombre(nombreUnico);
         request.setDescripcion("Acceso VIP de prueba");
         request.setPrecio(150.0);
-        request.setStock(150); // Stock mayor al aforo
+        request.setStock(150);
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -212,15 +230,7 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testActualizarTipoTicket_Exitoso() throws Exception {
-        // Primero crear un tipo de ticket
-        Zona zona = zonaRepositorio.findAll().stream().findFirst().orElse(null);
-        if (zona == null) {
-            zona = new Zona();
-            zona.setNombre("Zona Test");
-            zona.setAforoMax(100);
-            zona.setActivo(true);
-            zona = zonaRepositorio.save(zona);
-        }
+        Zona zona = crearZonaDePrueba();
 
         String nombreUnico = generarNombreUnico("VIP Test");
         CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
@@ -230,23 +240,19 @@ public class TipoTicketControllerTest {
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
 
-        // Crear el tipo de ticket
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extraer el ID del tipo de ticket creado
         TipoTicketDTO createdTicket = objectMapper.readValue(
                 objectMapper.readTree(createResponse).get("data").toString(),
                 TipoTicketDTO.class
         );
 
-        // Actualizar el tipo de ticket
         String nombreActualizado = generarNombreUnico("VIP Actualizado Test");
-        CrearTipoTicketRequestDTO updateRequest = new CrearTipoTicketRequestDTO();
-        updateRequest.setIdZona(zona.getIdZona());
+        ActualizarTipoTicketRequestDTO updateRequest = new ActualizarTipoTicketRequestDTO();
         updateRequest.setNombre(nombreActualizado);
         updateRequest.setDescripcion("Acceso VIP actualizado");
         updateRequest.setPrecio(200.0);
@@ -266,15 +272,7 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testEliminarTipoTicket_Exitoso() throws Exception {
-        // Crear un tipo de ticket para eliminar
-        Zona zona = zonaRepositorio.findAll().stream().findFirst().orElse(null);
-        if (zona == null) {
-            zona = new Zona();
-            zona.setNombre("Zona Test");
-            zona.setAforoMax(100);
-            zona.setActivo(true);
-            zona = zonaRepositorio.save(zona);
-        }
+        Zona zona = crearZonaDePrueba();
 
         String nombreUnico = generarNombreUnico("VIP Para Eliminar");
         CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
@@ -284,20 +282,17 @@ public class TipoTicketControllerTest {
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
 
-        // Crear el tipo de ticket
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extraer el ID del tipo de ticket creado
         TipoTicketDTO createdTicket = objectMapper.readValue(
                 objectMapper.readTree(createResponse).get("data").toString(),
                 TipoTicketDTO.class
         );
 
-        // Eliminar el tipo de ticket
         mockMvc.perform(delete("/api/v1/tipos-ticket/" + createdTicket.getIdTipoTicket()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -305,21 +300,15 @@ public class TipoTicketControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "CLIENTE")
     public void testEliminarTipoTicket_SinPermisoCliente() throws Exception {
         mockMvc.perform(delete("/api/v1/tipos-ticket/1"))
                 .andExpect(status().isForbidden());
     }
 
-    // ========== NUEVOS TESTS PARA FILTROS MEJORADOS ==========
-
     @Test
     public void testListarTiposTicket_FiltroPorZonaActivos() throws Exception {
-        // Crear una zona para el test
-        Zona zona = new Zona();
-        zona.setNombre("Zona Test Activos");
-        zona.setAforoMax(100);
-        zona.setActivo(true);
-        zona = zonaRepositorio.save(zona);
+        Zona zona = crearZonaDePrueba();
 
         mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona() + "&activos=true"))
                 .andExpect(status().isOk())
@@ -372,14 +361,8 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testListarTiposTicket_ConTiposTicketEnZona() throws Exception {
-        // Crear una zona
-        Zona zona = new Zona();
-        zona.setNombre("Zona Test Con Tickets");
-        zona.setAforoMax(100);
-        zona.setActivo(true);
-        zona = zonaRepositorio.save(zona);
+        Zona zona = crearZonaDePrueba();
 
-        // Crear un tipo de ticket en esa zona
         String nombreUnico = generarNombreUnico("VIP Test Filtro");
         CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
         createRequest.setIdZona(zona.getIdZona());
@@ -388,13 +371,11 @@ public class TipoTicketControllerTest {
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
 
-        // Crear el tipo de ticket como administrador
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated());
 
-        // Ahora probar el filtro por zona
         mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -408,14 +389,8 @@ public class TipoTicketControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     public void testListarTiposTicket_ConTiposTicketActivosEnZona() throws Exception {
-        // Crear una zona
-        Zona zona = new Zona();
-        zona.setNombre("Zona Test Con Tickets Activos");
-        zona.setAforoMax(100);
-        zona.setActivo(true);
-        zona = zonaRepositorio.save(zona);
+        Zona zona = crearZonaDePrueba();
 
-        // Crear un tipo de ticket activo en esa zona
         String nombreUnico = generarNombreUnico("VIP Test Activo");
         CrearTipoTicketRequestDTO createRequest = new CrearTipoTicketRequestDTO();
         createRequest.setIdZona(zona.getIdZona());
@@ -424,13 +399,11 @@ public class TipoTicketControllerTest {
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
 
-        // Crear el tipo de ticket como administrador
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated());
 
-        // Ahora probar el filtro por zona activos
         mockMvc.perform(get("/api/v1/tipos-ticket?zona=" + zona.getIdZona() + "&activos=true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))

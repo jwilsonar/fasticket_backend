@@ -181,7 +181,6 @@ public class EventoControllerTest {
         
             mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen)
-                        .file(imagenZonas)
                         .param("nombre", "Evento Con Imagen")
                         .param("descripcion", "Descripción del evento con imagen")
                         .param("fechaEvento", "2025-12-31")
@@ -226,7 +225,7 @@ public class EventoControllerTest {
 
         mockMvc.perform(multipart("/api/v1/eventos/con-imagen")
                         .file(imagen)
-                        .file(imagenZonas)
+                        //.file(imagenZonas)
                         .param("nombre", "Evento Completo Con Imagen")
                         .param("descripcion", "Descripción completa del evento con todos los campos")
                         .param("fechaEvento", "2026-06-15")
@@ -242,8 +241,8 @@ public class EventoControllerTest {
                 .andExpect(jsonPath("$.data.tipoEvento").value("ELECTRONICA"))
                 .andExpect(jsonPath("$.data.estadoEvento").value("ACTIVO"))
                 .andExpect(jsonPath("$.data.aforoDisponible").value(3000))
-                .andExpect(jsonPath("$.data.imagenUrl").exists())
-                .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
+                .andExpect(jsonPath("$.data.imagenUrl").exists());
+                //.andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 
     @Test

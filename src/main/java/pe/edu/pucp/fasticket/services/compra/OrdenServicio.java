@@ -18,11 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.mail.FetchProfile.Item;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
+import pe.edu.pucp.fasticket.dto.compra.BeneficiosDTO;
+import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemsDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.ProcesarCompraResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -546,7 +550,7 @@ public class OrdenServicio {
         }
     }
 
-
+    @Transactional
     private List<DatosAsistenteDTO> obtenerAsistentesParaItem(ItemCarrito itemCarrito) {
         if (itemCarrito.getTickets() == null || itemCarrito.getTickets().isEmpty()) {
             log.warn("El ItemCarrito ID {} del carrito no tiene tickets asociados.", itemCarrito.getIdItemCarrito());

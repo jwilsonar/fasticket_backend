@@ -21,7 +21,7 @@ import pe.edu.pucp.fasticket.services.compra.TransferenciaEntradaServicio;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/tickets") // <--- ESTA ES LA RUTA BASE
+@RequestMapping("/api/v1/tickets")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Tickets", description = "Endpoints para gestionar tickets individuales (incluyendo historial)")

@@ -28,6 +28,7 @@ public class OrdenResumenDTO {
         this.fecha = orden.getFechaOrden();
         this.total = orden.getTotal();
         this.estado = orden.getEstado().toString();
+        this.subtotal = orden.getSubtotal();
         if (orden.getItems() != null && !orden.getItems().isEmpty()) {
             // Obtener evento a través del repositorio
             Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(orden.getItems().get(0).getTipoTicket().getIdTipoTicket())

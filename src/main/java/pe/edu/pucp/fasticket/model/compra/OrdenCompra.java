@@ -110,6 +110,17 @@ public class OrdenCompra {
     @Column(name = "codigo_promocional")
     private String codigoPromocionalAplicado;
 
+    // --- INICIO RF-081: DATOS DE FACTURACIÓN (Opcional) ---
+    @Column(name = "fact_ruc", length = 11)
+    private String ruc;
+
+    @Column(name = "fact_razon_social", length = 200)
+    private String razonSocial;
+
+    @Column(name = "fact_direccion_fiscal", length = 255)
+    private String direccionFiscal;
+    // --- FIN RF-081 ---
+
     public void addItem(ItemCarrito item) {
         items.add(item);
         item.setOrdenCompra(this);

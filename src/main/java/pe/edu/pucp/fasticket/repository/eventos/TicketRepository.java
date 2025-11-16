@@ -27,7 +27,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
      * @param pageable Objeto Pageable para limitar los resultados (ej: PageRequest.of(0, count)).
      * @return Una lista de tickets disponibles, limitada a la cantidad solicitada.
      */
-    @Query("SELECT t FROM Ticket t WHERE t.tipoTicket = :tipoTicket AND t.estado = :estado ORDER BY t.idTicket ASC")
+    @Query("SELECT t FROM Ticket t WHERE t.tipoTicket = :tipoTicket AND t.estado = :estado AND t.activo = true ORDER BY t.idTicket ASC")
     List<Ticket> findAvailableTicketsByTypeAndState(
             @Param("tipoTicket") TipoTicket tipoTicket,
             @Param("estado") EstadoTicket estado,

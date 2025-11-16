@@ -24,7 +24,6 @@ import pe.edu.pucp.fasticket.services.CarroComprasService;
 )
 @RestController
 @RequestMapping("/api/v1/carrito")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
 public class CarritoController {

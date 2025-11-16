@@ -10,12 +10,19 @@ import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.mail.FetchProfile.Item;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.compra.*;
+import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
+import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
+import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
+import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -26,7 +33,10 @@ import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
@@ -43,9 +53,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
-import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
-import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
 import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
 
 @Service
@@ -95,10 +107,10 @@ public class OrdenServicio {
     }
 
     @Transactional
-    public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
-        Cliente cliente = clienteRepository.findById(datosOrden.getIdCliente())
+    public OrdenCompra crearOrden(CrearOrdenDTO datosOrden, Integer idCliente) {
+        Cliente cliente = clienteRepository.findById(idCliente)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
+                        "Cliente no encontrado con id: " + idCliente));
 
         CarroCompras carrito = carroComprasRepository
                 .findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
@@ -115,6 +127,12 @@ public class OrdenServicio {
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         orden.setActivo(true);
 
+        // --- INICIO RF-081: GUARDAR DATOS DE FACTURACIÓN (Opcional) ---
+        orden.setRuc(datosOrden.getRuc());
+        orden.setRazonSocial(datosOrden.getRazonSocial());
+        orden.setDireccionFiscal(datosOrden.getDireccionFiscal());
+        // --- FIN RF-081 ---
+
         if (carrito != null) {
             orden.setCarroCompras(carrito);
             log.info("Carrito ID {} asociado a la orden.", carrito.getIdCarro());
@@ -123,7 +141,7 @@ public class OrdenServicio {
         }
 
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
-        log.info("Orden PENDIENTE ID: {} creada.", ordenGuardada.getIdOrdenCompra());
+        log.info("Orden PENDIENTE ID: {} creada para cliente ID: {}.", ordenGuardada.getIdOrdenCompra(), idCliente);
 
         List<ItemCarrito> items = construirYGuardarItems(datosOrden.getItems(), cliente, ordenGuardada);
         ordenGuardada.setItems(items);
@@ -137,10 +155,22 @@ public class OrdenServicio {
         return ordenFinal;
     }
 
+    /**
+     * Overload para compatibilidad con tests que envían idCliente dentro del DTO.
+     * En el uso normal (API), se recomienda usar la variante con (CrearOrdenDTO, Integer).
+     */
+    @Transactional
+    public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
+        if (datosOrden == null || datosOrden.getIdCliente() == null) {
+            throw new ResourceNotFoundException("Cliente no encontrado: idCliente nulo");
+        }
+        return crearOrden(datosOrden, datosOrden.getIdCliente());
+    }
+
     // --- NUEVO MÉTODO HELPER (RF-046) ---
     private void validarLimitePorCompra(List<ItemSeleccionadoDTO> itemsDTO) {
         int totalTicketsEnOrden = itemsDTO.stream()
-                .mapToInt(ItemSeleccionadoDTO::getCantidad)
+                .mapToInt(item -> item.getCantidad() != null ? item.getCantidad() : 0)
                 .sum();
 
         // Leer el límite desde la BD (RF-046)
@@ -158,22 +188,41 @@ public class OrdenServicio {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
 
+            // VALIDACIÓN CLAVE (RF-028 + RF-084)
+            if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+                throw new BusinessException("La venta de esta categoría de ticket está pausada temporalmente.");
+            }
+
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
         }
     }
+
+
 
     private void validarStockDisponible(List<ItemSeleccionadoDTO> itemsDTO) {
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+            log.info("Tipo de ticket: {}", tipoTicket);
+            // Validar que el tipo de ticket esté activo
+            if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+                throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
+            }
 
+            // Validar el contador de cantidad disponible (evitar NPEs y mensajes genéricos)
+            Integer cantidadDisponible = tipoTicket.getCantidadDisponible();
+            Integer cantidadSolicitada = itemDTO.getCantidad() != null ? itemDTO.getCantidad() : 0;
+            if (cantidadDisponible == null || cantidadDisponible < cantidadSolicitada) {
+                throw new BusinessException("No hay suficientes tickets disponibles");
+            }
+
+            // Validar que existan suficientes tickets en estado DISPONIBLE en la BD
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
 
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
-                throw new BusinessException("No hay suficientes tickets disponibles para " + tipoTicket.getNombre() +
-                        ". Solicitados: " + itemDTO.getCantidad() + ", Disponibles: " + ticketsDisponibles.size());
+                throw new BusinessException("No hay suficientes tickets disponibles");
             }
         }
     }
@@ -227,17 +276,21 @@ public class OrdenServicio {
         List<ItemCarrito> itemsGuardados = new ArrayList<>();
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
-
-            validarItemYAsistentes(itemDTO);
-
+            // Recargar el TipoTicket para obtener el estado más reciente (evitar condiciones de carrera)
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
-
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+            
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
 
-            if (itemDTO.getAsistentes().size() != itemDTO.getCantidad()) {
-                throw new RuntimeException("La cantidad de asistentes no coincide con la cantidad de tickets.");
+            // Validar stock justo antes de reservar (evitar condiciones de carrera)
+            if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+                throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
+            }
+
+            Integer cantidadDisponible = tipoTicket.getCantidadDisponible();
+            Integer cantidadSolicitada = itemDTO.getCantidad() != null ? itemDTO.getCantidad() : 0;
+            if (cantidadDisponible == null || cantidadDisponible < cantidadSolicitada) {
+                throw new BusinessException("No hay suficientes tickets disponibles");
             }
 
             ItemCarrito item = new ItemCarrito();
@@ -250,12 +303,15 @@ public class OrdenServicio {
 
             ItemCarrito itemGuardado = itemCarritoRepositorio.save(item);
 
+            // Validar que existan suficientes tickets en estado DISPONIBLE y activos
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
 
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para " + tipoTicket.getNombre());
+                throw new BusinessException("Stock insuficiente (inventario) para '" + tipoTicket.getNombre() + 
+                        "'. Solicitados: " + itemDTO.getCantidad() + 
+                        ", Disponibles en BD: " + ticketsDisponibles.size());
             }
 
             List<Ticket> ticketsReservados = new ArrayList<>();
@@ -263,8 +319,6 @@ public class OrdenServicio {
             for (int i = 0; i < itemDTO.getCantidad(); i++) {
 
                 Ticket ticket = ticketsDisponibles.get(i);
-                DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
-
                 ticket.setEstado(EstadoTicket.RESERVADA);
                 ticket.setCliente(cliente);
 
@@ -274,11 +328,15 @@ public class OrdenServicio {
                 ticket.setEvento(evento);
                 ticket.setItemCarrito(itemGuardado);
                 ticket.setOrdenCompra(orden);
-                ticket.setTipoTicket(tipoTicket);
-                ticket.setNombreAsistente(asistente.getNombres());
-                ticket.setApellidoAsistente(asistente.getApellidos());
-                ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
-                ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
+
+                // Asignar asistentes si vienen en el DTO (para tests/unit)
+                if (itemDTO.getAsistentes() != null && i < itemDTO.getAsistentes().size()) {
+                    DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
+                    ticket.setNombreAsistente(asistente.getNombres());
+                    ticket.setApellidoAsistente(asistente.getApellidos());
+                    ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
+                    ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
+                }
 
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
@@ -291,11 +349,21 @@ public class OrdenServicio {
             itemGuardado.setTickets(ticketsReservados);
 
             itemsGuardados.add(itemGuardado);
-
-            int cantidadReservada = itemDTO.getCantidad();
-            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - cantidadReservada);
-            tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() + cantidadReservada);
+            
+            // Actualizar contadores del TipoTicket de forma atómica
+            int cantidadReservada = itemDTO.getCantidad() != null ? itemDTO.getCantidad() : 0;
+            int disponibleActual = tipoTicket.getCantidadDisponible() != null ? tipoTicket.getCantidadDisponible() : 0;
+            int vendidaActual = tipoTicket.getCantidadVendida() != null ? tipoTicket.getCantidadVendida() : 0;
+            int nuevaCantidadDisponible = disponibleActual - cantidadReservada;
+            int nuevaCantidadVendida = vendidaActual + cantidadReservada;
+            
+            tipoTicket.setCantidadDisponible(Math.max(nuevaCantidadDisponible, 0)); // Evitar valores negativos
+            tipoTicket.setCantidadVendida(nuevaCantidadVendida);
+            
+            // Guardar el TipoTicket actualizado
             tipoTicketRepositorio.save(tipoTicket);
+            log.debug("Stock actualizado para TipoTicket ID {}: Disponible={}, Vendida={}", 
+                    tipoTicket.getIdTipoTicket(), tipoTicket.getCantidadDisponible(), tipoTicket.getCantidadVendida());
         }
 
         return itemsGuardados;
@@ -303,24 +371,35 @@ public class OrdenServicio {
 
 
     public OrdenResumenDTO generarResumenOrden(CrearOrdenDTO datosOrden) {
+        // Este método genera un resumen previo a la creación de la orden
+        // Nota: Para obtener un resumen completo de una orden ya creada, usar el constructor de OrdenResumenDTO con OrdenCompra
         List<ItemResumenDTO> resumenItems = new ArrayList<>();
         double subtotal = 0.0;
 
         for (ItemSeleccionadoDTO item : datosOrden.getItems()) {
-            TipoTicket tipoTicket = tipoTicketRepositorio.findById(item.getIdTipoTicket()).orElseThrow(() -> new RuntimeException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
+            if (item.getIdTipoTicket() == null) {
+                continue;
+            }
+            TipoTicket tipoTicket = tipoTicketRepositorio.findById(item.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado con id: " + item.getIdTipoTicket()));
             ItemResumenDTO itemResumen = new ItemResumenDTO();
             itemResumen.setNombreTipoTicket(tipoTicket.getNombre());
-            itemResumen.setCantidad(item.getCantidad());
+            itemResumen.setCantidad(item.getCantidad() != null ? item.getCantidad() : 0);
             double precioActual = tipoTicket.getPrecioCalculado();
             itemResumen.setPrecioUnitario(precioActual);
-            subtotal += tipoTicket.getPrecio() * item.getCantidad();
+            int cantidad = item.getCantidad() != null ? item.getCantidad() : 0;
+            subtotal += tipoTicket.getPrecio() * cantidad;
             resumenItems.add(itemResumen);
         }
-        OrdenResumenDTO resumen = new OrdenResumenDTO();
+        
+        // Crear una orden temporal para generar el resumen completo
+        // Nota: Este método está deprecado, se recomienda crear la orden primero y luego generar el resumen
+        OrdenCompra ordenTemporal = new OrdenCompra();
+        ordenTemporal.setEstado(EstadoCompra.PENDIENTE); // Evitar NPE en mapeos que usan estado
+        ordenTemporal.setSubtotal(subtotal);
+        ordenTemporal.setTotal(subtotal);
+        OrdenResumenDTO resumen = new OrdenResumenDTO(ordenTemporal);
         resumen.setItems(resumenItems);
-        resumen.setSubtotal(subtotal);
-        resumen.setTotal(subtotal);
-
         return resumen;
     }
 
@@ -453,19 +532,8 @@ public class OrdenServicio {
         }
     }
 
-    private void validarItemYAsistentes(ItemSeleccionadoDTO item) {
-        if (item.getAsistentes() == null || item.getAsistentes().size() != item.getCantidad()) {
-            throw new IllegalArgumentException("La cantidad de asistentes no coincide con la cantidad solicitada");
-        }
-        for (DatosAsistenteDTO a : item.getAsistentes()) {
-            if (a.getNombres() == null || a.getNombres().isBlank())
-                throw new IllegalArgumentException("Nombre asistente obligatorio");
-            if (a.getNumeroDocumento() == null || a.getNumeroDocumento().isBlank())
-                throw new IllegalArgumentException("Documento asistente obligatorio");
-            if (a.getTipoDocumento() == null)
-                throw new IllegalArgumentException("Tipo de documento obligatorio");
-        }
-    }
+    // Método eliminado: ya no se validan asistentes en la creación de la orden
+    // Los datos de asistentes se pueden asignar posteriormente si es necesario
     
     private void validarLimitePorPersona(TipoTicket tipoTicket, Integer cantidad, Cliente cliente) {
         if (tipoTicket.getLimitePorPersona() != null && tipoTicket.getLimitePorPersona() > 0) {
@@ -498,19 +566,26 @@ public class OrdenServicio {
     }
 
     @Transactional
-    public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, List<AsistenteParaItemDTO> itemsConAsistentes) {
+    public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, CheckoutCarritoRequestDTO requestDTO) {
         CarroCompras carrito = carroComprasRepository.findById(idCarrito)
                 .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado"));
 
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
             throw new BusinessException("El carrito está inactivo o vacío.");
         }
+        List<AsistenteParaItemDTO> itemsConAsistentes = requestDTO.getItemsConAsistentes();
 
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(carrito.getCliente());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         orden.setCarroCompras(carrito);
+
+        // --- INICIO RF-081: GUARDAR DATOS DE FACTURACIÓN (Opcional) ---
+        orden.setRuc(requestDTO.getRuc());
+        orden.setRazonSocial(requestDTO.getRazonSocial());
+        orden.setDireccionFiscal(requestDTO.getDireccionFiscal());
+        // --- FIN RF-081 ---
 
         asignarAsistentesATicketsDelCarrito(carrito, itemsConAsistentes, orden);
 
@@ -625,8 +700,11 @@ public class OrdenServicio {
                 // Simplemente actualizar el contador del TipoTicket
             }
             TipoTicket tipo = item.getTipoTicket();
-            tipo.setCantidadDisponible(tipo.getCantidadDisponible() + item.getCantidad());
-            tipo.setCantidadVendida(tipo.getCantidadVendida() - item.getCantidad()); // Corregir contador de vendidos
+            int disponibleActual = tipo.getCantidadDisponible() != null ? tipo.getCantidadDisponible() : 0;
+            int vendidaActual = tipo.getCantidadVendida() != null ? tipo.getCantidadVendida() : 0;
+            int cantidad = item.getCantidad() != null ? item.getCantidad() : 0;
+            tipo.setCantidadDisponible(disponibleActual + cantidad);
+            tipo.setCantidadVendida(Math.max(vendidaActual - cantidad, 0)); // Corregir contador de vendidos
             tipoTicketRepositorio.save(tipo);
         }
     }
@@ -685,6 +763,46 @@ public class OrdenServicio {
         }
             
         return new ProcesarCompraResponseDTO(itemsDTOList, beneficios);
+    }
+    
+    /**
+     * Lista todas las órdenes de un cliente específico.
+     * @param idCliente ID del cliente
+     * @return Lista de órdenes del cliente
+     */
+    public List<OrdenCompra> listarOrdenesPorCliente(Integer idCliente) {
+        log.info("Listando órdenes para cliente ID: {}", idCliente);
+        return ordenCompraRepositorio.findByCliente_IdPersonaOrderByFechaOrdenDesc(idCliente);
+    }
+
+    /**
+     * Lista todas las órdenes (solo para administradores).
+     * @return Lista de todas las órdenes
+     */
+    public List<OrdenCompra> listarTodasLasOrdenes() {
+        log.info("Listando todas las órdenes (admin)");
+        return ordenCompraRepositorio.findAllByOrderByFechaOrdenDesc();
+    }
+
+    /**
+     * Lista órdenes por estado.
+     * @param estado Estado de la orden
+     * @return Lista de órdenes con el estado especificado
+     */
+    public List<OrdenCompra> listarOrdenesPorEstado(EstadoCompra estado) {
+        log.info("Listando órdenes con estado: {}", estado);
+        return ordenCompraRepositorio.findByEstado(estado);
+    }
+
+    /**
+     * Lista órdenes de un cliente por estado.
+     * @param idCliente ID del cliente
+     * @param estado Estado de la orden
+     * @return Lista de órdenes del cliente con el estado especificado
+     */
+    public List<OrdenCompra> listarOrdenesPorClienteYEstado(Integer idCliente, EstadoCompra estado) {
+        log.info("Listando órdenes para cliente ID: {} con estado: {}", idCliente, estado);
+        return ordenCompraRepositorio.findByCliente_IdPersonaAndEstado(idCliente, estado);
     }
 
 }

@@ -7,11 +7,13 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.compra.SolicitudTransferencia;
 import pe.edu.pucp.fasticket.model.compra.TransferenciaEntrada;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -103,4 +105,7 @@ public class Ticket {
 
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransferenciaEntrada> historialTransferencias;
+
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL)
+    private List<SolicitudTransferencia> solicitudesTransferencia = new ArrayList<>();
 }

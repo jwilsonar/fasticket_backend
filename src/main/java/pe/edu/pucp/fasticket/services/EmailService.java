@@ -3,11 +3,14 @@ package pe.edu.pucp.fasticket.services;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import pe.edu.pucp.fasticket.events.TicketTransferidoEvent;
 import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.compra.TransferenciaEntrada;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
@@ -172,5 +175,22 @@ public class EmailService {
         // Función para acceder a la función private del servicio.
 
         enviarEmail(email, asunto, cuerpo, true);
+    }
+
+    /**
+     * Escucha el evento de transferencia y envía los correos.
+     */
+    @EventListener
+    public void handleTicketTransferido(TicketTransferidoEvent event) {
+        log.info("Manejando evento de transferencia de ticket...");
+
+        // Extraemos los datos del evento
+        TransferenciaEntrada historial = event.getHistorial();
+        Cliente emisor = historial.getEmisor();
+        Cliente receptor = historial.getReceptor();
+        Ticket ticket = historial.getTicket();
+
+        // Llamamos al método que ya tenías
+        enviarCorreoTransferencia(emisor, receptor, ticket);
     }
 }

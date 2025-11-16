@@ -143,9 +143,16 @@ public class OrdenServicio {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
 
+            // VALIDACIÓN CLAVE (RF-028 + RF-084)
+            if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
+                throw new BusinessException("La venta de esta categoría de ticket está pausada temporalmente.");
+            }
+
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
         }
     }
+
+
 
     private void validarStockDisponible(List<ItemSeleccionadoDTO> itemsDTO) {
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {

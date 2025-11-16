@@ -44,4 +44,6 @@ public class ConfiguracionController {
         List<ConfiguracionDTO> configsActualizadas = configuracionService.actualizarConfiguraciones(dtos);
         return ResponseEntity.ok(StandardResponse.success("Configuraciones actualizadas", configsActualizadas));
     }
+
+
 }

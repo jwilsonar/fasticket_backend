@@ -28,6 +28,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.compra.HistorialCompraDTO;
 import pe.edu.pucp.fasticket.dto.compra.TransferenciaRequestDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.tickets.MisEntradasDTO;
@@ -35,7 +36,6 @@ import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
-import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.services.compra.TransferenciaService;
 import pe.edu.pucp.fasticket.services.usuario.ClienteService;
@@ -152,14 +152,15 @@ public class ClienteController {
     }
 
     @Operation(
-        summary = "Historial de compras del cliente",
-        description = "RF-032, RF-091: Obtiene el historial completo de compras del cliente autenticado",
+        summary = "Obtener historial de compras",
+        description = "RF-032, RF-091: Obtiene el historial completo de compras del cliente autenticado con información de pagos, eventos, items y tickets",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Historial obtenido exitosamente"
+            description = "Historial obtenido exitosamente",
+            content = @Content(schema = @Schema(implementation = HistorialCompraDTO.class))
         ),
         @ApiResponse(
             responseCode = "401",
@@ -168,27 +169,67 @@ public class ClienteController {
     })
     @GetMapping("/historial-compras")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<List<OrdenCompra>>> obtenerHistorialCompras(
+    public ResponseEntity<StandardResponse<List<HistorialCompraDTO>>> obtenerHistorialCompras(
             @AuthenticationPrincipal UserDetails userDetails) {
         
         log.info("GET /api/v1/clientes/historial-compras - Usuario: {}", userDetails.getUsername());
-        List<OrdenCompra> historial = clienteService.obtenerHistorialCompras(userDetails.getUsername());
+        List<HistorialCompraDTO> historial = clienteService.obtenerHistorialCompras(userDetails.getUsername());
         return ResponseEntity.ok(StandardResponse.success("Historial de compras obtenido exitosamente", historial));
     }
 
     @Operation(
-        summary = "Historial de compras por ID",
+        summary = "Obtener compra individual",
+        description = "Obtiene los detalles completos de una compra específica por ID de orden",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Compra obtenida exitosamente",
+            content = @Content(schema = @Schema(implementation = HistorialCompraDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Orden de compra no encontrada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "No tiene permisos para acceder a esta orden",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado"
+        )
+    })
+    @GetMapping("/compras/{idOrdenCompra}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<HistorialCompraDTO>> obtenerCompraIndividual(
+            @Parameter(description = "ID de la orden de compra", required = true, example = "1")
+            @PathVariable Integer idOrdenCompra,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        log.info("GET /api/v1/clientes/compras/{} - Usuario: {}", idOrdenCompra, userDetails.getUsername());
+        HistorialCompraDTO compra = clienteService.obtenerCompraIndividual(idOrdenCompra, userDetails.getUsername());
+        return ResponseEntity.ok(StandardResponse.success("Compra obtenida exitosamente", compra));
+    }
+
+    @Operation(
+        summary = "Historial de compras por ID de cliente",
         description = "Obtiene el historial de compras de un cliente específico. Solo administradores.",
         security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Historial obtenido exitosamente"
+            description = "Historial obtenido exitosamente",
+            content = @Content(schema = @Schema(implementation = HistorialCompraDTO.class))
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Cliente no encontrado"
+            description = "Cliente no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         ),
         @ApiResponse(
             responseCode = "403",
@@ -197,12 +238,12 @@ public class ClienteController {
     })
     @GetMapping("/{id}/historial-compras")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<List<OrdenCompra>>> obtenerHistorialComprasPorId(
+    public ResponseEntity<StandardResponse<List<HistorialCompraDTO>>> obtenerHistorialComprasPorId(
             @Parameter(description = "ID del cliente", required = true, example = "1")
             @PathVariable Integer id) {
         
         log.info("GET /api/v1/clientes/{}/historial-compras", id);
-        List<OrdenCompra> historial = clienteService.obtenerHistorialComprasPorId(id);
+        List<HistorialCompraDTO> historial = clienteService.obtenerHistorialComprasPorId(id);
         return ResponseEntity.ok(StandardResponse.success("Historial de compras obtenido exitosamente", historial));
     }
 

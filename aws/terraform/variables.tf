@@ -20,7 +20,7 @@ variable "db_password" {
 variable "frontend_url" {
   description = "Frontend URL para CORS (ej: https://fasticket.com)"
   type        = string
-  default     = "https://fasticket.com"
+  default     = "https://fasticket-proyect.netlify.app/"
 }
 
 variable "swagger_enabled" {
@@ -33,5 +33,35 @@ variable "s3_bucket_prefix" {
   description = "Prefijo para el nombre del bucket S3 (se añadirá un sufijo aleatorio)"
   type        = string
   default     = "fasticket-images"
+}
+
+variable "brevo_enabled" {
+  description = "Habilitar proveedor de emails Brevo en la app (true/false)"
+  type        = string
+  default     = "true"
+}
+
+variable "brevo_api_key" {
+  description = "API Key de Brevo (no commitear, usar variables de entorno/secretos)"
+  type        = string
+  sensitive   = true
+}
+
+variable "brevo_sender_email" {
+  description = "Email remitente verificado en Brevo"
+  type        = string
+  default     = "noreply@fasticket.com"
+}
+
+variable "brevo_sender_name" {
+  description = "Nombre del remitente para correos Brevo"
+  type        = string
+  default     = "Fasticket"
+}
+
+variable "brevo_api_url" {
+  description = "Endpoint SMTP/API de Brevo"
+  type        = string
+  default     = "https://api.brevo.com/v3/smtp/email"
 }
 

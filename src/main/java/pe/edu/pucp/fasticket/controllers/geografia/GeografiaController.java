@@ -16,7 +16,6 @@ import java.util.List;
 @RequestMapping("/api/v1/geografia")
 @RequiredArgsConstructor
 @Tag(name = "Geografía", description = "Endpoints para listas de Departamentos, Provincias y Distritos")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 public class GeografiaController {
     private final GeografiaService geografiaService;
 

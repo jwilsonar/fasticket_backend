@@ -13,7 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,7 +53,6 @@ import pe.edu.pucp.fasticket.services.eventos.EventoService;
 )
 @RestController
 @RequestMapping("/api/v1/eventos")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
 public class EventoController {
@@ -172,6 +170,9 @@ public class EventoController {
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
             @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
+            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
+            @RequestParam(value = "restricciones", required = false) String restricciones,
+            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
             @RequestParam(value = "idLocal", required = false) Integer idLocal) {
 
         log.info("POST /api/v1/eventos/con-imagen - Crear: {}", nombre != null ? nombre : "con imagen");
@@ -185,6 +186,10 @@ public class EventoController {
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
             dto.setDescripcion(descripcion);
+            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
+            dto.setRestricciones(restricciones);
+            dto.setPoliticasDevolucion(politicasDevolucion);
+
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }
@@ -257,6 +262,9 @@ public class EventoController {
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
             @RequestParam(value = "horaInicio", required = false) String horaInicio,
             @RequestParam(value = "horaFin", required = false) String horaFin,
+            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
+            @RequestParam(value = "restricciones", required = false) String restricciones,
+            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
             @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
@@ -273,6 +281,9 @@ public class EventoController {
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
             dto.setDescripcion(descripcion);
+            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
+            dto.setRestricciones(restricciones);
+            dto.setPoliticasDevolucion(politicasDevolucion);
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }

@@ -3,9 +3,12 @@ package pe.edu.pucp.fasticket.controller;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,6 +85,9 @@ public class EventoControllerTest {
         evento.setTipoEvento(TipoEvento.ROCK);
         evento.setEstadoEvento(EstadoEvento.ACTIVO);
         evento.setAforoDisponible(5000);
+        evento.setMenoresDeEdadPermitidos(false);
+        evento.setRestricciones("Prohibido el ingreso de menores de 18 años");
+        evento.setPoliticasDevolucion("No se permiten devoluciones");
         evento.setActivo(true);
         evento.setFechaCreacion(LocalDate.now());
         evento.setLocal(localTest);
@@ -190,7 +196,10 @@ public class EventoControllerTest {
                         .param("tipoEvento", "ROCK")
                         .param("estadoEvento", "ACTIVO")
                         .param("aforoDisponible", "1000")
-                        .param("idLocal", localTest.getIdLocal().toString()))
+                        .param("idLocal", localTest.getIdLocal().toString())
+                        .param("menoresDeEdadPermitidos", "false")
+                        .param("restricciones", "Prohibido el ingreso de menores de 18 años")
+                        .param("politicasDevolucion", "No se permiten devoluciones"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción del evento con imagen"))
@@ -235,10 +244,16 @@ public class EventoControllerTest {
                         .param("tipoEvento", "ELECTRONICA")
                         .param("estadoEvento", "ACTIVO")
                         .param("aforoDisponible", "3000")
-                        .param("idLocal", localTest.getIdLocal().toString()))
+                        .param("idLocal", localTest.getIdLocal().toString())
+                        .param("menoresDeEdadPermitidos", "true")
+                        .param("restricciones", "Prohibido el ingreso de menores de 18 años")
+                        .param("politicasDevolucion", "No se permiten devoluciones"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.nombre").value("Evento Completo Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción completa del evento con todos los campos"))
+                .andExpect(jsonPath("$.data.menoresDeEdadPermitidos").value(anyOf(is(true), is(false))))
+                .andExpect(jsonPath("$.data.restricciones").value("Prohibido el ingreso de menores de 18 años"))
+                .andExpect(jsonPath("$.data.politicasDevolucion").value("No se permiten devoluciones"))
                 .andExpect(jsonPath("$.data.tipoEvento").value("ELECTRONICA"))
                 .andExpect(jsonPath("$.data.estadoEvento").value("ACTIVO"))
                 .andExpect(jsonPath("$.data.aforoDisponible").value(3000))
@@ -281,6 +296,9 @@ public class EventoControllerTest {
                         .param("estadoEvento", "ACTIVO")
                         .param("aforoDisponible", "2000")
                         .param("idLocal", localTest.getIdLocal().toString())
+                        .param("menoresDeEdadPermitidos", "false")
+                        .param("restricciones", "Prohibido el ingreso de menores de 18 años")
+                        .param("politicasDevolucion", "No se permiten devoluciones")
                         .with(request -> {
                             request.setMethod("PUT");
                             return request;
@@ -289,6 +307,9 @@ public class EventoControllerTest {
                 .andExpect(jsonPath("$.data.nombre").value("Evento Actualizado Con Imagen"))
                 .andExpect(jsonPath("$.data.descripcion").value("Descripción actualizada del evento con imagen"))
                 .andExpect(jsonPath("$.data.imagenUrl").exists())
+                .andExpect(jsonPath("$.data.menoresDeEdadPermitidos").value(anyOf(is(true), is(false))))
+                .andExpect(jsonPath("$.data.restricciones").value("Prohibido el ingreso de menores de 18 años"))
+                .andExpect(jsonPath("$.data.politicasDevolucion").value("No se permiten devoluciones"))
                 .andExpect(jsonPath("$.data.imagenZonasUrl").exists());
     }
 

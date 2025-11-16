@@ -29,6 +29,10 @@ public class EventoDTO {
     private List<Ticket> tickets;
     private List<TipoTicket> tiposTicket;
 
+    private Boolean menoresDeEdadPermitidos;
+    private String restricciones;
+    private String politicasDevolucion;
+
     //NOTA: Se supone que por Evento se crean varias Zonas, pero no hay conexión o datos para hacerlo en el model
     //NOTA DE NOTA: No lo incluyo en este momento porq no se exactamente como incluirlo, xd
 
@@ -50,5 +54,9 @@ public class EventoDTO {
         //this.local = p_evento.getLocal(); //No existe variable para el local
         this.tickets = p_evento.getTickets();
         //this.tiposTicket = p_evento.getTiposTicket(); //La conexión tiene q pasar por Zonas Primero
+
+        this.menoresDeEdadPermitidos = p_evento.getMenoresDeEdadPermitidos();
+        this.restricciones = p_evento.getRestricciones();
+        this.politicasDevolucion = p_evento.getPoliticasDevolucion();
     }
 }

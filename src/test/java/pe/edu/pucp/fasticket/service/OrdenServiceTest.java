@@ -104,9 +104,11 @@ class OrdenServiceTest {
         eventoMock = new Evento();
         eventoMock.setIdEvento(1);
         eventoMock.setNombre("Evento Test");
-        eventoMock.setEdadMinima(18);
+        eventoMock.setMenoresDeEdadPermitidos(false);
+        eventoMock.setRestricciones("Prohibido el ingreso de menores de 18 años");
+        eventoMock.setPoliticasDevolucion("No se permiten devoluciones");
         eventoMock.setLocal(localMock);
-
+    
         tipoTicketMock = new TipoTicket();
         tipoTicketMock.setIdTipoTicket(1);
         tipoTicketMock.setNombre("VIP");

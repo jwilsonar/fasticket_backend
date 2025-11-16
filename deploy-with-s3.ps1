@@ -150,20 +150,45 @@ function Push-DockerImage {
     $IMAGE_NAME_LATEST = "${ECR_URL}:latest"
     $IMAGE_NAME_VERSION = "${ECR_URL}:${TAG_VERSION}"
     
+    # Tag de las imágenes
     docker tag fasticket-backend:prod $IMAGE_NAME_LATEST
-    docker tag fasticket-backend:prod $IMAGE_NAME_VERSION
-    
-    Write-Info "Subiendo: latest"
-    docker push $IMAGE_NAME_LATEST | Out-Null
-    
-    Write-Info "Subiendo: $TAG_VERSION"
-    docker push $IMAGE_NAME_VERSION | Out-Null
-    
     if ($LASTEXITCODE -ne 0) {
-        Exit-WithError "Error al subir la imagen a ECR"
+        Exit-WithError "Error al etiquetar imagen latest"
     }
     
-    Write-Success "Imagen subida exitosamente"
+    docker tag fasticket-backend:prod $IMAGE_NAME_VERSION
+    if ($LASTEXITCODE -ne 0) {
+        Exit-WithError "Error al etiquetar imagen versionada"
+    }
+    
+    # Push de latest
+    Write-Info "Subiendo: latest"
+    $pushLatestOutput = docker push $IMAGE_NAME_LATEST 2>&1
+    $pushLatestExit = $LASTEXITCODE
+    
+    if ($pushLatestExit -ne 0) {
+        Write-Error-Message "Error al subir imagen latest a ECR"
+        Write-Host "  Detalle: $pushLatestOutput" -ForegroundColor Yellow
+        Write-Host "  Verifica:" -ForegroundColor Yellow
+        Write-Host "    - Que estes autenticado correctamente con ECR" -ForegroundColor White
+        Write-Host "    - Que tengas permisos ecr:PutImage en el repositorio" -ForegroundColor White
+        Write-Host "    - Que el repositorio exista: $ECR_URL" -ForegroundColor White
+        Exit-WithError "Push de imagen latest fallido"
+    }
+    
+    # Push de versión
+    Write-Info "Subiendo: $TAG_VERSION"
+    $pushVersionOutput = docker push $IMAGE_NAME_VERSION 2>&1
+    $pushVersionExit = $LASTEXITCODE
+    
+    if ($pushVersionExit -ne 0) {
+        Write-Error-Message "Error al subir imagen versionada a ECR"
+        Write-Host "  Detalle: $pushVersionOutput" -ForegroundColor Yellow
+        Write-Host "  Nota: La imagen latest se subio correctamente" -ForegroundColor Yellow
+        Exit-WithError "Push de imagen versionada fallido"
+    }
+    
+    Write-Success "Imagen subida exitosamente (latest y $TAG_VERSION)"
 }
 
 function Update-ECSService {
@@ -400,22 +425,84 @@ function Start-Deployment {
     Write-Step "Autenticando en ECR..." $stepNum
     $ECR_REGISTRY = $ECR_URL.Split('/')[0]
     
-    # Autenticar con ECR
-    $authenticated = $false
-    try {
-        aws ecr get-login-password --region $AWS_REGION | Out-File -FilePath ecr-pass.txt -Encoding utf8 -NoNewline
-        Get-Content ecr-pass.txt | docker login --username AWS --password-stdin $ECR_REGISTRY 2>&1 | Out-Null
-        Remove-Item ecr-pass.txt -Force -ErrorAction SilentlyContinue
-        if ($LASTEXITCODE -eq 0) {
-            $authenticated = $true
-            Write-Success "Autenticacion exitosa"
-        }
-    } catch {
-        Remove-Item ecr-pass.txt -Force -ErrorAction SilentlyContinue
+    # Función para obtener password de ECR
+    function Get-EcrPassword {
+        $passwordOutput = aws ecr get-login-password --region $AWS_REGION 2>&1
+        $exitCode = $LASTEXITCODE
+        return @{ Output = $passwordOutput; ExitCode = $exitCode }
     }
     
-    if (-not $authenticated) {
-        Write-Host "  [!] Autenticacion manual fallo, continuando de todos modos..." -ForegroundColor Yellow
+    # Función para hacer login en Docker
+    function Invoke-DockerLogin {
+        param(
+            [string]$Registry,
+            [string]$Password
+        )
+        
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $result = $Password | docker login --username AWS --password-stdin $Registry 2>&1
+            $exit = $LASTEXITCODE
+            
+            # Si falla, intentar sin stdin
+            if ($exit -ne 0 -and $Password) {
+                $escapedPassword = $Password.Replace("`n","").Replace("`r","").Trim()
+                $result = docker login --username AWS --password $escapedPassword $Registry 2>&1
+                $exit = $LASTEXITCODE
+            }
+        } finally {
+            $ErrorActionPreference = $previousPreference
+        }
+        
+        return @{ Output = $result; ExitCode = $exit }
+    }
+    
+    # Obtener token de ECR
+    $ecrPasswordResult = Get-EcrPassword
+    if ($ecrPasswordResult.ExitCode -ne 0 -or -not $ecrPasswordResult.Output) {
+        Write-Error-Message "No se pudo obtener token de autenticacion de ECR"
+        Write-Host "  Verifica que tus credenciales AWS tengan permisos para ECR (GetAuthorizationToken)" -ForegroundColor Yellow
+        Write-Host "  Verifica que el AWS Session Token no este expirado" -ForegroundColor Yellow
+        Write-Host "  Ejecuta: aws sts get-caller-identity para verificar tus credenciales" -ForegroundColor Gray
+        Exit-WithError "Autenticacion ECR fallida"
+    }
+    
+    $awsPassword = ($ecrPasswordResult.Output | Out-String).Trim()
+    
+    # Hacer login en Docker
+    $loginResult = Invoke-DockerLogin -Registry $ECR_REGISTRY -Password $awsPassword
+    
+    if ($loginResult.ExitCode -ne 0) {
+        Write-Host "  [!] Primer intento fallo, reintentando..." -ForegroundColor Yellow
+        docker logout $ECR_REGISTRY 2>&1 | Out-Null
+        
+        # Reintentar obteniendo nuevo token
+        $ecrPasswordResult = Get-EcrPassword
+        if ($ecrPasswordResult.ExitCode -ne 0 -or -not $ecrPasswordResult.Output) {
+            Write-Error-Message "No se pudo obtener token de ECR en el reintento"
+            Exit-WithError "Autenticacion ECR fallida en reintento"
+        }
+        
+        $awsPassword = ($ecrPasswordResult.Output | Out-String).Trim()
+        $loginResult = Invoke-DockerLogin -Registry $ECR_REGISTRY -Password $awsPassword
+    }
+    
+    if ($loginResult.ExitCode -eq 0) {
+        Write-Success "Autenticacion exitosa con ECR"
+    } else {
+        Write-Error-Message "Fallo la autenticacion con Docker Registry"
+        if ($loginResult.Output) {
+            Write-Host "  Detalle: $($loginResult.Output)" -ForegroundColor Yellow
+        }
+        Write-Host "  Posibles causas:" -ForegroundColor Yellow
+        Write-Host "    - AWS Session Token expirado (renueva tus credenciales)" -ForegroundColor White
+        Write-Host "    - Credenciales sin permisos para ECR" -ForegroundColor White
+        Write-Host "    - El repositorio ECR no existe o no tienes acceso" -ForegroundColor White
+        Write-Host "  Soluciones:" -ForegroundColor Yellow
+        Write-Host "    - Ejecuta: aws ecr get-login-password --region $AWS_REGION para probar" -ForegroundColor Gray
+        Write-Host "    - Verifica permisos IAM: ecr:GetAuthorizationToken, ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage, ecr:PutImage" -ForegroundColor Gray
+        Exit-WithError "No se pudo autenticar con ECR"
     }
     
     $buildStep = if ($Clean) { 7 } else { 4 }

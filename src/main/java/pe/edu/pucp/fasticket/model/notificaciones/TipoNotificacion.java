@@ -1,0 +1,14 @@
+package pe.edu.pucp.fasticket.model.notificaciones;
+
+public enum TipoNotificacion {
+	VERIFICACION_CUENTA,
+	CONFIRMACION_COMPRA,
+	RECORDATORIO_EVENTO,
+	TRANSFERENCIA_OK,
+	TRANSFERENCIA_FALLIDA,
+	RECUPERACION_CONTRASENA,
+	CAMBIO_CONTRASENA,
+	SISTEMA
+}
+
+

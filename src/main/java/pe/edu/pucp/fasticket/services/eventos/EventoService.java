@@ -243,6 +243,8 @@ public class EventoService {
         evento.setFechaActualizacion(LocalDate.now());
         eventoRepository.save(evento);
 
+
+
         // --- INICIO AUDITORÍA RF-109 ---
         try {
             Administrador admin = getAdminActual();

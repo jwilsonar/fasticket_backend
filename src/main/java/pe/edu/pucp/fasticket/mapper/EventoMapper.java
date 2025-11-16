@@ -2,13 +2,12 @@ package pe.edu.pucp.fasticket.mapper;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
-import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
-import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
-import pe.edu.pucp.fasticket.model.eventos.Local;
+import pe.edu.pucp.fasticket.dto.eventos.*;
+import pe.edu.pucp.fasticket.model.eventos.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Mapper para convertir entre entidades Evento y DTOs.
@@ -41,6 +40,7 @@ public class EventoMapper {
                 .politicasDevolucion(evento.getPoliticasDevolucion())
                 .nombreLocal(evento.getLocal() != null ? evento.getLocal().getNombre() : null)
                 .fechaCreacion(evento.getFechaCreacion())
+                .tipoTickets(evento.getTiposTicket())
                 .build();
     }
 
@@ -62,6 +62,32 @@ public class EventoMapper {
         evento.setLocal(local);
         evento.setActivo(true);
         evento.setFechaCreacion(LocalDate.now());
+
+        /**Añadido para añadir tipos de tickets*/
+
+        List<TipoTicket> tipos = new ArrayList<>();
+
+        for (TipoTicketRequest tReq : dto.getTipoTickets()){
+            TipoTicket tt = new TipoTicket();
+            tt.setIdTipoTicket(tReq.getIdTipoTicket());
+            tt.setNombre(tReq.getNombre());
+            tt.setDescripcion(tReq.getDescripcion());
+            tt.setPrecio(tReq.getPrecio());
+            tt.setStock(tReq.getStock());
+            tt.setLimitePorPersona(tReq.getLimitePorPersona());
+
+            List<PrecioEscalonado> precios = new ArrayList<>();
+
+            for (PrecioEscalonadoRequest pReq : tReq.getPreciosEscalonados()){
+                PrecioEscalonado pe = new PrecioEscalonado();
+                pe.setIdPrecio(pReq.getIdPrecio());
+                pe.setNombreEtapa(pReq.getNombreEtapa());
+                pe.setFechaInicio(pReq.getFechaInicio());
+                pe.setFechaFin(pReq.getFechaFin());
+                pe.setActivo(pReq.getActivo());
+            }
+        }
+
         return evento;
     }
 

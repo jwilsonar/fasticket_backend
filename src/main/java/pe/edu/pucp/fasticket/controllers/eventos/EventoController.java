@@ -339,6 +339,7 @@ public class EventoController {
         StandardResponse<String> response = StandardResponse.success("Evento eliminado exitosamente");
         return ResponseEntity.ok(response);
     }
+
     @Operation(
             summary = "Obtener detalle de evento para proceso de compra",
             description = "Devuelve los datos del evento, su local y los tipos de ticket disponibles. Endpoint público."
@@ -526,6 +527,21 @@ public class EventoController {
             log.warn("Intento de generar reporte para evento no encontrado ID: {}", idEvento);
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @Operation(
+            summary = "Eliminar evento - Avisa a los clientes con correos",
+            description = "Cancelación definitiva del evento. Solo administradores.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponse(responseCode = "204", description = "Evento cancelado DEFINITIVAMENTE")
+    @DeleteMapping("/{id}/final")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<String>> cancelar(@PathVariable Integer id) {
+        log.info("DELETE /api/v1/eventos/{}/final", id);
+        eventoService.cancelarEvento(id);
+        StandardResponse<String> response = StandardResponse.success("Evento cancelado exitosamente");
+        return ResponseEntity.ok(response);
     }
 }
 

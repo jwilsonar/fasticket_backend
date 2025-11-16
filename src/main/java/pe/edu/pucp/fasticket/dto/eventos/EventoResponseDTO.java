@@ -8,9 +8,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
 import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
+import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 @Schema(description = "Respuesta con datos de un evento")
 @Data
@@ -74,5 +76,8 @@ public class EventoResponseDTO {
     @Schema(description = "Políticas de devolución del evento", example = "No se permiten devoluciones")
     @Size(max = 1000, message = "Las políticas de devolución no pueden exceder 1000 caracteres")
     private String politicasDevolucion;
+
+    @Schema(description = "Lista de los tipos de tickets", example = "nombre: VIP, stock: 200, etc")
+    private List<TipoTicket> tipoTickets;
 }
 

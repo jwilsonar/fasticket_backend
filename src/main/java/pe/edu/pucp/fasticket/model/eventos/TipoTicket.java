@@ -84,25 +84,44 @@ public class TipoTicket {
         if (this.evento == null || this.evento.getFechaEvento() == null) {
             return this.precio;
         }
+
+        PrecioEscalonado precioCalculado = obtenerEscalonActual();
+
         LocalDate hoy = LocalDate.now();
-        LocalDate fechaEvento = this.evento.getFechaEvento();
-        // Si la compra es después del evento, no se vende
-        if (hoy.isAfter(fechaEvento)) {
-            throw new BusinessException("El evento ya pasó. No se pueden comprar tickets.");
-        }
-        // 1. PREVENTA (14+ días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(14))) {
+
+        // 1. PREVENTA
+        if (precioCalculado.getNombreEtapa() == Etapa.PREVENTA) {
             return this.precio * 0.80; // 20% Descuento
         }
         // 2. EARLY BIRD (Entre 7 y 14 días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(7))) {
+        if (precioCalculado.getNombreEtapa() == Etapa.EARLY_BIRD) {
             return this.precio * 0.90; // 10% Descuento
         }
         // 3. REGULAR (Entre 3 y 7 días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(3))) {
+        if (precioCalculado.getNombreEtapa() == Etapa.REGULAR) {
             return this.precio * 1.0; // 1.0 (Precio Base)
         }
         // 4. LATE (3 días antes o menos, hasta el día del evento)
-        return this.precio * 1.15; // 15% Recargo
+        if (precioCalculado.getNombreEtapa() == Etapa.LATE) {
+            return this.precio * 1.0; // 1.0 (Precio Base)
+        }
+        // Si no es ninguna de las anteriores, la compra es antes después del evento, no se vende
+        throw new BusinessException("El evento ya pasó o aún no se habilita. No se pueden comprar tickets.");
+    }
+
+    public PrecioEscalonado obtenerEscalonActual() {
+        LocalDate hoy = LocalDate.now();
+
+        for (PrecioEscalonado esc : this.preciosEscalonados) {
+            boolean estaDentroDeRango =
+                    (hoy.isEqual(esc.getFechaInicio()) || hoy.isAfter(esc.getFechaInicio())) &&
+                            (hoy.isEqual(esc.getFechaFin()) || hoy.isBefore(esc.getFechaFin()));
+
+            if (estaDentroDeRango) {
+                return esc;
+            }
+        }
+
+        return null; // Si no hay ninguno
     }
 }

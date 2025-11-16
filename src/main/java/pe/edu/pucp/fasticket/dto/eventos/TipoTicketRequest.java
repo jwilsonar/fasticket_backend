@@ -7,16 +7,13 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@Schema(description = "DTO para crear TipoTicket")
-public class CrearTipoTicketRequestDTO {
-
-    @Schema(description = "ID de la zona", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "El ID de la zona es obligatorio")
-    private Integer idZona;
+@Schema(description = "Verdadero DTO para crear TipoTicket")
+public class TipoTicketRequest {
+    @Schema(description = "ID del TipoTicket", example = "1")
+    private Integer idTipoTicket;
 
     @Schema(description = "Nombre del tipo de ticket", example = "VIP", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "El nombre es obligatorio")
@@ -36,7 +33,7 @@ public class CrearTipoTicketRequestDTO {
     @NotNull(message = "El stock es obligatorio")
     @Positive(message = "El stock debe ser mayor a cero")
     private Integer stock;
-    
+
     @Schema(description = "Límite de tickets por persona", example = "4")
     @Positive(message = "El límite por persona debe ser mayor a cero")
     private Integer limitePorPersona;

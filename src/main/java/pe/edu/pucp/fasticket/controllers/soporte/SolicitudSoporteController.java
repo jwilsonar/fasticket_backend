@@ -93,13 +93,13 @@ public class SolicitudSoporteController {
     }
 
     @Operation(summary = "Actualizar estado del ticket")
-    @PatchMapping("/{id}/estado")
+    @PutMapping("/{id}/estado")
     public ResponseEntity<StandardResponse<SolicitudSoporteResponseDTO>> actualizarEstado(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ActualizarEstadoSolicitudDTO dto) {
 
-        log.info("PATCH /api/v1/soporte/{}/estado -> {}", id, dto.getEstado());
+        log.info("PUT /api/v1/soporte/{}/estado -> {}", id, dto.getEstado());
         SolicitudSoporteResponseDTO actualizado = soporteService.actualizarEstado(id, dto, userDetails);
         return ResponseEntity.ok(StandardResponse.success("Estado actualizado", actualizado));
     }

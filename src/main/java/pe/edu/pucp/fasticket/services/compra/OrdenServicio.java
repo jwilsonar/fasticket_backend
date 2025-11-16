@@ -113,6 +113,12 @@ public class OrdenServicio {
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         orden.setActivo(true);
 
+        // --- INICIO RF-081: GUARDAR DATOS DE FACTURACIÓN (Opcional) ---
+        orden.setRuc(datosOrden.getRuc());
+        orden.setRazonSocial(datosOrden.getRazonSocial());
+        orden.setDireccionFiscal(datosOrden.getDireccionFiscal());
+        // --- FIN RF-081 ---
+
         if (carrito != null) {
             orden.setCarroCompras(carrito);
             log.info("Carrito ID {} asociado a la orden.", carrito.getIdCarro());
@@ -503,19 +509,26 @@ public class OrdenServicio {
     }
 
     @Transactional
-    public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, List<AsistenteParaItemDTO> itemsConAsistentes) {
+    public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, CheckoutCarritoRequestDTO requestDTO) {
         CarroCompras carrito = carroComprasRepository.findById(idCarrito)
                 .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado"));
 
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
             throw new BusinessException("El carrito está inactivo o vacío.");
         }
+        List<AsistenteParaItemDTO> itemsConAsistentes = requestDTO.getItemsConAsistentes();
 
         OrdenCompra orden = new OrdenCompra();
         orden.setCliente(carrito.getCliente());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         orden.setCarroCompras(carrito);
+
+        // --- INICIO RF-081: GUARDAR DATOS DE FACTURACIÓN (Opcional) ---
+        orden.setRuc(requestDTO.getRuc());
+        orden.setRazonSocial(requestDTO.getRazonSocial());
+        orden.setDireccionFiscal(requestDTO.getDireccionFiscal());
+        // --- FIN RF-081 ---
 
         asignarAsistentesATicketsDelCarrito(carrito, itemsConAsistentes, orden);
 

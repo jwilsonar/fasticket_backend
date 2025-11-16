@@ -155,7 +155,7 @@ class SolicitudSoporteControllerTest {
 
         when(soporteService.actualizarEstado(eq(1L), any(ActualizarEstadoSolicitudDTO.class), any())).thenReturn(updated);
 
-        mockMvc.perform(patch("/api/v1/soporte/1/estado")
+        mockMvc.perform(put("/api/v1/soporte/1/estado")
                 .with(user("test@fasticket.com"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(estadoDTO)))

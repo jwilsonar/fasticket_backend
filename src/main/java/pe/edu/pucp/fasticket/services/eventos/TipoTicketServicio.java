@@ -1,5 +1,7 @@
 package pe.edu.pucp.fasticket.services.eventos;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -13,9 +15,8 @@ import pe.edu.pucp.fasticket.dto.eventos.TipoTicketDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.TipoTicketMapper;
-import pe.edu.pucp.fasticket.model.eventos.PrecioEscalonado;
-import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
-import pe.edu.pucp.fasticket.model.eventos.Zona;
+import pe.edu.pucp.fasticket.model.eventos.*;
+import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 
@@ -27,6 +28,7 @@ public class TipoTicketServicio {
     private final TipoTicketRepositorio tipoTicketRepositorio;
     private final ZonaRepository zonaRepositorio;
     private final TipoTicketMapper tipoTicketMapper;
+    private final TicketRepository ticketRepositorio;
 
     public List<TipoTicketDTO> listarTodos() {
         log.info("Listando todos los tipos de ticket");
@@ -89,7 +91,12 @@ public class TipoTicketServicio {
         if (!zona.getActivo()) {
             throw new BusinessException("No se puede crear tipo de ticket para una zona inactiva");
         }
-        
+
+        Evento evento = zona.getEvento();
+        if (evento == null) {
+            throw new BusinessException("La zona seleccionada (ID: " + zona.getIdZona() + ") no está asignada a ningún evento.");
+        }
+
         // Validar que el stock no exceda el aforo de la zona
         if (dto.getStock() > zona.getAforoMax()) {
             throw new BusinessException("El stock no puede exceder el aforo máximo de la zona (" + zona.getAforoMax() + ")");
@@ -105,16 +112,31 @@ public class TipoTicketServicio {
         tipoTicket.setZona(zona);
         tipoTicket.setNombre(dto.getNombre());
         tipoTicket.setDescripcion(dto.getDescripcion());
-        tipoTicket.setPrecio(dto.getPrecio());
+        tipoTicket.setPrecio(dto.getPrecio()); // Precio Base
         tipoTicket.setStock(dto.getStock());
         tipoTicket.setCantidadDisponible(dto.getStock());
         tipoTicket.setCantidadVendida(0);
         tipoTicket.setActivo(true);
         tipoTicket.setLimitePorPersona(dto.getLimitePorPersona());
-        
+        tipoTicket.setEvento(evento);
+
         TipoTicket guardado = tipoTicketRepositorio.save(tipoTicket);
         log.info("Tipo de ticket creado exitosamente con ID: {}", guardado.getIdTipoTicket());
-        
+
+        List<Ticket> tickets = new ArrayList<>();
+        for (int i = 0; i < dto.getStock(); i++) {
+            Ticket ticket = new Ticket();
+            ticket.setTipoTicket(guardado);
+            ticket.setEstado(EstadoTicket.DISPONIBLE);
+            ticket.setPrecio(guardado.getPrecio()); // fijar precio actual
+            ticket.setEvento(evento);
+            ticket.setActivo(true);
+            ticket.setFechaCreacion(LocalDate.now());
+            ticket.setContadorTransferencias(0);
+            tickets.add(ticket);
+        }
+        ticketRepositorio.saveAll(tickets);
+        log.info("{} tickets generados para el TipoTicket ID: {}", tickets.size(), guardado.getIdTipoTicket());
         return tipoTicketMapper.toDTO(guardado);
     }
 

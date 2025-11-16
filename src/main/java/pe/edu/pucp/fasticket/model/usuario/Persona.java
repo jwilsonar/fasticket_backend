@@ -86,6 +86,9 @@ public class Persona {
 
     @Column(name = "locked_until")
     private Instant lockedUntil;
+
+    @Column(name = "primer_login")
+    private Boolean primerLogin = true;
     
     @JsonProperty("usuario_creacion")
     @Column(name = "usuarioCreacion")

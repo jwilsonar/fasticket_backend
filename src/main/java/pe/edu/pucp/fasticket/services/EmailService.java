@@ -162,4 +162,15 @@ public class EmailService {
                 .map(ConfiguracionGlobal::getValue)
                 .orElse(valorPorDefecto);
     }
+
+    /**
+     * Enviar correo para resetear contraseña
+     */
+
+    public void enviarCorreoResetContrasena(String email, String asunto, String cuerpo) {
+
+        // Función para acceder a la función private del servicio.
+
+        enviarEmail(email, asunto, cuerpo, true);
+    }
 }

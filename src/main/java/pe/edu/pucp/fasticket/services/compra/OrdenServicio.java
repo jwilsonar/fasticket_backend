@@ -550,7 +550,7 @@ public class OrdenServicio {
         }
     }
 
-    @Transactional
+
     private List<DatosAsistenteDTO> obtenerAsistentesParaItem(ItemCarrito itemCarrito) {
         if (itemCarrito.getTickets() == null || itemCarrito.getTickets().isEmpty()) {
             log.warn("El ItemCarrito ID {} del carrito no tiene tickets asociados.", itemCarrito.getIdItemCarrito());

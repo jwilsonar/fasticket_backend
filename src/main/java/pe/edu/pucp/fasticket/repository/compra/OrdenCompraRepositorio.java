@@ -55,6 +55,7 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
             "LEFT JOIN FETCH o.pago p " +
             "LEFT JOIN FETCH o.items i " +
             "LEFT JOIN FETCH i.tipoTicket tt " +
+            "LEFT JOIN FETCH tt.evento e " +
             "LEFT JOIN FETCH o.carroCompras cc " +
             "WHERE o.cliente.idPersona = :idCliente " +
             "ORDER BY o.fechaOrden DESC")
@@ -64,6 +65,7 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
             "LEFT JOIN FETCH o.pago p " +
             "LEFT JOIN FETCH o.items i " +
             "LEFT JOIN FETCH i.tipoTicket tt " +
+            "LEFT JOIN FETCH tt.evento e " +
             "LEFT JOIN FETCH o.carroCompras cc " +
             "WHERE o.idOrdenCompra = :idOrden")
     Optional<OrdenCompra> findByIdWithAllDetailsForHistorial(@Param("idOrden") Integer idOrden);

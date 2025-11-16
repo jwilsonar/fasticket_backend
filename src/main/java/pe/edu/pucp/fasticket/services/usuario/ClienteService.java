@@ -257,11 +257,23 @@ public class ClienteService {
      * @return DTO de historial
      */
     private HistorialCompraDTO convertirAHistorialDTO(OrdenCompra orden) {
-        // Obtener evento desde carroCompras
+        // Obtener evento: primero intentar desde carroCompras, luego desde items -> tipoTicket -> evento
         Evento evento = null;
+        
+        // Método 1: Desde carroCompras.idEventoActual
         if (orden.getCarroCompras() != null && orden.getCarroCompras().getIdEventoActual() != null) {
             evento = eventoRepositorio.findById(orden.getCarroCompras().getIdEventoActual())
                     .orElse(null);
+        }
+        
+        // Método 2: Si no se encontró, obtener desde los items (todos los items de una orden pertenecen al mismo evento)
+        if (evento == null && orden.getItems() != null && !orden.getItems().isEmpty()) {
+            for (var item : orden.getItems()) {
+                if (item.getTipoTicket() != null && item.getTipoTicket().getEvento() != null) {
+                    evento = item.getTipoTicket().getEvento();
+                    break; // Todos los items tienen el mismo evento
+                }
+            }
         }
         
         // Construir EventoHistorialDTO

@@ -453,16 +453,17 @@ public class AuthService {
 
     @Transactional
     public void resetearContrasenaPorId(ResetPasswordByIdRequestDTO request) {
-        log.info("Resetear contraseña por ID para usuario: {}", request.getIdCliente());
+        String email = request.getEmail().toLowerCase();
+        log.info("Resetear contraseña por correo para usuario: {}", email);
 
         if (!request.getContrasena().equals(request.getContrasenaConfirmacion())) {
             throw new BusinessException("La contraseña y su confirmación no coinciden");
         }
 
-        Persona persona = personasRepositorio.findById(request.getIdCliente())
+        Persona persona = personasRepositorio.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        var opt = passwordResetCodeRepository.findTopByPersonaIdOrderByIdDesc(persona.getIdPersona());
+        var opt = passwordResetCodeRepository.findTopByEmailOrderByIdDesc(email);
         PasswordResetCode prc = opt.orElseThrow(() -> new BusinessException("No hay código validado para este usuario"));
         if (!prc.isVerificado()) throw new BusinessException("Debe validar el código primero");
         if (prc.isUsado()) throw new BusinessException("El código ya fue usado");

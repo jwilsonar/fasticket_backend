@@ -88,25 +88,32 @@ public class OrdenController {
     @PostMapping
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseEntity<StandardResponse<OrdenResumenDTO>> crearOrden(
-            @Parameter(
-                    description = "Datos de la orden a crear. Solo requiere la lista de items (tipo de ticket y cantidad). " +
-                                  "El cliente se obtiene del token JWT automáticamente.",
-                    required = true
-            )
             @Valid @RequestBody CrearOrdenDTO crearOrdenDTO,
             Authentication authentication) {
+
         boolean esCliente = authentication != null && authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_CLIENTE"));
         if (!esCliente) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(StandardResponse.error("No tiene permisos para acceder a este recurso", null));
         }
+
         Integer idCliente = crearOrdenDTO.getIdCliente() != null
                 ? crearOrdenDTO.getIdCliente()
                 : obtenerIdUsuarioLogueado(authentication);
+
         log.info("POST /api/v1/ordenes - Cliente: {}", idCliente);
+
+        // Crear la orden
         OrdenCompra nuevaOrden = ordenServicio.crearOrden(crearOrdenDTO, idCliente);
-        OrdenResumenDTO resumenDTO = new OrdenResumenDTO(nuevaOrden, tipoTicketRepositorio);
+
+        // IMPORTANTE: Recargar la orden con todas las relaciones para el DTO
+        OrdenCompra ordenCompleta = ordenCompraRepositorio.findByIdWithAllDetails(nuevaOrden.getIdOrdenCompra())
+                .orElseThrow(() -> new ResourceNotFoundException("Error al cargar la orden creada"));
+
+        // Crear el DTO con la orden completa
+        OrdenResumenDTO resumenDTO = new OrdenResumenDTO(ordenCompleta, tipoTicketRepositorio);
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(StandardResponse.success("Orden creada exitosamente.", resumenDTO));
@@ -132,12 +139,11 @@ public class OrdenController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<OrdenResumenDTO>> obtenerDetalleDeOrden(
-            @Parameter(description = "ID de la orden", required = true, example = "1")
             @PathVariable Integer id) {
 
-        log.info("GET /api/v1/ordenes/{}", id);
-        OrdenCompra orden = ordenCompraRepositorio.findById(id)
+        log.info("GET /api/v1/ordenes/{}", id);OrdenCompra orden = ordenCompraRepositorio.findByIdWithAllDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + id));
+
         OrdenResumenDTO resumen = new OrdenResumenDTO(orden, tipoTicketRepositorio);
         return ResponseEntity.ok(StandardResponse.success("Proceso iniciado correctamente.", resumen));
     }
@@ -249,20 +255,15 @@ public class OrdenController {
     @GetMapping
     @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<List<OrdenResumenDTO>>> listarOrdenes(
-            @Parameter(description = "Estado de la orden para filtrar (opcional)", example = "PENDIENTE")
             @RequestParam(required = false) EstadoCompra estado,
-            @Parameter(description = "ID del cliente (solo para administradores)", example = "1")
             @RequestParam(required = false) Integer idCliente,
             Authentication authentication) {
-        
+
         log.info("GET /api/v1/ordenes - Estado: {}, Cliente: {}", estado, idCliente);
-        
+
         List<OrdenCompra> ordenes;
-        
-        // Obtener ID del usuario autenticado
         Integer idUsuarioAutenticado = obtenerIdUsuarioLogueado(authentication);
-        
-        // Si es administrador, puede ver todas las órdenes o filtrar por cliente
+
         if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMINISTRADOR"))) {
             if (idCliente != null) {
                 if (estado != null) {
@@ -276,18 +277,22 @@ public class OrdenController {
                 ordenes = ordenServicio.listarTodasLasOrdenes();
             }
         } else {
-            // Cliente solo ve sus propias órdenes
             if (estado != null) {
                 ordenes = ordenServicio.listarOrdenesPorClienteYEstado(idUsuarioAutenticado, estado);
             } else {
                 ordenes = ordenServicio.listarOrdenesPorCliente(idUsuarioAutenticado);
             }
         }
-        
+
+        // Recargar cada orden con sus relaciones para el DTO
         List<OrdenResumenDTO> resumenes = ordenes.stream()
-                .map(orden -> new OrdenResumenDTO(orden, tipoTicketRepositorio))
+                .map(orden -> {
+                    OrdenCompra ordenCompleta = ordenCompraRepositorio.findByIdWithAllDetails(orden.getIdOrdenCompra())
+                            .orElse(orden); // Fallback a la orden original si falla
+                    return new OrdenResumenDTO(ordenCompleta, tipoTicketRepositorio);
+                })
                 .collect(Collectors.toList());
-        
+
         return ResponseEntity.ok(StandardResponse.success("Órdenes obtenidas exitosamente.", resumenes));
     }
 

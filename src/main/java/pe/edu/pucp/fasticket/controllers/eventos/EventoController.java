@@ -172,6 +172,9 @@ public class EventoController {
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
             @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
+            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
+            @RequestParam(value = "restricciones", required = false) String restricciones,
+            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
             @RequestParam(value = "idLocal", required = false) Integer idLocal) {
 
         log.info("POST /api/v1/eventos/con-imagen - Crear: {}", nombre != null ? nombre : "con imagen");
@@ -185,6 +188,10 @@ public class EventoController {
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
             dto.setDescripcion(descripcion);
+            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
+            dto.setRestricciones(restricciones);
+            dto.setPoliticasDevolucion(politicasDevolucion);
+
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }
@@ -206,12 +213,13 @@ public class EventoController {
             EventoResponseDTO evento = eventoService.crear(dto);
 
             // Subir imagen si se proporcionó
-            if (imagenUrl != null && !imagenUrl.isEmpty() && imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+            if (imagenUrl != null && !imagenUrl.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-                String imageZonasUrl = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
-                // Guardar la URL de la imagen en la base de datos
                 evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
-                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrl);
+            }
+            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
+                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
             }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
@@ -256,6 +264,9 @@ public class EventoController {
             @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
             @RequestParam(value = "horaInicio", required = false) String horaInicio,
             @RequestParam(value = "horaFin", required = false) String horaFin,
+            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
+            @RequestParam(value = "restricciones", required = false) String restricciones,
+            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
             @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
             @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
             @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
@@ -272,6 +283,9 @@ public class EventoController {
             EventoCreateDTO dto = new EventoCreateDTO();
             dto.setNombre(nombre);
             dto.setDescripcion(descripcion);
+            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
+            dto.setRestricciones(restricciones);
+            dto.setPoliticasDevolucion(politicasDevolucion);
             if (fechaEvento != null) {
                 dto.setFechaEvento(LocalDate.parse(fechaEvento));
             }
@@ -292,12 +306,13 @@ public class EventoController {
 
             EventoResponseDTO evento = eventoService.actualizar(id, dto);
 
-            // Subir imagen si se proporcionó
-            if (imagenUrl != null && !imagenUrl.isEmpty() && imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+            // Subir y guardar imagenes de forma independiente si fueron proporcionadas
+            if (imagenUrl != null && !imagenUrl.isEmpty()) {
                 String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
-                // Guardar la URL de la imagen en la base de datos
                 evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
+            }
+            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
                 evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
             }
 

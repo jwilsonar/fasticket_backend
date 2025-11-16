@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
+import java.time.LocalDate;
 import java.util.List; // Necesario para limitar resultados
 
 import org.springframework.data.domain.Pageable;
@@ -41,4 +42,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
      * Es la base para la validación de entradas (RF-094).
      */
     Optional<Ticket> findByCodigoQr(String codigoQr);
+
+    @Query("SELECT t FROM Ticket t " +
+            "WHERE t.cliente.idPersona = :idCliente " +
+            "AND t.estado = 'VENDIDA' " +
+            "AND t.activo = true " +
+            "AND t.evento.fechaEvento >= :fechaHoy " +
+            "ORDER BY t.evento.fechaEvento ASC")
+    List<Ticket> findTicketsTransferiblesByCliente(
+            @Param("idCliente") Integer idCliente,
+            @Param("fechaHoy") LocalDate fechaHoy
+    );
 }

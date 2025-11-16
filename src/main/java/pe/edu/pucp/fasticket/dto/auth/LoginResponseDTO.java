@@ -33,5 +33,8 @@ public class LoginResponseDTO {
     
     @Schema(description = "Tiempo de expiración del token en milisegundos", example = "86400000")
     private Long expiracion;
+
+    @Schema(description = "Bandera para dirigir al cambio de contrasena, de ser el caso", example = "true")
+    private Boolean primerLogin;
 }
 

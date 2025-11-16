@@ -167,5 +167,36 @@ public class AuthController {
         StandardResponse<Void> response = StandardResponse.success("Sesión cerrada exitosamente", null);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(
+            summary = "Olvido contraseña",
+            description = "Permite al usuario obtener un correo para recuperar su contraseña, si el correo existe."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Correo enviado."
+                    //Creo en este caso no debería haber ApiResponses
+            )
+    })
+    @PutMapping("/olvido-contrasena")
+    public ResponseEntity<StandardResponse<String>> olvidoContrasena(@RequestBody ForgotPasswordRequestDTO request) {
+
+        log.info("PUT /api/v1/auth/olvido-contrasena - Correo: {}", request.getEmail());
+
+        try{
+            authService.resetearContrasena(request.getEmail());
+        } catch (Exception e) {
+            /**
+             * Por seguridad, no se indica si falló
+             */
+        }
+
+        StandardResponse<String> response = StandardResponse.success("Contraseña cambiada exitosamente");
+        return ResponseEntity.ok(response);
+    }
+
+
+
 }
 

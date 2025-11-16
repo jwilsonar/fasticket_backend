@@ -36,6 +36,9 @@ public class EventoMapper {
                 .aforoDisponible(evento.getAforoDisponible())
                 .activo(evento.getActivo())
                 .idLocal(evento.getLocal() != null ? evento.getLocal().getIdLocal() : null)
+                .menoresDeEdadPermitidos(evento.getMenoresDeEdadPermitidos())
+                .restricciones(evento.getRestricciones())
+                .politicasDevolucion(evento.getPoliticasDevolucion())
                 .nombreLocal(evento.getLocal() != null ? evento.getLocal().getNombre() : null)
                 .fechaCreacion(evento.getFechaCreacion())
                 .build();
@@ -53,6 +56,9 @@ public class EventoMapper {
         evento.setTipoEvento(dto.getTipoEvento());
         evento.setEstadoEvento(dto.getEstadoEvento() != null ? dto.getEstadoEvento() : EstadoEvento.ACTIVO);
         evento.setAforoDisponible(dto.getAforoDisponible());
+        evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
+        evento.setRestricciones(dto.getRestricciones());
+        evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());
         evento.setLocal(local);
         evento.setActivo(true);
         evento.setFechaCreacion(LocalDate.now());
@@ -67,6 +73,9 @@ public class EventoMapper {
         evento.setHoraFin(dto.getHoraFin());
         evento.setImagenUrl(dto.getImagenUrl());
         evento.setImagenZonasUrl(dto.getImagenZonasUrl());
+        evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
+        evento.setRestricciones(dto.getRestricciones());
+        evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());
         evento.setTipoEvento(dto.getTipoEvento());
         if (dto.getEstadoEvento() != null) {
             evento.setEstadoEvento(dto.getEstadoEvento());

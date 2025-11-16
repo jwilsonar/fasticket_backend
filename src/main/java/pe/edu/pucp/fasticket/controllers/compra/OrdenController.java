@@ -1,15 +1,19 @@
 package pe.edu.pucp.fasticket.controllers.compra;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,24 +31,23 @@ import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
-import pe.edu.pucp.fasticket.dto.compra.RegistrarParticipantesDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.security.UserDetailsImpl;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
-import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
-
-import java.util.List;
 
 @Tag(
         name = "Órdenes de Compra",
-        description = "API para la creación y consulta de órdenes de compra."
+        description = "API para la gestión de órdenes de compra. " +
+                      "El cliente se identifica automáticamente mediante el token JWT. " +
+                      "Los datos de asistentes no se requieren en la creación de órdenes."
 )
 @RestController
 @RequestMapping("/api/v1/ordenes")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
 public class OrdenController {
@@ -55,37 +58,74 @@ public class OrdenController {
 
     @Operation(
             summary = "Crear nueva orden (Checkout directo)",
-            description = "Crea una orden PENDIENTE y reserva tickets. Requiere rol CLIENTE.",
+            description = "Crea una orden PENDIENTE y reserva tickets para el cliente autenticado. " +
+                          "El ID del cliente se obtiene automáticamente del token JWT, no es necesario enviarlo en el cuerpo de la petición. " +
+                          "Los datos de asistentes NO se requieren en la creación de la orden. " +
+                          "La orden se crea con estado PENDIENTE y tiene un tiempo de expiración de 15 minutos. " +
+                          "Requiere autenticación con rol CLIENTE.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "201", description = "Orden creada exitosamente",
+                    responseCode = "201",
+                    description = "Orden creada exitosamente. Los tickets han sido reservados y están en estado RESERVADA.",
                     content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
             ),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos o stock insuficiente", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "No autenticado"),
-            @ApiResponse(responseCode = "403", description = "Sin permisos")
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Datos inválidos, stock insuficiente, límite de tickets por compra excedido, o límite por persona excedido",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado. Se requiere un token JWT válido en el header Authorization."
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Sin permisos. Se requiere rol CLIENTE."
+            )
     })
     @PostMapping
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenResumenDTO>> crearOrden(@Valid @RequestBody CrearOrdenDTO crearOrdenDTO) {
-        log.info("POST /api/v1/ordenes - Cliente: {}", crearOrdenDTO.getIdCliente());
-        OrdenCompra nuevaOrden = ordenServicio.crearOrden(crearOrdenDTO);
+    public ResponseEntity<StandardResponse<OrdenResumenDTO>> crearOrden(
+            @Parameter(
+                    description = "Datos de la orden a crear. Solo requiere la lista de items (tipo de ticket y cantidad). " +
+                                  "El cliente se obtiene del token JWT automáticamente.",
+                    required = true
+            )
+            @Valid @RequestBody CrearOrdenDTO crearOrdenDTO,
+            Authentication authentication) {
+        boolean esCliente = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_CLIENTE"));
+        if (!esCliente) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(StandardResponse.error("No tiene permisos para acceder a este recurso", null));
+        }
+        Integer idCliente = crearOrdenDTO.getIdCliente() != null
+                ? crearOrdenDTO.getIdCliente()
+                : obtenerIdUsuarioLogueado(authentication);
+        log.info("POST /api/v1/ordenes - Cliente: {}", idCliente);
+        OrdenCompra nuevaOrden = ordenServicio.crearOrden(crearOrdenDTO, idCliente);
         OrdenResumenDTO resumenDTO = new OrdenResumenDTO(nuevaOrden, tipoTicketRepositorio);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(StandardResponse.success("Proceso iniciado correctamente.", resumenDTO));
+                .body(StandardResponse.success("Orden creada exitosamente.", resumenDTO));
     }
 
     @Operation(
             summary = "Obtener resumen de una orden creada",
-            description = "Obtiene los detalles de una orden ya existente.",
+            description = "Obtiene los detalles completos de una orden existente, incluyendo items, descuentos, IGV y totales. Clientes solo pueden ver sus propias órdenes, administradores pueden ver cualquier orden.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Resumen obtenido", content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(
+                    responseCode = "200", description = "Resumen obtenido exitosamente",
+                    content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404", description = "Orden no encontrada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
             @ApiResponse(responseCode = "401", description = "No autenticado"),
             @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
@@ -104,18 +144,28 @@ public class OrdenController {
 
     @Operation(
             summary = "Cancelar una orden de compra",
-            description = "Permite cancelar una orden PENDIENTE antes del pago. Actualiza los tickets a estado DISPONIBLE.",
+            description = "Permite cancelar una orden PENDIENTE antes del pago. Revierte los tickets a estado DISPONIBLE y libera el stock. Solo se pueden cancelar órdenes en estado PENDIENTE. Requiere rol CLIENTE o ADMINISTRADOR.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Orden cancelada correctamente"),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "400", description = "No se puede cancelar una orden en este estado")
+            @ApiResponse(
+                    responseCode = "200", description = "Orden cancelada correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404", description = "Orden no encontrada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400", description = "No se puede cancelar una orden en este estado. Solo se pueden cancelar órdenes PENDIENTES.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PutMapping("/{id}/cancelar")
     @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> cancelarOrden(
-            @Parameter(description = "ID de la orden a cancelar", required = true)
+            @Parameter(description = "ID de la orden a cancelar", required = true, example = "1")
             @PathVariable Integer id) {
 
         log.info("PUT /api/v1/ordenes/{}/cancelar", id);
@@ -127,18 +177,28 @@ public class OrdenController {
     }
     @Operation(
             summary = "Confirmar pago de una orden",
-            description = "Confirma una orden tras un pago exitoso. Actualiza los tickets a estado VENDIDA.",
+            description = "Confirma una orden tras un pago exitoso. Actualiza los tickets a estado VENDIDA, genera puntos de fidelización, envía correo de confirmación y actualiza el aforo del evento. Solo se pueden confirmar órdenes en estado PENDIENTE. Requiere rol CLIENTE o ADMINISTRADOR.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Orden confirmada correctamente"),
-            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "400", description = "No se puede confirmar una orden en este estado")
+            @ApiResponse(
+                    responseCode = "200", description = "Orden confirmada correctamente"
+            ),
+            @ApiResponse(
+                    responseCode = "404", description = "Orden no encontrada",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400", description = "No se puede confirmar una orden en este estado. Solo se pueden confirmar órdenes PENDIENTES.",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
     })
     @PutMapping("/{id}/confirmar")
     @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('CLIENTE')")
     public ResponseEntity<StandardResponse<Void>> confirmarOrden(
-            @Parameter(description = "ID de la orden a confirmar", required = true)
+            @Parameter(description = "ID de la orden a confirmar", required = true, example = "1")
             @PathVariable Integer id) {
 
         log.info("PUT /api/v1/ordenes/{}/confirmar", id);
@@ -146,15 +206,124 @@ public class OrdenController {
         return ResponseEntity.ok(StandardResponse.success("Orden confirmada correctamente.", null));
     }
 
-    @Operation(summary = "Asignar Asistentes y Crear Orden desde Carrito")
+    @Operation(
+            summary = "Asignar Asistentes y Crear Orden desde Carrito",
+            description = "Crea una orden desde un carrito existente asignando asistentes a cada ticket. Requiere rol CLIENTE.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201", description = "Orden creada exitosamente",
+                    content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o carrito vacío", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Carrito no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
     @PostMapping("/checkout-carrito/{idCarrito}")
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseEntity<StandardResponse<OrdenResumenDTO>> checkoutDesdeCarrito(
+            @Parameter(description = "ID del carrito de compras", required = true, example = "1")
             @PathVariable Integer idCarrito,
             @Valid @RequestBody CheckoutCarritoRequestDTO request) {
         OrdenCompra orden = ordenServicio.checkoutDesdeCarrito(idCarrito, request.getItemsConAsistentes());
         log.info("POST /api/v1/ordenes/checkout-carrito/{} - Orden ID: {}", idCarrito, orden.getIdOrdenCompra());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden)));
+                .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden, tipoTicketRepositorio)));
+    }
+
+    @Operation(
+            summary = "Listar órdenes de compra",
+            description = "Lista órdenes según el rol del usuario. Clientes ven solo sus órdenes, administradores ven todas. Permite filtrar por estado.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200", description = "Lista de órdenes obtenida exitosamente",
+                    content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
+            ),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    @GetMapping
+    @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<OrdenResumenDTO>>> listarOrdenes(
+            @Parameter(description = "Estado de la orden para filtrar (opcional)", example = "PENDIENTE")
+            @RequestParam(required = false) EstadoCompra estado,
+            @Parameter(description = "ID del cliente (solo para administradores)", example = "1")
+            @RequestParam(required = false) Integer idCliente,
+            Authentication authentication) {
+        
+        log.info("GET /api/v1/ordenes - Estado: {}, Cliente: {}", estado, idCliente);
+        
+        List<OrdenCompra> ordenes;
+        
+        // Obtener ID del usuario autenticado
+        Integer idUsuarioAutenticado = obtenerIdUsuarioLogueado(authentication);
+        
+        // Si es administrador, puede ver todas las órdenes o filtrar por cliente
+        if (authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMINISTRADOR"))) {
+            if (idCliente != null) {
+                if (estado != null) {
+                    ordenes = ordenServicio.listarOrdenesPorClienteYEstado(idCliente, estado);
+                } else {
+                    ordenes = ordenServicio.listarOrdenesPorCliente(idCliente);
+                }
+            } else if (estado != null) {
+                ordenes = ordenServicio.listarOrdenesPorEstado(estado);
+            } else {
+                ordenes = ordenServicio.listarTodasLasOrdenes();
+            }
+        } else {
+            // Cliente solo ve sus propias órdenes
+            if (estado != null) {
+                ordenes = ordenServicio.listarOrdenesPorClienteYEstado(idUsuarioAutenticado, estado);
+            } else {
+                ordenes = ordenServicio.listarOrdenesPorCliente(idUsuarioAutenticado);
+            }
+        }
+        
+        List<OrdenResumenDTO> resumenes = ordenes.stream()
+                .map(orden -> new OrdenResumenDTO(orden, tipoTicketRepositorio))
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(StandardResponse.success("Órdenes obtenidas exitosamente.", resumenes));
+    }
+
+    @Operation(
+            summary = "Anular una orden de compra (Administrador)",
+            description = "Permite a un administrador anular una orden APROBADA. Revierte el stock y registra auditoría. Requiere rol ADMINISTRADOR.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Orden anulada correctamente"),
+            @ApiResponse(responseCode = "404", description = "Orden no encontrada", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "400", description = "No se puede anular una orden en este estado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    @PutMapping("/{id}/anular")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> anularOrden(
+            @Parameter(description = "ID de la orden a anular", required = true, example = "1")
+            @PathVariable Integer id) {
+
+        log.info("PUT /api/v1/ordenes/{}/anular", id);
+        ordenServicio.anularCompraAdmin(id);
+        return ResponseEntity.ok(StandardResponse.success("Orden anulada correctamente.", null));
+    }
+
+    /**
+     * Obtiene el ID del usuario autenticado desde el contexto de seguridad.
+     */
+    private Integer obtenerIdUsuarioLogueado(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new SecurityException("No se pudo determinar el usuario autenticado.");
+        }
+        if (authentication.getPrincipal() instanceof UserDetailsImpl userDetails) {
+            return userDetails.getIdPersona();
+        }
+        throw new SecurityException("El principal de autenticación no es del tipo esperado.");
     }
 }

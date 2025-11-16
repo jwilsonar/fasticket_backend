@@ -1,5 +1,18 @@
 package pe.edu.pucp.fasticket.controllers.auth;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -9,13 +22,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
-import pe.edu.pucp.fasticket.dto.auth.*;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.auth.CambioContrasenaDTO;
+import pe.edu.pucp.fasticket.dto.auth.ForgotPasswordRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
+import pe.edu.pucp.fasticket.dto.auth.RegistroRequestDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -24,7 +36,6 @@ import pe.edu.pucp.fasticket.services.auth.AuthService;
 @Tag(name = "Autenticación", description = "Endpoints para autenticación y registro de usuarios")
 @RestController
 @RequestMapping("/api/v1/auth")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
 public class AuthController {
@@ -185,17 +196,30 @@ public class AuthController {
         log.info("PUT /api/v1/auth/olvido-contrasena - Correo: {}", request.getEmail());
 
         try{
-            authService.resetearContrasena(request.getEmail());
+            authService.iniciarOlvidoContrasena(request.getEmail());
         } catch (Exception e) {
             /**
              * Por seguridad, no se indica si falló
              */
         }
 
-        StandardResponse<String> response = StandardResponse.success("Contraseña cambiada exitosamente");
+        StandardResponse<String> response = StandardResponse.success("Si el correo existe, se envió un código de verificación");
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Validar código de olvido de contraseña")
+    @PostMapping("/olvido-contrasena/validar")
+    public ResponseEntity<StandardResponse<String>> validarCodigo(@RequestBody pe.edu.pucp.fasticket.dto.auth.ValidateCodeRequestDTO request) {
+        authService.validarCodigoOlvido(request);
+        return ResponseEntity.ok(StandardResponse.success("Código validado"));
+    }
+
+    @Operation(summary = "Resetear contraseña por ID de cliente")
+    @PutMapping("/olvido-contrasena/reset")
+    public ResponseEntity<StandardResponse<String>> resetPorId(@RequestBody pe.edu.pucp.fasticket.dto.auth.ResetPasswordByIdRequestDTO request) {
+        authService.resetearContrasenaPorId(request);
+        return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada"));
+    }
 
 
 }

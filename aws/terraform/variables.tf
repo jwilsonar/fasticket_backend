@@ -20,7 +20,7 @@ variable "db_password" {
 variable "frontend_url" {
   description = "Frontend URL para CORS (ej: https://fasticket.com)"
   type        = string
-  default     = "https://fasticket.com"
+  default     = "https://fasticket-proyect.netlify.app/"
 }
 
 variable "swagger_enabled" {

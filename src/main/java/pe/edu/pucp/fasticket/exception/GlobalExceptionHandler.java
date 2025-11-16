@@ -1,31 +1,28 @@
 package pe.edu.pucp.fasticket.exception;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Arrays;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.ServletWebRequest;
-import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
-import pe.edu.pucp.fasticket.services.auditoria.LogService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.model.auditoria.ErrorLog;
+import pe.edu.pucp.fasticket.services.auditoria.LogService;
 
 /**
  * Manejador global de excepciones para toda la aplicación.
@@ -227,6 +224,29 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
         
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(StandardResponse.error("No tiene permisos para acceder a este recurso", error));
+    }
+
+    /**
+     * Maneja AccessDeniedException (variantes previas de Spring Security).
+     * Devuelve 403 para mantener consistencia con AuthorizationDeniedException.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<StandardResponse<ErrorResponse>> handleAccessDeniedException(
+            AccessDeniedException ex,
+            HttpServletRequest request) {
+
+        log.error("Acceso denegado (legacy): {}", ex.getMessage());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.FORBIDDEN.value())
+                .error("Forbidden")
+                .message("No tiene permisos para acceder a este recurso")
+                .path(request.getRequestURI())
+                .build();
+
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(StandardResponse.error("No tiene permisos para acceder a este recurso", error));
     }

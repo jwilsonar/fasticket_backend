@@ -1,19 +1,21 @@
 package pe.edu.pucp.fasticket.services;
 
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,11 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final ConfiguracionRepository configuracionRepository;
+	// Implementación Brevo (Strategy) para enviar si está habilitado
+	private final pe.edu.pucp.fasticket.services.notificaciones.EmailService notificacionesEmailService;
+
+    @Value("${brevo.enabled:false}")
+    private boolean brevoEnabled;
 
     /**
      * Envía un correo de bienvenida a un nuevo cliente.
@@ -115,6 +122,16 @@ public class EmailService {
      * Motor principal para enviar correos (soporta HTML).
      */
     private void enviarEmail(String para, String asunto, String cuerpo, boolean esHtml) {
+		if (brevoEnabled) {
+			String nombre = para; // si no tenemos nombre, usamos el email
+			String contenidoHtml = esHtml ? cuerpo : "<pre>" + escapeHtml(cuerpo) + "</pre>";
+			log.debug("Delegando envío a Brevo (legacy->Brevo) | to={} | asunto={} | html={}", para, asunto, esHtml);
+			boolean ok = notificacionesEmailService.enviarEmailHtml(para, nombre, asunto, contenidoHtml);
+			if (!ok) {
+				log.warn("Fallo el envío vía Brevo (delegado). to={} | asunto={}", para, asunto);
+			}
+			return;
+		}
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -137,6 +154,13 @@ public class EmailService {
      * NUEVO Motor de envío para múltiples destinatarios en Copia Oculta (BCC)
      */
     private void enviarEmailBcc(String[] paraBcc, String asunto, String cuerpo, boolean esHtml) {
+		if (brevoEnabled) {
+			log.debug("Delegando envío BCC a Brevo (legacy->Brevo) | destinatarios={}", paraBcc.length);
+			for (String to : paraBcc) {
+				enviarEmail(to, asunto, cuerpo, esHtml);
+			}
+			return;
+		}
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -173,4 +197,12 @@ public class EmailService {
 
         enviarEmail(email, asunto, cuerpo, true);
     }
+
+	private String escapeHtml(String text) {
+		if (text == null) return "";
+		return text
+			.replace("&", "&amp;")
+			.replace("<", "&lt;")
+			.replace(">", "&gt;");
+	}
 }

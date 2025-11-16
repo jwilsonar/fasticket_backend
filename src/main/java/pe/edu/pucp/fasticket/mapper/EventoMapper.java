@@ -66,7 +66,7 @@ public class EventoMapper {
 
         List<TipoTicket> tipos = new ArrayList<>();
 
-        for (TipoTicketRequest tReq : dto.getTipoTickets()){
+        for (TipoTicketRequest tReq : dto.tipoTickets){
             TipoTicket tt = new TipoTicket();
             tt.setIdTipoTicket(tReq.getIdTipoTicket());
             tt.setNombre(tReq.getNombre());

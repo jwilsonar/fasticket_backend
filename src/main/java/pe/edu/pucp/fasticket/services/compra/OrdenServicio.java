@@ -98,9 +98,11 @@ public class OrdenServicio {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cliente no encontrado con id: " + datosOrden.getIdCliente()));
 
-        // --- VALIDACIÓN DE LÍMITE (RF-046) ---
-        validarLimitePorCompra(datosOrden.getItems());
+        CarroCompras carrito = carroComprasRepository
+                .findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
+                .orElse(null);
 
+        validarLimitePorCompra(datosOrden.getItems());
         validarLimitesPorPersona(datosOrden.getItems(), cliente);
         validarStockDisponible(datosOrden.getItems());
 
@@ -109,6 +111,15 @@ public class OrdenServicio {
         orden.setFechaOrden(LocalDate.now());
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
+        orden.setActivo(true);
+
+        if (carrito != null) {
+            orden.setCarroCompras(carrito);
+            log.info("Carrito ID {} asociado a la orden.", carrito.getIdCarro());
+        } else {
+            log.info("Orden creada sin carrito (compra directa).");
+        }
+
         OrdenCompra ordenGuardada = ordenCompraRepositorio.save(orden);
         log.info("Orden PENDIENTE ID: {} creada.", ordenGuardada.getIdOrdenCompra());
 
@@ -116,9 +127,11 @@ public class OrdenServicio {
         ordenGuardada.setItems(items);
         ordenGuardada.calcularTotal();
         calcularDescuentoPorMembresia(ordenGuardada, cliente);
+
         OrdenCompra ordenFinal = ordenCompraRepositorio.save(ordenGuardada);
         cliente.getOrdenesCompra().add(ordenFinal);
         clienteRepository.save(cliente);
+
         return ordenFinal;
     }
 
@@ -215,13 +228,22 @@ public class OrdenServicio {
 
     private List<ItemCarrito> construirYGuardarItems(List<ItemSeleccionadoDTO> itemsDTO,
                                                      Cliente cliente, OrdenCompra orden) {
+
         List<ItemCarrito> itemsGuardados = new ArrayList<>();
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
+
             validarItemYAsistentes(itemDTO);
+
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
-                    .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
+
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
+
+            if (itemDTO.getAsistentes().size() != itemDTO.getCantidad()) {
+                throw new RuntimeException("La cantidad de asistentes no coincide con la cantidad de tickets.");
+            }
 
             ItemCarrito item = new ItemCarrito();
             item.setCantidad(itemDTO.getCantidad());
@@ -230,45 +252,57 @@ public class OrdenServicio {
             item.setTipoTicket(tipoTicket);
             item.setOrdenCompra(orden);
             item.calcularPrecioFinal();
+
             ItemCarrito itemGuardado = itemCarritoRepositorio.save(item);
 
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
+
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
                 throw new RuntimeException("Stock insuficiente para " + tipoTicket.getNombre());
             }
 
             List<Ticket> ticketsReservados = new ArrayList<>();
-            for (int i = 0; i < ticketsDisponibles.size(); i++) {
+
+            for (int i = 0; i < itemDTO.getCantidad(); i++) {
+
                 Ticket ticket = ticketsDisponibles.get(i);
                 DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
+
                 ticket.setEstado(EstadoTicket.RESERVADA);
                 ticket.setCliente(cliente);
 
                 Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(tipoTicket.getIdTipoTicket())
-                        .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado para el tipo de ticket"));
-                ticket.setEvento(evento);
+                        .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado"));
 
+                ticket.setEvento(evento);
                 ticket.setItemCarrito(itemGuardado);
                 ticket.setOrdenCompra(orden);
+                ticket.setTipoTicket(tipoTicket);
                 ticket.setNombreAsistente(asistente.getNombres());
                 ticket.setApellidoAsistente(asistente.getApellidos());
                 ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
                 ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
+
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
                 ticket.setQrImage(generarQrComoBytes(codigoQr));
 
                 ticketsReservados.add(ticket);
             }
+
             ticketRepository.saveAll(ticketsReservados);
             itemGuardado.setTickets(ticketsReservados);
+
             itemsGuardados.add(itemGuardado);
+
             int cantidadReservada = itemDTO.getCantidad();
             tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - cantidadReservada);
             tipoTicket.setCantidadVendida(tipoTicket.getCantidadVendida() + cantidadReservada);
+            tipoTicketRepositorio.save(tipoTicket);
         }
+
         return itemsGuardados;
     }
 
@@ -303,21 +337,40 @@ public class OrdenServicio {
         if (orden.getEstado() != EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden confirmar órdenes en estado PENDIENTE");
         }
-
         CarroCompras carrito = orden.getCarroCompras();
-        if (carrito == null) {
-            throw new BusinessException("La orden no tiene carrito asociado.");
-        }
-        List<OrdenCompra> otrasOrdenesActivas = ordenCompraRepositorio
-                .findByCarroComprasIdCarroAndActivoTrue(carrito.getIdCarro());
-        for (OrdenCompra o : otrasOrdenesActivas) {
-            if (!o.getIdOrdenCompra().equals(idOrden)) {
-                o.setActivo(false);
-                o.setEstado(EstadoCompra.ANULADO);
-                ordenCompraRepositorio.save(o);
-                log.warn("Orden ID {} del carrito {} marcada como CANCELADA por conflicto de confirmación.",
-                        o.getIdOrdenCompra(), carrito.getIdCarro());
+        if (carrito != null) {
+            List<OrdenCompra> otrasOrdenesActivas = ordenCompraRepositorio
+                    .findByCarroComprasIdCarroAndActivoTrue(carrito.getIdCarro());
+            for (OrdenCompra o : otrasOrdenesActivas) {
+                if (!o.getIdOrdenCompra().equals(idOrden)) {
+                    o.setActivo(false);
+                    o.setEstado(EstadoCompra.ANULADO);
+                    ordenCompraRepositorio.save(o);
+                    log.warn("Orden ID {} del carrito {} marcada como ANULADA por conflicto de confirmación.",
+                            o.getIdOrdenCompra(), carrito.getIdCarro());
+                }
             }
+            try {
+                itemCarritoRepositorio.deleteByCarroCompraId(carrito.getIdCarro());
+            } catch (Exception e) {
+                log.warn("No se pudieron eliminar items del carrito ID {}: {}", carrito.getIdCarro(), e.getMessage());
+            }
+            carrito.setActivo(false);
+            carrito.setFechaActualizacion(LocalDateTime.now());
+            carroComprasRepository.save(carrito);
+            log.info("Carrito ID {} marcado como INACTIVO (histórico).", carrito.getIdCarro());
+            CarroCompras nuevoCarro = new CarroCompras();
+            nuevoCarro.setCliente(orden.getCliente());
+            nuevoCarro.setActivo(true);
+            nuevoCarro.setFechaCreacion(LocalDateTime.now());
+            nuevoCarro.setFechaActualizacion(LocalDateTime.now());
+            nuevoCarro.setSubtotal(0.0);
+            nuevoCarro.setTotal(0.0);
+            carroComprasRepository.save(nuevoCarro);
+            log.info("Nuevo carrito ID {} creado para cliente ID {}.", nuevoCarro.getIdCarro(),
+                    nuevoCarro.getCliente() != null ? nuevoCarro.getCliente().getIdPersona() : "N/A");
+        } else {
+            log.info("Orden ID {} no tiene carrito asociado (compra directa).", idOrden);
         }
         orden.setEstado(EstadoCompra.APROBADO);
         orden.setActivo(false);
@@ -342,35 +395,11 @@ public class OrdenServicio {
             }
         }
         try {
-            itemCarritoRepositorio.deleteByCarroCompraId(carrito.getIdCarro());
-        } catch (Exception e) {
-            log.warn("No se pudieron eliminar items del carrito ID {}: {}", carrito.getIdCarro(), e.getMessage());
-        }
-        carrito.setActivo(false);
-        carrito.setFechaActualizacion(LocalDateTime.now());
-        carroComprasRepository.save(carrito);
-        log.info("Carrito ID {} marcado como INACTIVO (histórico).", carrito.getIdCarro());
-        CarroCompras nuevoCarro = new CarroCompras();
-        nuevoCarro.setCliente(carrito.getCliente());
-        nuevoCarro.setActivo(true);
-        nuevoCarro.setFechaCreacion(LocalDateTime.now());
-        nuevoCarro.setFechaActualizacion(LocalDateTime.now());
-        nuevoCarro.setSubtotal(0.0);
-        nuevoCarro.setTotal(0.0);
-        carroComprasRepository.save(nuevoCarro);
-        log.info("Nuevo carrito ID {} creado para cliente ID {}.", nuevoCarro.getIdCarro(),
-                nuevoCarro.getCliente() != null ? nuevoCarro.getCliente().getIdPersona() : "N/A");
-
-        // --- INICIO LLAMADA A EMAIL (RF-045) ---
-        try {
-            log.info("📢 Enviando correo de confirmación de compra para orden ID: {}", idOrden);
-            // 'orden' es la variable que ya tienes en este método
+            log.info("Enviando correo de confirmación de compra para orden ID: {}", idOrden);
             emailService.enviarCorreoConfirmacionCompra(orden);
         } catch (Exception e) {
-            log.error("⚠️ Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
+            log.error("Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
         }
-        // --- FIN LLAMADA A EMAIL ---
-
         fidelizacionService.generarPuntosPorCompra(
                 orden.getCliente().getIdPersona(),
                 orden.getTotal(),

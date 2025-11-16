@@ -62,8 +62,8 @@ public class Evento {
      * RF-072: Edad mínima requerida para asistir al evento.
      * Por ejemplo: 18 para eventos con restricción de edad, 0 para todos los públicos.
      */
-    @Column(name = "edadMinima")
-    private Integer edadMinima = 0;
+    @Column(name = "menoresDeEdadPermitidos")
+    private Boolean menoresDeEdadPermitidos;
 
     /**
      * RF-072: Restricciones adicionales del evento (ej: "No se permite el ingreso de alimentos").

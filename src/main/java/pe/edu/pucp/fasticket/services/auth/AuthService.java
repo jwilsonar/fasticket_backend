@@ -127,6 +127,15 @@ public class AuthService {
                 administradorRepository.save(admin);
                 String formattedDate = formatInstant(admin.getUltimoAcceso());
                 log.info("Registrado último acceso para admin: {} - {}", persona.getEmail(), formattedDate);
+
+                // --- INICIO RF-041: REGISTRO DE AUDITORÍA LOGIN ---
+                auditLogService.registrarAuditoria(
+                        admin,
+                        "LOGIN",
+                        "AuthService",
+                        "Inicio de sesión exitoso."
+                );
+                // --- FIN RF-041 ---
             }
             
             // ÉXITO: Resetear intentos fallidos y bloqueo
@@ -336,6 +345,21 @@ public class AuthService {
 
         try {
             String email = jwtUtil.extractUsername(token);
+
+            // --- INICIO RF-041: REGISTRO DE AUDITORÍA LOGOUT ---
+            // Necesitamos buscar al admin para pasarlo al log de auditoría
+            personasRepositorio.findByEmail(email).ifPresent(persona -> {
+                if (persona.getRol() == Rol.ADMINISTRADOR) {
+                    auditLogService.registrarAuditoria(
+                            (Administrador) persona,
+                            "LOGOUT",
+                            "AuthService",
+                            "Cierre de sesión."
+                    );
+                }
+            });
+            // --- FIN RF-041 ---
+
             tokenBlacklistService.blacklistToken(token);
             log.info("Sesión cerrada exitosamente para: {}", email);
         } catch (io.jsonwebtoken.JwtException e) { // usar la excepción concreta del parser JWT

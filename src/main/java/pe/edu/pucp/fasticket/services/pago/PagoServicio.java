@@ -49,7 +49,8 @@ public class PagoServicio {
         if (dto.getNumeroTarjeta() == null || dto.getNumeroTarjeta().length() < 4) {
             throw new RuntimeException("Número de tarjeta inválido");
         }
-        var usuario = personaRepositorio.findById(orden.getUsuarioCreacion()).orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        var usuario = personaRepositorio.findById(orden.getCliente().getIdPersona())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         String ultimos4 = dto.getNumeroTarjeta().substring(dto.getNumeroTarjeta().length() - 4);
         Pago pago = new Pago();
         pago.setMetodo("Tarjeta (" + ultimos4 + ")");
@@ -58,7 +59,7 @@ public class PagoServicio {
         pago.setFechaPago(LocalDate.now());
         pago.setActivo(true);
         pago.setFechaCreacion(LocalDate.now());
-        pago.setUsuarioCreacion(orden.getUsuarioCreacion());
+        pago.setUsuarioCreacion(dto.getIdUsuario());
         pago.setOrdenCompra(orden);
         pagoRepository.save(pago);
         ordenServicio.confirmarPagoOrden(orden.getIdOrdenCompra());
@@ -67,7 +68,7 @@ public class PagoServicio {
         comprobante.setFechaEmision(LocalDateTime.now());
         comprobante.setTotal(dto.getMonto());
         comprobante.setActivo(true);
-        comprobante.setUsuarioCreacion(orden.getUsuarioCreacion());
+        comprobante.setUsuarioCreacion(orden.getCliente().getIdPersona());
         comprobante.setFechaCreacion(LocalDate.now());
         comprobante.setDni(usuario.getDocIdentidad());
         comprobante.setPago(pago);

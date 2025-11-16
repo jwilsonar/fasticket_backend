@@ -1,6 +1,10 @@
 package pe.edu.pucp.fasticket.mapper;
 
 import lombok.RequiredArgsConstructor;
+import org.mapstruct.AfterMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.springframework.stereotype.Component;
 import pe.edu.pucp.fasticket.dto.eventos.*;
 import pe.edu.pucp.fasticket.model.eventos.*;
@@ -14,6 +18,7 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
+@Mapper
 public class EventoMapper {
 
     public EventoResponseDTO toResponseDTO(Evento evento) {
@@ -43,6 +48,7 @@ public class EventoMapper {
                 .build();
     }
 
+    @Mapping(target = "id", ignore = true)
     public Evento toEntity(EventoCreateDTO dto, Local local) {
         Evento evento = new Evento();
         evento.setNombre(dto.getNombre());
@@ -63,7 +69,7 @@ public class EventoMapper {
         evento.setFechaCreacion(LocalDate.now());
 
         /**Añadido para añadir tipos de tickets*/
-
+        /*
         List<TipoTicket> tipos = new ArrayList<>();
 
         for (TipoTicketRequest tReq : dto.getTipoTickets()){
@@ -90,8 +96,27 @@ public class EventoMapper {
             tipos.add(tt);
         }
         evento.setTiposTicket(tipos);
+        */
 
         return evento;
+    }
+
+    @AfterMapping
+    protected void setearEventoEnTipoTickets(@MappingTarget Evento evento) {
+        if (evento.getTiposTicket() != null) {
+            for (TipoTicket tipo : evento.getTiposTicket()) {
+                tipo.setEvento(evento);
+            }
+        }
+    }
+
+    @AfterMapping
+    protected void setearTipoTicketEnPrecios(@MappingTarget TipoTicket tipoTicket) {
+        if (tipoTicket.getPreciosEscalonados() != null) {
+            for (PrecioEscalonado precio : tipoTicket.getPreciosEscalonados()) {
+                precio.setTipoTicket(tipoTicket);
+            }
+        }
     }
 
     public void updateEntity(Evento evento, EventoCreateDTO dto, Local local) {

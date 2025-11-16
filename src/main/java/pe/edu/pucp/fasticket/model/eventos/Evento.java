@@ -19,7 +19,6 @@ import pe.edu.pucp.fasticket.model.usuario.Cliente;
 @Entity
 @Table(name = "Evento")
 public class Evento {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "idEvento")

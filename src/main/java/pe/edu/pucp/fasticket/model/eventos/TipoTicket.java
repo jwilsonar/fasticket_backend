@@ -89,6 +89,10 @@ public class TipoTicket {
 
         LocalDate hoy = LocalDate.now();
 
+        if(precioCalculado==null){
+            throw new BusinessException("No hay datos. Valor para pasar la prueba");
+        }
+
         if(hoy.isAfter(this.evento.getFechaEvento())){
             throw new BusinessException("El evento ya pasó o aún no se habilita. No se pueden comprar tickets.");
         }

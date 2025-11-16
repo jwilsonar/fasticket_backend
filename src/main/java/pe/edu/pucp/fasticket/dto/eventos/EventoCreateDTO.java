@@ -62,5 +62,16 @@ public class EventoCreateDTO {
 
     @Schema(description = "ID del local", example = "1")
     private Integer idLocal;
+
+    @Schema(description = "Indica si se permiten menores de edad en el evento", example = "false")
+    private Boolean menoresDeEdadPermitidos;
+
+    @Schema(description = "Restricciones del evento", example = "Prohibido el ingreso de menores de 18 años")
+    @Size(max = 500, message = "Las restricciones no pueden exceder 500 caracteres")
+    private String restricciones;
+
+    @Schema(description = "Políticas de devolución del evento", example = "No se permiten devoluciones")
+    @Size(max = 1000, message = "Las políticas de devolución no pueden exceder 1000 caracteres")
+    private String politicasDevolucion;
 }
 

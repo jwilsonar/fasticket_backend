@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -62,5 +63,16 @@ public class EventoResponseDTO {
     
     @Schema(description = "Fecha de creación", example = "2025-10-10")
     private LocalDate fechaCreacion;
+
+    @Schema(description = "Indica si se permiten menores de edad en el evento", example = "false")
+    private Boolean menoresDeEdadPermitidos;
+
+    @Schema(description = "Restricciones del evento", example = "Prohibido el ingreso de menores de 18 años")
+    @Size(max = 500, message = "Las restricciones no pueden exceder 500 caracteres")
+    private String restricciones;
+
+    @Schema(description = "Políticas de devolución del evento", example = "No se permiten devoluciones")
+    @Size(max = 1000, message = "Las políticas de devolución no pueden exceder 1000 caracteres")
+    private String politicasDevolucion;
 }
 

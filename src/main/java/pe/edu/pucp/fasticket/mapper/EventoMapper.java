@@ -40,7 +40,6 @@ public class EventoMapper {
                 .politicasDevolucion(evento.getPoliticasDevolucion())
                 .nombreLocal(evento.getLocal() != null ? evento.getLocal().getNombre() : null)
                 .fechaCreacion(evento.getFechaCreacion())
-                .tipoTickets(evento.getTiposTicket())
                 .build();
     }
 

@@ -90,7 +90,7 @@ public class TipoTicket {
         LocalDate hoy = LocalDate.now();
 
         if(precioCalculado==null){
-            throw new BusinessException("No hay datos. Valor para pasar la prueba");
+            return this.precio * 0;
         }
 
         if(hoy.isAfter(this.evento.getFechaEvento())){

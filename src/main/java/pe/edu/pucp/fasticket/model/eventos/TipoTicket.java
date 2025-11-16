@@ -89,6 +89,9 @@ public class TipoTicket {
 
         LocalDate hoy = LocalDate.now();
 
+        if(hoy.isAfter(this.evento.getFechaEvento())){
+            throw new BusinessException("El evento ya pasó o aún no se habilita. No se pueden comprar tickets.");
+        }
         // 1. PREVENTA
         if (precioCalculado.getNombreEtapa() == Etapa.PREVENTA) {
             return this.precio * 0.80; // 20% Descuento
@@ -105,8 +108,8 @@ public class TipoTicket {
         if (precioCalculado.getNombreEtapa() == Etapa.LATE) {
             return this.precio * 1.0; // 1.0 (Precio Base)
         }
-        // Si no es ninguna de las anteriores, la compra es antes después del evento, no se vende
-        throw new BusinessException("El evento ya pasó o aún no se habilita. No se pueden comprar tickets.");
+        //NOTA: Si hay fallos, revisar esta funcion, si no ioro
+        return this.precio;
     }
 
     public PrecioEscalonado obtenerEscalonActual() {

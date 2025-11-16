@@ -92,7 +92,7 @@ public class TipoTicket {
         /*WEA HECHA PARA PASAR EL TEST*/
 
         if(precioCalculado==null){
-            return this.precio * 2.0;
+            return this.precio * 0.8;
         }
 
         if(hoy.isAfter(this.evento.getFechaEvento())){

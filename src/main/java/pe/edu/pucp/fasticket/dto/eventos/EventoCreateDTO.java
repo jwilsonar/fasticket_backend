@@ -77,6 +77,6 @@ public class EventoCreateDTO {
     private String politicasDevolucion;
 
     @Schema(description = "Lista de los tipos de tickets", example = "nombre: VIP, stock: 200, etc")
-    public List<TipoTicketRequest> tipoTickets;
+    private List<TipoTicketRequest> tipoTickets;
 }
 

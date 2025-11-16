@@ -66,7 +66,7 @@ public class EventoMapper {
 
         List<TipoTicket> tipos = new ArrayList<>();
 
-        for (TipoTicketRequest tReq : dto.tipoTickets){
+        for (TipoTicketRequest tReq : dto.getTipoTickets()){
             TipoTicket tt = new TipoTicket();
             tt.setIdTipoTicket(tReq.getIdTipoTicket());
             tt.setNombre(tReq.getNombre());
@@ -84,8 +84,12 @@ public class EventoMapper {
                 pe.setFechaInicio(pReq.getFechaInicio());
                 pe.setFechaFin(pReq.getFechaFin());
                 pe.setActivo(pReq.getActivo());
+                precios.add(pe);
             }
+            tt.setPreciosEscalonados(precios);
+            tipos.add(tt);
         }
+        evento.setTiposTicket(tipos);
 
         return evento;
     }

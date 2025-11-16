@@ -1,16 +1,20 @@
 package pe.edu.pucp.fasticket.controllers.administrador;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -122,11 +126,43 @@ public class AdministradorController {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Void>> desactivarAdministrador(
             @AuthenticationPrincipal UserDetails userDetails,
-            @org.springframework.web.bind.annotation.PathVariable("id") Integer idAdmin) {
+            @PathVariable("id") Integer idAdmin) {
 
         log.warn("PUT /api/v1/administrador/desactivar/{} - Admin: {}", idAdmin, userDetails.getUsername());
         administradorService.desactivarAdmin(idAdmin);
         return ResponseEntity.ok(StandardResponse.success("Administrador desactivado exitosamente", null));
+    }
+
+    @Operation(
+        summary = "Listar todos los administradores",
+        description = "Devuelve la lista de todos los administradores del sistema (activos e inactivos)",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Lista obtenida exitosamente",
+            content = @Content(
+                array = @ArraySchema(schema = @Schema(implementation = AdministradorPerfilResponseDTO.class))
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "No autenticado"
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "No autorizado"
+        )
+    })
+    @GetMapping("/listar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<AdministradorPerfilResponseDTO>>> listarAdministradores(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("GET /api/v1/administrador/listar - Usuario: {}", userDetails.getUsername());
+        List<AdministradorPerfilResponseDTO> admins = administradorService.obtenerTodosLosAdmins();
+        return ResponseEntity.ok(StandardResponse.success("Lista de administradores obtenida exitosamente", admins));
     }
 
 }

@@ -1,6 +1,5 @@
 package pe.edu.pucp.fasticket.services.notificaciones;
 
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -11,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
+import pe.edu.pucp.fasticket.model.notificaciones.TipoNotificacion;
+import pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla;
+import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 
 /**
  * Servicio de notificaciones que orquesta el envío de diferentes tipos de emails.
@@ -34,12 +36,15 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
 public class NotificacionService {
 
     private final EmailService emailService;
+    private final PlantillaService plantillaService;
+    private final NotificationManager notificationManager;
+    private final PersonasRepositorio personasRepo;
 
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;
 
     /**
-     * RF-048: Envía email de verificación de cuenta.
+     * RF-048: Envía email de verificación de cuenta y notificación in-app.
      */
     public void enviarEmailVerificacion(String email, String nombreCompleto, String token) {
         log.info("Enviando email de verificación a: {}", email);
@@ -52,12 +57,30 @@ public class NotificacionService {
         params.put("linkVerificacion", linkVerificacion);
 
         try {
-            boolean enviado = emailService.enviarEmailHtml(
-                email,
-                nombreCompleto,
-                asunto,
-                construirHtmlVerificacion(nombreCompleto, linkVerificacion)
-            );
+            String html = null;
+            var plantilla = plantillaService.obtenerActiva(pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.VERIFICAR_CUENTA);
+            if (plantilla != null) {
+                asunto = plantilla.getAsunto();
+                html = plantillaService.render(plantilla.getHtml(), params);
+            } else {
+                html = String.format("<h2>Hola %s</h2><p>Verifica tu cuenta haciendo clic "
+                    + "<a href=\"%s\">aquí</a>.</p><p>Si no funciona, copia y pega el enlace: %s</p>",
+                    nombreCompleto, linkVerificacion, linkVerificacion);
+            }
+
+            boolean enviado = emailService.enviarEmailHtml(email, nombreCompleto, asunto, html);
+
+            // Notificación in-app usando el manager (resolver personaId por email)
+            NotificationRequest req = NotificationRequest.builder()
+                .email(email)
+                .nombre(nombreCompleto)
+                .notiTipo(TipoNotificacion.VERIFICACION_CUENTA)
+                .plantilla(TipoPlantilla.VERIFICAR_CUENTA)
+                .params(params)
+                .titulo("Verifica tu cuenta")
+                .mensaje("Hemos enviado un correo con el enlace de verificación.")
+                .build();
+            notificationManager.notifyAllChannels(req);
 
             if (enviado) {
                 log.info("Email de verificación enviado exitosamente");
@@ -79,12 +102,31 @@ public class NotificacionService {
         String asunto = "Confirmación de Compra - Fasticket #" + orden.getIdOrdenCompra();
 
         try {
-            boolean enviado = emailService.enviarEmailHtml(
-                emailCliente,
-                nombreCliente,
-                asunto,
-                construirHtmlConfirmacionCompra(orden, nombreCliente)
-            );
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreCliente);
+            params.put("idOrden", orden.getIdOrdenCompra());
+            params.put("total", orden.getTotal());
+            var plantilla = plantillaService.obtenerActiva(pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.CONFIRMACION_COMPRA);
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>Tu compra fue confirmada.</p>"
+                    + "<p>Número de Orden: #%d</p><p>Total: S/ %.2f</p>",
+                    nombreCliente, orden.getIdOrdenCompra(), orden.getTotal());
+            if (plantilla != null) asunto = plantilla.getAsunto();
+
+            boolean enviado = emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqCompra = NotificationRequest.builder()
+                .email(emailCliente)
+                .nombre(nombreCliente)
+                .notiTipo(TipoNotificacion.CONFIRMACION_COMPRA)
+                .plantilla(TipoPlantilla.CONFIRMACION_COMPRA)
+                .params(params)
+                .titulo("Compra confirmada")
+                .mensaje("Tu compra #" + orden.getIdOrdenCompra() + " ha sido confirmada.")
+                .build();
+            notificationManager.notifyAllChannels(reqCompra);
 
             if (enviado) {
                 log.info("Confirmación de compra enviada exitosamente");
@@ -106,12 +148,21 @@ public class NotificacionService {
         String asunto = "Evento Cancelado - " + evento.getNombre();
 
         try {
-            boolean enviado = emailService.enviarEmailHtml(
-                emailCliente,
-                nombreCliente,
-                asunto,
-                construirHtmlEventoCancelado(evento, nombreCliente, motivo)
-            );
+            String html = String.format("<h2>Hola %s</h2><p>Lamentamos informarte que el evento "
+                + "<strong>%s</strong> ha sido cancelado.</p><p><strong>Motivo:</strong> %s</p>"
+                + "<p>Se procesará el reembolso en los próximos días hábiles.</p>",
+                nombreCliente, evento.getNombre(), motivo);
+            boolean enviado = emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqCancel = NotificationRequest.builder()
+                .email(emailCliente)
+                .nombre(nombreCliente)
+                .notiTipo(TipoNotificacion.SISTEMA)
+                .titulo("Evento cancelado")
+                .mensaje("El evento " + evento.getNombre() + " ha sido cancelado. Motivo: " + motivo)
+                .build();
+            notificationManager.notifyAllChannels(reqCancel);
 
             if (enviado) {
                 log.info("Notificación de cancelación enviada");
@@ -131,12 +182,30 @@ public class NotificacionService {
         String linkRecuperacion = frontendUrl + "/recuperar-contrasena?token=" + token;
 
         try {
-            boolean enviado = emailService.enviarEmailHtml(
-                email,
-                nombreCompleto,
-                asunto,
-                construirHtmlRecuperacionContrasena(nombreCompleto, linkRecuperacion)
-            );
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreCompleto);
+            params.put("linkRecuperacion", linkRecuperacion);
+            var plantilla = plantillaService.obtenerActiva(pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.CONFIRMACION_RECUPERACION_CONTRASENA);
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>Para recuperar tu contraseña ingresa "
+                    + "<a href=\"%s\">aquí</a>.</p><p>Enlace: %s</p>",
+                    nombreCompleto, linkRecuperacion, linkRecuperacion);
+            if (plantilla != null) asunto = plantilla.getAsunto();
+
+            boolean enviado = emailService.enviarEmailHtml(email, nombreCompleto, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqRec = NotificationRequest.builder()
+                .email(email)
+                .nombre(nombreCompleto)
+                .notiTipo(TipoNotificacion.RECUPERACION_CONTRASENA)
+                .plantilla(TipoPlantilla.CONFIRMACION_RECUPERACION_CONTRASENA)
+                .params(params)
+                .titulo("Recuperación de contraseña")
+                .mensaje("Hemos enviado un enlace de recuperación a tu correo.")
+                .build();
+            notificationManager.notifyAllChannels(reqRec);
 
             if (enviado) {
                 log.info("Email de recuperación enviado exitosamente");
@@ -156,12 +225,21 @@ public class NotificacionService {
         String asunto = "Compra Anulada - Fasticket #" + orden.getIdOrdenCompra();
 
         try {
-            boolean enviado = emailService.enviarEmailHtml(
-                emailCliente,
-                nombreCliente,
-                asunto,
-                construirHtmlCompraAnulada(orden, nombreCliente, motivo)
-            );
+            String html = String.format("<h2>Hola %s</h2><p>Tu compra con número de orden <strong>#%d</strong> "
+                + "ha sido anulada.</p><p><strong>Motivo:</strong> %s</p><p>Se procesará el reembolso "
+                + "correspondiente en los próximos días hábiles.</p>",
+                nombreCliente, orden.getIdOrdenCompra(), motivo);
+            boolean enviado = emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqAnul = NotificationRequest.builder()
+                .email(emailCliente)
+                .nombre(nombreCliente)
+                .notiTipo(TipoNotificacion.SISTEMA)
+                .titulo("Compra anulada")
+                .mensaje("Tu compra #" + orden.getIdOrdenCompra() + " ha sido anulada. Motivo: " + motivo)
+                .build();
+            notificationManager.notifyAllChannels(reqAnul);
 
             if (enviado) {
                 log.info("Notificación de anulación enviada");
@@ -171,254 +249,145 @@ public class NotificacionService {
         }
     }
 
-    // ===== TEMPLATES HTML =====
+    /**
+     * Nuevo: Notifica cambio de contraseña (post cambio exitoso).
+     */
+    public void enviarNotificacionCambioContrasena(String email, String nombreCompleto) {
+        log.info("📨 Enviando notificación de cambio de contraseña a: {}", email);
+        String asunto = "Tu contraseña ha sido actualizada";
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreCompleto);
+            var plantilla = plantillaService.obtenerActiva(
+                pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.CAMBIO_CONTRASENA
+            );
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>Tu contraseña fue cambiada correctamente.</p>", nombreCompleto);
+            if (plantilla != null) asunto = plantilla.getAsunto();
 
-    private String construirHtmlVerificacion(String nombre, String link) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; }
-                    .button { display: inline-block; padding: 15px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Bienvenido a Fasticket</h1>
-                    </div>
-                    <div class="content">
-                        <h2>¡Hola %s!</h2>
-                        <p>Gracias por registrarte en Fasticket. Para activar tu cuenta, por favor verifica tu dirección de correo electrónico.</p>
-                        <p style="text-align: center;">
-                            <a href="%s" class="button">Verificar mi Cuenta</a>
-                        </p>
-                        <p><small>Si el botón no funciona, copia y pega este enlace en tu navegador:<br>%s</small></p>
-                        <p>Este enlace expirará en 24 horas.</p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2025 Fasticket. Todos los derechos reservados.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, nombre, link, link);
+            emailService.enviarEmailHtml(email, nombreCompleto, asunto, html);
+        } catch (Exception e) {
+            log.error("Error al enviar notificación de cambio de contraseña: {}", e.getMessage());
+        }
     }
 
-    private String construirHtmlConfirmacionCompra(OrdenCompra orden, String nombre) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        String fecha = orden.getFechaOrden() != null ? orden.getFechaOrden().format(formatter) : "";
+    /**
+     * Nuevo: Recordatorio de evento 48h antes.
+     */
+    public void enviarRecordatorioEvento48h(Evento evento, String emailCliente, String nombreCliente) {
+        log.info("📨 Enviando recordatorio (48h) de evento a: {}", emailCliente);
+        String asunto = "Recordatorio: tu evento inicia pronto";
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreCliente);
+            params.put("eventoNombre", evento.getNombre());
+            var plantilla = plantillaService.obtenerActiva(
+                pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.RECORDATORIO_EVENTO_48H
+            );
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>Te recordamos que el evento %s inicia en 48 horas.</p>",
+                    nombreCliente, evento.getNombre());
+            if (plantilla != null) asunto = plantilla.getAsunto();
 
-        StringBuilder itemsHtml = new StringBuilder();
-        orden.getItems().forEach(item -> {
-            itemsHtml.append(String.format("""
-                <tr>
-                    <td>%s</td>
-                    <td style="text-align: center;">%d</td>
-                    <td style="text-align: right;">S/ %.2f</td>
-                </tr>
-                """, 
-                item.getTipoTicket().getNombre(),
-                item.getCantidad(),
-                item.getPrecioFinal()
-            ));
-        });
+            emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
 
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: #28a745; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; }
-                    table { width: 100%%; border-collapse: collapse; margin: 20px 0; }
-                    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-                    th { background: #f0f0f0; }
-                    .total { font-size: 18px; font-weight: bold; color: #28a745; }
-                    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>¡Compra Confirmada!</h1>
-                    </div>
-                    <div class="content">
-                        <h2>¡Hola %s!</h2>
-                        <p>Tu compra ha sido confirmada exitosamente.</p>
-                        <p><strong>Número de Orden:</strong> #%d</p>
-                        <p><strong>Fecha:</strong> %s</p>
-                        
-                        <h3>Detalle de tu Compra:</h3>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Ticket</th>
-                                    <th style="text-align: center;">Cantidad</th>
-                                    <th style="text-align: right;">Precio</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                %s
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="2"><strong>TOTAL:</strong></td>
-                                    <td class="total" style="text-align: right;">S/ %.2f</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                        
-                        <p>📱 Tus tickets están disponibles en tu cuenta. Recuerda llevarlos el día del evento.</p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2025 Fasticket. Todos los derechos reservados.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, 
-            nombre, 
-            orden.getIdOrdenCompra(), 
-            fecha, 
-            itemsHtml.toString(), 
-            orden.getTotal()
-        );
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqRec48 = NotificationRequest.builder()
+                .email(emailCliente)
+                .nombre(nombreCliente)
+                .notiTipo(TipoNotificacion.RECORDATORIO_EVENTO)
+                .plantilla(TipoPlantilla.RECORDATORIO_EVENTO_48H)
+                .params(params)
+                .titulo("Recordatorio de evento")
+                .mensaje("Faltan 48 horas para el evento " + evento.getNombre())
+                .build();
+            notificationManager.notifyAllChannels(reqRec48);
+        } catch (Exception e) {
+            log.error("Error al enviar recordatorio de evento: {}", e.getMessage());
+        }
     }
 
-    private String construirHtmlEventoCancelado(Evento evento, String nombre, String motivo) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: #dc3545; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; }
-                    .alert { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
-                    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Evento Cancelado</h1>
-                    </div>
-                    <div class="content">
-                        <h2>Hola %s,</h2>
-                        <p>Lamentamos informarte que el siguiente evento ha sido cancelado:</p>
-                        
-                        <div class="alert">
-                            <h3>%s</h3>
-                            <p><strong>Motivo:</strong> %s</p>
-                        </div>
-                        
-                        <p>Se procesará automáticamente el reembolso de tu compra en los próximos 5-7 días hábiles.</p>
-                        <p>Disculpa las molestias ocasionadas. Esperamos verte pronto en otros eventos.</p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2025 Fasticket. Todos los derechos reservados.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, nombre, evento.getNombre(), motivo);
+    /**
+     * Nuevo: Transferencia exitosa.
+     */
+    public void enviarTransferenciaExitosa(String emailDestinatario, String nombreDestinatario,
+                                           String eventoNombre, Long ticketId) {
+        log.info("📨 Enviando notificación de transferencia exitosa a: {}", emailDestinatario);
+        String asunto = "Transferencia realizada";
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreDestinatario);
+            params.put("eventoNombre", eventoNombre);
+            params.put("ticketId", ticketId);
+            var plantilla = plantillaService.obtenerActiva(
+                pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.TRANSFERENCIA_OK
+            );
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>La transferencia del ticket %d para el evento %s fue exitosa.</p>",
+                    nombreDestinatario, ticketId, eventoNombre);
+            if (plantilla != null) asunto = plantilla.getAsunto();
+
+            emailService.enviarEmailHtml(emailDestinatario, nombreDestinatario, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqOk = NotificationRequest.builder()
+                .email(emailDestinatario)
+                .nombre(nombreDestinatario)
+                .notiTipo(TipoNotificacion.TRANSFERENCIA_OK)
+                .plantilla(TipoPlantilla.TRANSFERENCIA_OK)
+                .params(params)
+                .titulo("Transferencia realizada")
+                .mensaje("Tu ticket " + ticketId + " fue transferido para el evento " + eventoNombre)
+                .build();
+            notificationManager.notifyAllChannels(reqOk);
+        } catch (Exception e) {
+            log.error("Error al enviar notificación de transferencia exitosa: {}", e.getMessage());
+        }
     }
 
-    private String construirHtmlRecuperacionContrasena(String nombre, String link) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: #6c757d; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; }
-                    .button { display: inline-block; padding: 15px 30px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                    .warning { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0; }
-                    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Recuperación de Contraseña</h1>
-                    </div>
-                    <div class="content">
-                        <h2>Hola %s,</h2>
-                        <p>Hemos recibido una solicitud para restablecer tu contraseña. Haz clic en el botón de abajo para continuar:</p>
-                        <p style="text-align: center;">
-                            <a href="%s" class="button">Restablecer Contraseña</a>
-                        </p>
-                        <div class="warning">
-                            <p><strong>Importante:</strong></p>
-                            <ul>
-                                <li>Este enlace expirará en 1 hora</li>
-                                <li>Si no solicitaste este cambio, ignora este correo</li>
-                            </ul>
-                        </div>
-                        <p><small>Enlace: %s</small></p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2025 Fasticket. Todos los derechos reservados.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, nombre, link, link);
+    /**
+     * Nuevo: Transferencia fallida.
+     */
+    public void enviarTransferenciaFallida(String emailDestinatario, String nombreDestinatario,
+                                           String eventoNombre, Long ticketId, String motivo) {
+        log.info("📨 Enviando notificación de transferencia fallida a: {}", emailDestinatario);
+        String asunto = "Transferencia no realizada";
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", nombreDestinatario);
+            params.put("eventoNombre", eventoNombre);
+            params.put("ticketId", ticketId);
+            params.put("motivo", motivo);
+            var plantilla = plantillaService.obtenerActiva(
+                pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla.TRANSFERENCIA_FALLIDA
+            );
+            String html = plantilla != null
+                ? plantillaService.render(plantilla.getHtml(), params)
+                : String.format("<h2>Hola %s</h2><p>No se pudo realizar la transferencia del ticket %d para el evento %s. Motivo: %s.</p>",
+                    nombreDestinatario, ticketId, eventoNombre, motivo);
+            if (plantilla != null) asunto = plantilla.getAsunto();
+
+            emailService.enviarEmailHtml(emailDestinatario, nombreDestinatario, asunto, html);
+
+            // Notificación in-app vía NotificationManager
+            NotificationRequest reqFail = NotificationRequest.builder()
+                .email(emailDestinatario)
+                .nombre(nombreDestinatario)
+                .notiTipo(TipoNotificacion.TRANSFERENCIA_FALLIDA)
+                .plantilla(TipoPlantilla.TRANSFERENCIA_FALLIDA)
+                .params(params)
+                .titulo("Transferencia no realizada")
+                .mensaje("No se pudo transferir el ticket " + ticketId + " para el evento " + eventoNombre + ". Motivo: " + motivo)
+                .build();
+            notificationManager.notifyAllChannels(reqFail);
+        } catch (Exception e) {
+            log.error("Error al enviar notificación de transferencia fallida: {}", e.getMessage());
+        }
     }
 
-    private String construirHtmlCompraAnulada(OrdenCompra orden, String nombre, String motivo) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: #ffc107; color: #333; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                    .content { background: #f9f9f9; padding: 30px; }
-                    .alert { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
-                    .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Compra Anulada</h1>
-                    </div>
-                    <div class="content">
-                        <h2>Hola %s,</h2>
-                        <p>Tu compra con número de orden <strong>#%d</strong> ha sido anulada.</p>
-                        
-                        <div class="alert">
-                            <p><strong>Motivo:</strong> %s</p>
-                        </div>
-                        
-                        <p>Se procesará el reembolso correspondiente en los próximos días hábiles.</p>
-                        <p>Si tienes alguna duda, contáctanos a soporte@fasticket.com</p>
-                    </div>
-                    <div class="footer">
-                        <p>© 2025 Fasticket. Todos los derechos reservados.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """, nombre, orden.getIdOrdenCompra(), motivo);
-    }
+    // Métodos de construcción HTML eliminados por uso de PlantillaService con fallbacks simples.
 }
 

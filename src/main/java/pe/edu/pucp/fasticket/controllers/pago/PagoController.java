@@ -25,7 +25,6 @@ import pe.edu.pucp.fasticket.services.pago.PagoServicio;
 )
 @RestController
 @RequestMapping("/api/v1/pagos")
-@CrossOrigin(origins = {"http://localhost:4200", "https://fasticket.com"})
 @RequiredArgsConstructor
 @Slf4j
 public class PagoController {

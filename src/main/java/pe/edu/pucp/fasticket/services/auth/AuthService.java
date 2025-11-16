@@ -5,9 +5,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,13 +24,19 @@ import pe.edu.pucp.fasticket.dto.auth.CambioContrasenaDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
 import pe.edu.pucp.fasticket.dto.auth.RegistroRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.ResetPasswordByIdRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.ValidateCodeRequestDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.auth.PasswordResetCode;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.notificaciones.TipoNotificacion;
+import pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
+import pe.edu.pucp.fasticket.repository.auth.PasswordResetCodeRepository;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
@@ -36,6 +44,9 @@ import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.security.JwtUtil;
 import pe.edu.pucp.fasticket.services.EmailService;
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
+import pe.edu.pucp.fasticket.services.notificaciones.NotificationManager;
+import pe.edu.pucp.fasticket.services.notificaciones.NotificationRequest;
+import pe.edu.pucp.fasticket.services.notificaciones.PlantillaService;
 
 /**
  * Servicio de autenticación y autorización.
@@ -54,9 +65,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
-    private final EmailService emailService;
+    private final EmailService emailService; // SMTP legacy (fallback)
+    private final pe.edu.pucp.fasticket.services.notificaciones.EmailService emailNotificacionesService; // Brevo
+    private final PlantillaService plantillaService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final PasswordResetCodeRepository passwordResetCodeRepository;
+    private final NotificationManager notificationManager;
     private final AuditLogService auditLogService;
+
+    @Value("${app.frontend-url:http://localhost:4200}")
+    private String frontendUrl;
 
     private static final int[] LOCK_TIME_DURATION = {0, 1, 15};
     private static final int N_MAX_ATTEMPTS = LOCK_TIME_DURATION.length;
@@ -241,13 +259,27 @@ public class AuthService {
 
             personaGuardada = clienteRepository.save(cliente);
 
-            // PARA ENVIAR CORREO
-            if (personaGuardada instanceof Cliente) {
-                try {
-                    emailService.enviarCorreoBienvenida((Cliente) personaGuardada);
-                } catch (Exception e) {
-                    log.warn("Registro exitoso, pero falló el envío de correo de bienvenida. Causa: {}", e.getMessage());
-                }
+            // Notificación de bienvenida/Verificación (email + in-app) usando NotificationManager
+            try {
+                String tokenVerificacion = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
+                String linkVerificacion = frontendUrl + "/verificar-cuenta?token=" + tokenVerificacion;
+                Map<String,Object> params = new java.util.HashMap<>();
+                params.put("nombre", personaGuardada.getNombres());
+                params.put("linkVerificacion", linkVerificacion);
+
+                NotificationRequest req = NotificationRequest.builder()
+                    .personaId(personaGuardada.getIdPersona())
+                    .email(personaGuardada.getEmail())
+                    .nombre(personaGuardada.getNombres())
+                    .notiTipo(TipoNotificacion.VERIFICACION_CUENTA)
+                    .plantilla(TipoPlantilla.VERIFICAR_CUENTA)
+                    .params(params)
+                    .titulo("Verifica tu cuenta")
+                    .mensaje("Hemos enviado un correo con el enlace de verificación.")
+                    .build();
+                notificationManager.notifyAllChannels(req);
+            } catch (Exception e) {
+                log.warn("Registro exitoso, pero falló la notificación de verificación: {}", e.getMessage());
             }
 
             log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
@@ -342,22 +374,107 @@ public class AuthService {
     }
 
     @Transactional
-    public void resetearContrasena(String email){
-
-        log.info("Cambio de contraseña para usuario con el correo: {}", email);
-        //1. Buscar al usuario
+    public void iniciarOlvidoContrasena(String email){
+        log.info("Iniciar olvido de contraseña para: {}", email);
         Persona persona = personasRepositorio.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        // 2. Generar token automáticamente
-        String token = jwtUtil.generateToken(persona.getEmail(), persona.getRol().name());
-        //este token podría ser diferente?
 
-        String link = "http://frontend.com/ejemplo/resetear-contrasena?token=" + token;
+        // Generar código 6 dígitos
+        String codigo = String.format("%06d", new Random().nextInt(1_000_000));
 
-        String subject = "Restablecer contraseña";
-        String body = "Haz clic en el siguiente enlace para restablecer tu contraseña:\n" + link;
+        PasswordResetCode prc = new PasswordResetCode();
+        prc.setPersonaId(persona.getIdPersona());
+        prc.setEmail(email.toLowerCase());
+        prc.setCodigo(codigo);
+        prc.setExpiraEn(Instant.now().plus(Duration.ofMinutes(10)));
+        prc.setVerificado(false);
+        prc.setUsado(false);
+        prc.setIntentos(0);
+        passwordResetCodeRepository.save(prc);
 
-        emailService.enviarCorreoResetContrasena(email,subject,body);
+        // Usar plantilla si existe (OLVIDO_CONTRASENA_CODIGO), con params
+        Map<String, Object> params = new HashMap<>();
+        params.put("nombre", persona.getNombres());
+        params.put("codigo", codigo);
+        params.put("email", email.toLowerCase());
+
+        String asunto = "Código de recuperación de contraseña";
+        String html;
+        var plantilla = plantillaService.obtenerActiva(TipoPlantilla.OLVIDO_CONTRASENA_CODIGO);
+        if (plantilla != null) {
+            asunto = plantilla.getAsunto();
+            html = plantillaService.render(plantilla.getHtml(), params);
+        } else {
+            html = "<h2>Tu código de verificación</h2>"
+                 + "<p>Usa este código para continuar con el proceso de recuperación:</p>"
+                 + "<p style='font-size:24px;letter-spacing:4px'><strong>" + codigo + "</strong></p>"
+                 + "<p>El código expira en 10 minutos.</p>";
+        }
+
+        // Enviar por email + notificación in-app
+        try {
+            NotificationRequest req = NotificationRequest.builder()
+                .personaId(persona.getIdPersona())
+                .email(email)
+                .nombre(persona.getNombres())
+                .notiTipo(TipoNotificacion.RECUPERACION_CONTRASENA)
+                .plantilla(TipoPlantilla.OLVIDO_CONTRASENA_CODIGO)
+                .params(params)
+                .subject(asunto)
+                .html(html)
+                .titulo("Recuperación de contraseña")
+                .mensaje("Hemos enviado un código de verificación a tu correo.")
+                .build();
+            notificationManager.notifyAllChannels(req);
+        } catch (Exception ex) {
+            // fallback a SMTP si ocurre error en envío email
+            emailService.enviarCorreoResetContrasena(email, asunto, html);
+        }
+    }
+
+    @Transactional
+    public void validarCodigoOlvido(ValidateCodeRequestDTO request) {
+        String email = request.getEmail().toLowerCase();
+        log.info("Validando código de olvido de contraseña para: {}", email);
+
+        var opt = passwordResetCodeRepository.findTopByEmailOrderByIdDesc(email);
+        PasswordResetCode prc = opt.orElseThrow(() -> new BusinessException("No hay solicitud vigente"));
+
+        if (prc.isUsado()) throw new BusinessException("El código ya fue usado");
+        if (Instant.now().isAfter(prc.getExpiraEn())) throw new BusinessException("El código ha expirado");
+        if (!prc.getCodigo().equals(request.getCodigo())) {
+            prc.setIntentos(prc.getIntentos() + 1);
+            passwordResetCodeRepository.save(prc);
+            throw new BusinessException("Código inválido");
+        }
+        prc.setVerificado(true);
+        passwordResetCodeRepository.save(prc);
+    }
+
+    @Transactional
+    public void resetearContrasenaPorId(ResetPasswordByIdRequestDTO request) {
+        log.info("Resetear contraseña por ID para usuario: {}", request.getIdCliente());
+
+        if (!request.getContrasena().equals(request.getContrasenaConfirmacion())) {
+            throw new BusinessException("La contraseña y su confirmación no coinciden");
+        }
+
+        Persona persona = personasRepositorio.findById(request.getIdCliente())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        var opt = passwordResetCodeRepository.findTopByPersonaIdOrderByIdDesc(persona.getIdPersona());
+        PasswordResetCode prc = opt.orElseThrow(() -> new BusinessException("No hay código validado para este usuario"));
+        if (!prc.isVerificado()) throw new BusinessException("Debe validar el código primero");
+        if (prc.isUsado()) throw new BusinessException("El código ya fue usado");
+        if (Instant.now().isAfter(prc.getExpiraEn())) throw new BusinessException("El código ha expirado");
+
+        persona.setContrasena(passwordEncoder.encode(request.getContrasena()));
+        personasRepositorio.save(persona);
+
+        prc.setUsado(true);
+        passwordResetCodeRepository.save(prc);
+
+        log.info("Contraseña reseteada correctamente para {}", persona.getEmail());
     }
 
 }

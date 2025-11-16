@@ -31,4 +31,14 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
                   AND (p.activo = true OR p IS NULL)
             """)
     Optional<OrdenCompra> findByIdWithPagoActivo(@Param("idOrden") Integer idOrden);
+    
+    List<OrdenCompra> findByCliente_IdPersona(Integer idCliente);
+    
+    List<OrdenCompra> findByCliente_IdPersonaAndEstado(Integer idCliente, EstadoCompra estado);
+    
+    List<OrdenCompra> findByEstado(EstadoCompra estado);
+    
+    List<OrdenCompra> findByCliente_IdPersonaOrderByFechaOrdenDesc(Integer idCliente);
+    
+    List<OrdenCompra> findAllByOrderByFechaOrdenDesc();
 }

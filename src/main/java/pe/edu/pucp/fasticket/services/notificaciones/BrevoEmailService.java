@@ -1,19 +1,17 @@
 package pe.edu.pucp.fasticket.services.notificaciones;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import lombok.extern.slf4j.Slf4j;
+import sibApi.TransactionalEmailsApi;
+import sibModel.SendSmtpEmail;
+import sibModel.SendSmtpEmailSender;
+import sibModel.SendSmtpEmailTo;
 
 /**
  * Implementación del servicio de email usando Brevo (SendinBlue).
@@ -28,11 +26,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class BrevoEmailService implements EmailService {
 
+    private final TransactionalEmailsApi transactionalEmailsApi;
+
     @Value("${brevo.api-key:}")
     private String apiKey;
-
-    @Value("${brevo.api-url:https://api.brevo.com/v3/smtp/email}")
-    private String apiUrl;
 
     @Value("${brevo.sender-email:noreply@fasticket.com}")
     private String senderEmail;
@@ -43,17 +40,14 @@ public class BrevoEmailService implements EmailService {
     @Value("${brevo.enabled:false}")
     private boolean enabled;
 
-    private final RestTemplate restTemplate;
-
-    public BrevoEmailService() {
-        this.restTemplate = new RestTemplate();
+    public BrevoEmailService(TransactionalEmailsApi transactionalEmailsApi) {
+        this.transactionalEmailsApi = transactionalEmailsApi;
     }
 
     @Override
     public boolean enviarEmail(String destinatario, String nombreDestinatario, String asunto,
                                Long templateId, Map<String, Object> parametros) {
-        
-        // Si Brevo no está habilitado, solo loguear
+		// Si Brevo no está habilitado, solo loguear
         if (!enabled || apiKey == null || apiKey.isBlank()) {
             log.warn("⚠️ Brevo no está habilitado. Email simulado enviado a: {} con template: {}", 
                      destinatario, templateId);
@@ -63,33 +57,39 @@ public class BrevoEmailService implements EmailService {
         }
 
         try {
-            log.info("📧 Enviando email a {} con plantilla ID: {}", destinatario, templateId);
+			final String cid = UUID.randomUUID().toString();
+			final long startNs = System.nanoTime();
 
-            HttpHeaders headers = crearHeaders();
-            Map<String, Object> requestBody = construirRequestConTemplate(
-                destinatario, nombreDestinatario, asunto, templateId, parametros
-            );
+			log.debug("BREVO [{}] -> Preparando envío con plantilla | enabled={} | senderEmail={} | to={} | asunto={} | templateId={} | paramKeys={}",
+				cid, enabled, senderEmail, maskEmail(destinatario), safe(asunto), templateId,
+				parametros != null ? parametros.keySet() : java.util.Collections.emptySet());
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<String> response = restTemplate.exchange(
-                apiUrl, 
-                HttpMethod.POST, 
-                request, 
-                String.class
-            );
+			if (apiKey == null || apiKey.isBlank()) {
+				log.error("❌ BREVO [{}] API key vacía o no configurada. Revisa BREVO_API_KEY / brevo.api-key", cid);
+				return false;
+			}
 
-            if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("✅ Email enviado exitosamente a: {}", destinatario);
-                return true;
-            } else {
-                log.error("❌ Error al enviar email. Status: {} | Response: {}", 
-                         response.getStatusCode(), response.getBody());
-                return false;
-            }
+            SendSmtpEmail email = new SendSmtpEmail()
+                .sender(new SendSmtpEmailSender().email(senderEmail).name(senderName))
+                .to(java.util.Collections.singletonList(
+                    new SendSmtpEmailTo().email(destinatario).name(nombreDestinatario)
+                ))
+                .subject(asunto)
+                .templateId(templateId)
+                .params(sanitizeParams(parametros));
+
+			var response = transactionalEmailsApi.sendTransacEmail(email);
+
+			long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+			log.info("✅ BREVO [{}] Email (plantilla) enviado | to={} | asunto={} | templateId={} | elapsedMs={} | messageId={}",
+				cid, maskEmail(destinatario), safe(asunto), templateId, elapsedMs,
+				response != null ? response.getMessageId() : "n/a");
+
+            return true;
 
         } catch (Exception e) {
             // CRÍTICO: Capturamos la excepción para que no rompa el flujo principal
-            log.error("❌ Excepción al enviar email a {}: {}", destinatario, e.getMessage(), e);
+			log.error("❌ BREVO Error enviando email (plantilla) a {}: {}", maskEmail(destinatario), e.getMessage(), e);
             return false;
         }
     }
@@ -97,7 +97,6 @@ public class BrevoEmailService implements EmailService {
     @Override
     public boolean enviarEmailHtml(String destinatario, String nombreDestinatario,
                                    String asunto, String contenidoHtml) {
-        
         if (!enabled || apiKey == null || apiKey.isBlank()) {
             log.warn("⚠️ Brevo no está habilitado. Email HTML simulado enviado a: {}", destinatario);
             log.info("📧 [SIMULADO] Asunto: {} | Destinatario: {}", asunto, destinatario);
@@ -105,99 +104,60 @@ public class BrevoEmailService implements EmailService {
         }
 
         try {
-            log.info("📧 Enviando email HTML a {}", destinatario);
+			final String cid = UUID.randomUUID().toString();
+			final long startNs = System.nanoTime();
 
-            HttpHeaders headers = crearHeaders();
-            Map<String, Object> requestBody = construirRequestConHtml(
-                destinatario, nombreDestinatario, asunto, contenidoHtml
-            );
+			log.debug("BREVO [{}] -> Preparando envío HTML | enabled={} | senderEmail={} | to={} | asunto={} | htmlSize={}",
+				cid, enabled, senderEmail, maskEmail(destinatario), safe(asunto),
+				contenidoHtml != null ? contenidoHtml.length() : 0);
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-            ResponseEntity<String> response = restTemplate.exchange(
-                apiUrl, 
-                HttpMethod.POST, 
-                request, 
-                String.class
-            );
+			if (apiKey == null || apiKey.isBlank()) {
+				log.error("❌ BREVO [{}] API key vacía o no configurada. Revisa BREVO_API_KEY / brevo.api-key", cid);
+				return false;
+			}
 
-            if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("✅ Email HTML enviado exitosamente a: {}", destinatario);
-                return true;
-            } else {
-                log.error("❌ Error al enviar email HTML. Status: {}", response.getStatusCode());
-                return false;
-            }
+            SendSmtpEmail email = new SendSmtpEmail()
+                .sender(new SendSmtpEmailSender().email(senderEmail).name(senderName))
+                .to(java.util.Collections.singletonList(
+                    new SendSmtpEmailTo().email(destinatario).name(nombreDestinatario)
+                ))
+                .subject(asunto)
+                .htmlContent(contenidoHtml);
+
+			var response = transactionalEmailsApi.sendTransacEmail(email);
+
+			long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+			log.info("✅ BREVO [{}] Email HTML enviado | to={} | asunto={} | htmlSize={} | elapsedMs={} | messageId={}",
+				cid, maskEmail(destinatario), safe(asunto),
+				contenidoHtml != null ? contenidoHtml.length() : 0, elapsedMs,
+				response != null ? response.getMessageId() : "n/a");
+            return true;
 
         } catch (Exception e) {
-            log.error("❌ Excepción al enviar email HTML a {}: {}", destinatario, e.getMessage(), e);
+			log.error("❌ BREVO Error enviando email HTML a {}: {}", maskEmail(destinatario), e.getMessage(), e);
             return false;
         }
     }
 
-    /**
-     * Crea los headers necesarios para la API de Brevo.
-     */
-    private HttpHeaders crearHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("api-key", apiKey);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-        return headers;
-    }
+	private Map<String, Object> sanitizeParams(Map<String, Object> src) {
+		Map<String, Object> out = new HashMap<>();
+		if (src == null) return out;
+		src.forEach((k, v) -> out.put(k, v == null ? "" : v));
+		return out;
+	}
 
-    /**
-     * Construye el cuerpo de la petición usando una plantilla de Brevo.
-     */
-    private Map<String, Object> construirRequestConTemplate(String destinatario, 
-                                                            String nombreDestinatario,
-                                                            String asunto, 
-                                                            Long templateId,
-                                                            Map<String, Object> parametros) {
-        Map<String, Object> body = new HashMap<>();
-        
-        // Remitente
-        Map<String, String> sender = new HashMap<>();
-        sender.put("email", senderEmail);
-        sender.put("name", senderName);
-        body.put("sender", sender);
+	private String maskEmail(String email) {
+		if (email == null || !email.contains("@")) return "hidden";
+		String[] parts = email.split("@", 2);
+		String local = parts[0];
+		String domain = parts[1];
+		String maskedLocal = local.length() <= 2 ? "**" : local.substring(0, 2) + "***";
+		return maskedLocal + "@" + domain;
+	}
 
-        // Destinatarios
-        Map<String, String> to = new HashMap<>();
-        to.put("email", destinatario);
-        to.put("name", nombreDestinatario);
-        body.put("to", List.of(to));
-
-        // Template y parámetros
-        body.put("templateId", templateId);
-        body.put("params", parametros != null ? parametros : new HashMap<>());
-        body.put("subject", asunto);
-
-        return body;
-    }
-
-    /**
-     * Construye el cuerpo de la petición con HTML personalizado.
-     */
-    private Map<String, Object> construirRequestConHtml(String destinatario,
-                                                        String nombreDestinatario,
-                                                        String asunto,
-                                                        String contenidoHtml) {
-        Map<String, Object> body = new HashMap<>();
-        
-        Map<String, String> sender = new HashMap<>();
-        sender.put("email", senderEmail);
-        sender.put("name", senderName);
-        body.put("sender", sender);
-
-        Map<String, String> to = new HashMap<>();
-        to.put("email", destinatario);
-        to.put("name", nombreDestinatario);
-        body.put("to", List.of(to));
-
-        body.put("subject", asunto);
-        body.put("htmlContent", contenidoHtml);
-
-        return body;
-    }
+	private String safe(String s) {
+		if (s == null) return "";
+		return s.replaceAll("[\\r\\n]", " ").trim();
+	}
 }
 

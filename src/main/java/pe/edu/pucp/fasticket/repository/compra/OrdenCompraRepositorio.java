@@ -18,7 +18,8 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
 
     List<OrdenCompra> findByItems_TipoTicket_Evento_IdEventoAndEstado(Integer idEvento, EstadoCompra estado);
 
-    List<OrdenCompra> findByCarroComprasIdCarroAndActivoTrue(Integer idCarro);
+    @Query("SELECT o FROM OrdenCompra o WHERE o.carroCompras.idCarro = :carritoId AND o.activo = true")
+    List<OrdenCompra> findByCarroComprasIdCarroAndActivoTrue(@Param("carritoId") Integer carritoId);
 
 
     @Query("""
@@ -41,4 +42,11 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
     List<OrdenCompra> findByCliente_IdPersonaOrderByFechaOrdenDesc(Integer idCliente);
     
     List<OrdenCompra> findAllByOrderByFechaOrdenDesc();
+
+    @Query("SELECT DISTINCT o FROM OrdenCompra o " +
+            "LEFT JOIN FETCH o.cliente c " +
+            "LEFT JOIN FETCH o.items i " +
+            "LEFT JOIN FETCH i.tipoTicket tt " +
+            "WHERE o.idOrdenCompra = :id")
+    Optional<OrdenCompra> findByIdWithAllDetails(@Param("id") Integer id);
 }

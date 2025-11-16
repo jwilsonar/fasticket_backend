@@ -43,6 +43,7 @@ import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.security.JwtUtil;
 import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
 import pe.edu.pucp.fasticket.services.notificaciones.NotificationManager;
 import pe.edu.pucp.fasticket.services.notificaciones.NotificationRequest;
 import pe.edu.pucp.fasticket.services.notificaciones.PlantillaService;
@@ -70,6 +71,7 @@ public class AuthService {
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
     private final NotificationManager notificationManager;
+    private final AuditLogService auditLogService;
 
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;

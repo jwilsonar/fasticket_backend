@@ -35,3 +35,33 @@ variable "s3_bucket_prefix" {
   default     = "fasticket-images"
 }
 
+variable "brevo_enabled" {
+  description = "Habilitar proveedor de emails Brevo en la app (true/false)"
+  type        = string
+  default     = "true"
+}
+
+variable "brevo_api_key" {
+  description = "API Key de Brevo (no commitear, usar variables de entorno/secretos)"
+  type        = string
+  sensitive   = true
+}
+
+variable "brevo_sender_email" {
+  description = "Email remitente verificado en Brevo"
+  type        = string
+  default     = "noreply@fasticket.com"
+}
+
+variable "brevo_sender_name" {
+  description = "Nombre del remitente para correos Brevo"
+  type        = string
+  default     = "Fasticket"
+}
+
+variable "brevo_api_url" {
+  description = "Endpoint SMTP/API de Brevo"
+  type        = string
+  default     = "https://api.brevo.com/v3/smtp/email"
+}
+

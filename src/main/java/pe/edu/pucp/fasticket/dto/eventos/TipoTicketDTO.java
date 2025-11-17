@@ -1,5 +1,8 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,4 +42,10 @@ public class TipoTicketDTO {
     
     @Schema(description = "Límite de tickets por persona", example = "4")
     private Integer limitePorPersona;
+
+    @Schema(description = "Fecha de inicio de venta del ticket", example = "2024-07-01")
+    private LocalDate fechaInicioVenta;
+
+    @Schema(description = "Fecha de fin de venta del ticket", example = "2024-07-31")
+    private LocalDate fechaFinVenta;
 }

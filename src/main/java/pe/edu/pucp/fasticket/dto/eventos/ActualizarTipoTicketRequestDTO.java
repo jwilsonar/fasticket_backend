@@ -1,5 +1,8 @@
 package pe.edu.pucp.fasticket.dto.eventos;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -33,4 +36,12 @@ public class ActualizarTipoTicketRequestDTO {
     @Schema(description = "Límite de tickets por persona", example = "4")
     @Positive(message = "El límite por persona debe ser mayor a cero")
     private Integer limitePorPersona;
+
+    @Schema(description = "Fecha de inicio de venta del ticket", example = "2024-07-01", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "La fecha de inicio de venta es obligatoria")
+    private LocalDate fechaInicioVenta;
+
+    @Schema(description = "Fecha de fin de venta del ticket", example = "2024-07-31", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "La fecha de fin de venta es obligatoria")
+    private LocalDate fechaFinVenta;
 }

@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.controller;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.api.client.util.DateTime;
 
 import pe.edu.pucp.fasticket.config.TestConfig;
 import pe.edu.pucp.fasticket.dto.eventos.ActualizarTipoTicketRequestDTO;
@@ -126,6 +128,12 @@ public class TipoTicketControllerTest {
         createRequest.setDescripcion("Acceso VIP de prueba");
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
+        // Recomendación: usar java.time.LocalDate para almacenar solo la fecha (sin hora).
+        // Ejemplo si tu DTO/entidad usa LocalDate:
+        LocalDate fechaInicio = LocalDate.of(2024, 7, 1);
+        LocalDate fechaFin = LocalDate.of(2024, 7, 31);
+        createRequest.setFechaInicioVenta(fechaInicio);
+        createRequest.setFechaFinVenta(fechaFin);
 
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -158,11 +166,17 @@ public class TipoTicketControllerTest {
 
         String nombreUnico = generarNombreUnico("VIP Test");
         CrearTipoTicketRequestDTO request = new CrearTipoTicketRequestDTO();
+
+        LocalDate fechaInicio = LocalDate.of(2024, 7, 1);
+        LocalDate fechaFin = LocalDate.of(2024, 7, 31);
+
         request.setIdZona(zona.getIdZona());
         request.setNombre(nombreUnico);
         request.setDescripcion("Acceso VIP de prueba");
         request.setPrecio(150.0);
         request.setStock(50);
+        request.setFechaInicioVenta(fechaInicio);
+        request.setFechaFinVenta(fechaFin);
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -173,6 +187,8 @@ public class TipoTicketControllerTest {
                 .andExpect(jsonPath("$.data.nombre").value(nombreUnico))
                 .andExpect(jsonPath("$.data.precio").value(150.0))
                 .andExpect(jsonPath("$.data.stock").value(50))
+                .andExpect(jsonPath("$.data.fechaInicioVenta").value("2024-07-01"))
+                .andExpect(jsonPath("$.data.fechaFinVenta").value("2024-07-31"))
                 .andExpect(jsonPath("$.data.idZona").value(zona.getIdZona()));
     }
 
@@ -182,6 +198,10 @@ public class TipoTicketControllerTest {
         CrearTipoTicketRequestDTO request = new CrearTipoTicketRequestDTO();
         request.setIdZona(1);
         request.setNombre("VIP Test");
+        LocalDate fechaInicio = LocalDate.of(2024, 7, 1);
+        LocalDate fechaFin = LocalDate.of(2024, 7, 31);
+        request.setFechaInicioVenta(fechaInicio);
+        request.setFechaFinVenta(fechaFin);
         request.setDescripcion("Acceso VIP de prueba");
         request.setPrecio(150.0);
         request.setStock(50);
@@ -201,6 +221,10 @@ public class TipoTicketControllerTest {
         request.setDescripcion("Acceso VIP de prueba");
         request.setPrecio(150.0);
         request.setStock(50);
+        LocalDate fechaInicio = LocalDate.of(2024, 7, 1);
+        LocalDate fechaFin = LocalDate.of(2024, 7, 31);
+        request.setFechaInicioVenta(fechaInicio);
+        request.setFechaFinVenta(fechaFin);
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -219,6 +243,10 @@ public class TipoTicketControllerTest {
         request.setNombre(nombreUnico);
         request.setDescripcion("Acceso VIP de prueba");
         request.setPrecio(150.0);
+        LocalDate fechaInicio = LocalDate.of(2024, 7, 1);
+        LocalDate fechaFin = LocalDate.of(2024, 7, 31);
+        request.setFechaInicioVenta(fechaInicio);
+        request.setFechaFinVenta(fechaFin);
         request.setStock(150);
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
@@ -239,6 +267,8 @@ public class TipoTicketControllerTest {
         createRequest.setDescripcion("Acceso VIP de prueba");
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
+        createRequest.setFechaInicioVenta(LocalDate.of(2024, 7, 1));
+        createRequest.setFechaFinVenta(LocalDate.of(2024, 7, 31));
 
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -257,6 +287,8 @@ public class TipoTicketControllerTest {
         updateRequest.setDescripcion("Acceso VIP actualizado");
         updateRequest.setPrecio(200.0);
         updateRequest.setStock(75);
+        updateRequest.setFechaInicioVenta(LocalDate.of(2024, 8, 1));
+        updateRequest.setFechaFinVenta(LocalDate.of(2024, 8, 31));
 
         mockMvc.perform(put("/api/v1/tipos-ticket/" + createdTicket.getIdTipoTicket())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -266,7 +298,9 @@ public class TipoTicketControllerTest {
                 .andExpect(jsonPath("$.mensaje").value("Tipo de ticket actualizado exitosamente"))
                 .andExpect(jsonPath("$.data.nombre").value(nombreActualizado))
                 .andExpect(jsonPath("$.data.precio").value(200.0))
-                .andExpect(jsonPath("$.data.stock").value(75));
+                .andExpect(jsonPath("$.data.stock").value(75))
+                .andExpect(jsonPath("$.data.fechaInicioVenta").value("2024-08-01"))
+                .andExpect(jsonPath("$.data.fechaFinVenta").value("2024-08-31"));
     }
 
     @Test
@@ -281,6 +315,8 @@ public class TipoTicketControllerTest {
         createRequest.setDescripcion("Acceso VIP para eliminar");
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
+        createRequest.setFechaInicioVenta(LocalDate.of(2024, 7, 1));
+        createRequest.setFechaFinVenta(LocalDate.of(2024, 7, 31));
 
         String createResponse = mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -370,6 +406,8 @@ public class TipoTicketControllerTest {
         createRequest.setDescripcion("Acceso VIP de prueba para filtro");
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
+        createRequest.setFechaInicioVenta(LocalDate.of(2024, 7, 1));
+        createRequest.setFechaFinVenta(LocalDate.of(2024, 7, 31 ));
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -398,6 +436,8 @@ public class TipoTicketControllerTest {
         createRequest.setDescripcion("Acceso VIP activo de prueba");
         createRequest.setPrecio(150.0);
         createRequest.setStock(50);
+        createRequest.setFechaInicioVenta(LocalDate.of(2024, 7, 1));
+        createRequest.setFechaFinVenta(LocalDate.of(2024, 7, 31));
 
         mockMvc.perform(post("/api/v1/tipos-ticket")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -412,6 +452,7 @@ public class TipoTicketControllerTest {
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].nombre").value(nombreUnico))
                 .andExpect(jsonPath("$.data[0].idZona").value(zona.getIdZona()))
-                .andExpect(jsonPath("$.data[0].activo").value(true));
+                .andExpect(jsonPath("$.data[0].fechaInicioVenta").value("2024-07-01"))
+                .andExpect(jsonPath("$.data[0].fechaFinVenta").value("2024-07-31"));
     }
 }

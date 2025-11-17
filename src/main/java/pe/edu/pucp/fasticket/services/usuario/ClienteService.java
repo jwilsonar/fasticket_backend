@@ -384,6 +384,7 @@ public class ClienteService {
         dto.setNivel(cliente.getNivel());
         dto.setEdad(cliente.calcularEdad());
         dto.setFechaCreacion(cliente.getFechaCreacion());
+        dto.setVerificado(cliente.getVerificado());
         return dto;
     }
 

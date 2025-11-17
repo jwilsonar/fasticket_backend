@@ -1,6 +1,13 @@
 package pe.edu.pucp.fasticket.services.usuario;
 
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,16 +22,7 @@ import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
-
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
-
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * Servicio para gestión de administradores.
@@ -127,6 +125,14 @@ public class AdministradorService {
      * @return DTO con información del perfil
      */
     private AdministradorPerfilResponseDTO convertirAPerfilDTO(Administrador administrador) {
+        // Formatear último acceso si existe
+        String ultimoAccesoFormateado = null;
+        if (administrador.getUltimoAcceso() != null) {
+            ultimoAccesoFormateado = administrador.getUltimoAcceso()
+                    .atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        }
+
         AdministradorPerfilResponseDTO dto = new AdministradorPerfilResponseDTO();
         dto.setIdAdministrador(administrador.getIdPersona());
         dto.setTipoDocumento(administrador.getTipoDocumento());
@@ -140,6 +146,7 @@ public class AdministradorService {
         dto.setCargo(administrador.getCargo());
         dto.setEdad(administrador.calcularEdad());
         dto.setActivo(administrador.getActivo());
+        dto.setUltimoAccesoFormateado(ultimoAccesoFormateado);
         return dto;
     }
 
@@ -223,29 +230,19 @@ public class AdministradorService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Convierte una entidad Persona (que debe ser Administrador) a AdministradorPerfilResponseDTO.
+     * 
+     * @param persona Entidad persona que debe ser Administrador
+     * @return DTO con información del perfil
+     */
     private AdministradorPerfilResponseDTO convertirAPerfilDTO(Persona persona) {
         // Verificar que la persona sea realmente un Administrador
         if (!(persona instanceof Administrador)) {
             throw new BusinessException("El usuario no es un administrador");
         }
         
-        Administrador administrador = (Administrador) persona;
-        
-        String ultimoAccesoFormateado = null;
-        if (administrador.getUltimoAcceso() != null) {
-            ultimoAccesoFormateado = administrador.getUltimoAcceso()
-                    .atZone(ZoneId.systemDefault())
-                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-        }
-
-        AdministradorPerfilResponseDTO dto = new AdministradorPerfilResponseDTO();
-        dto.setIdAdministrador(persona.getIdPersona());
-        dto.setEmail(persona.getEmail());
-        dto.setNombres(persona.getNombres());
-        dto.setApellidos(persona.getApellidos());
-        dto.setActivo(persona.getActivo());
-        dto.setUltimoAccesoFormateado(ultimoAccesoFormateado);
-        
-        return dto;
+        // Delegar al método que recibe Administrador directamente
+        return convertirAPerfilDTO((Administrador) persona);
     }
 }

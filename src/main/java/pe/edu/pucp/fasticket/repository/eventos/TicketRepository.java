@@ -53,4 +53,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
             @Param("idCliente") Integer idCliente,
             @Param("fechaHoy") LocalDate fechaHoy
     );
+
+    @Query("SELECT t.idTicket FROM Ticket t WHERE t.itemCarrito.idItemCarrito = :itemId")
+    List<Integer> findTicketIdsByItemCarritoId(@Param("itemId") Integer itemId);
+
+    @Query("SELECT t FROM Ticket t WHERE t.ordenCompra.idOrdenCompra = :idOrdenCompra AND t.activo = true")
+    List<Ticket> findByOrdenCompraId(@Param("idOrdenCompra") Integer idOrdenCompra);
 }

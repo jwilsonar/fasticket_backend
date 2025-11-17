@@ -6,7 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 
@@ -58,6 +57,9 @@ public class ClientePerfilResponseDTO {
 
     @Schema(description = "Fecha de creación del perfil de este cliente", example ="2025-01-10")
     private LocalDate fechaCreacion;
+
+    @Schema(description = "Indica si el cliente está verificado (correo/teléfono)", example = "true")
+    private Boolean verificado;
 
 }
 

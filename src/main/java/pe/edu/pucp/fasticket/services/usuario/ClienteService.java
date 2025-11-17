@@ -5,16 +5,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import pe.edu.pucp.fasticket.dto.compra.EventoHistorialDTO;
+import pe.edu.pucp.fasticket.dto.compra.HistorialCompraDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemHistorialDTO;
+import pe.edu.pucp.fasticket.dto.compra.PagoHistorialDTO;
+import pe.edu.pucp.fasticket.dto.compra.TicketHistorialDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
 import pe.edu.pucp.fasticket.dto.tickets.MisEntradasDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilEditDTO;
-import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilResponseDTO;
+import pe.edu.pucp.fasticket.dto.usuario.ClientePerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.mapper.EventoMapper;
@@ -23,18 +30,16 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.geografia.Distrito;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.geografia.DistritoRepository;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
-
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
-import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
-import pe.edu.pucp.fasticket.model.usuario.Administrador;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * Servicio para gestión de clientes.
@@ -57,6 +62,7 @@ public class ClienteService {
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
     private final TicketRepository ticketRepositorio;
+    private final OrdenCompraRepositorio ordenCompraRepositorio;
     /**
      * RF-030: Obtiene el perfil del cliente por email.
      * 
@@ -193,26 +199,142 @@ public class ClienteService {
      * RF-032, RF-091: Obtiene el historial de compras del cliente por email.
      * 
      * @param email Email del cliente
-     * @return Lista de órdenes de compra
+     * @return Lista de DTOs de historial de compras
      */
-    public List<OrdenCompra> obtenerHistorialCompras(String email) {
+    public List<HistorialCompraDTO> obtenerHistorialCompras(String email) {
         log.info("Obteniendo historial de compras para: {}", email);
         Cliente cliente = (Cliente) personasRepositorio.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con email: " + email));
-        return cliente.getOrdenesCompra();
+        
+        List<OrdenCompra> ordenes = ordenCompraRepositorio.findByClienteIdWithAllDetails(cliente.getIdPersona());
+        return ordenes.stream()
+                .map(this::convertirAHistorialDTO)
+                .collect(Collectors.toList());
     }
 
     /**
      * RF-032, RF-091: Obtiene el historial de compras del cliente por ID.
      * 
      * @param id ID del cliente
-     * @return Lista de órdenes de compra
+     * @return Lista de DTOs de historial de compras
      */
-    public List<OrdenCompra> obtenerHistorialComprasPorId(Integer id) {
+    public List<HistorialCompraDTO> obtenerHistorialComprasPorId(Integer id) {
         log.info("Obteniendo historial de compras para cliente ID: {}", id);
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));
-        return cliente.getOrdenesCompra();
+        
+        List<OrdenCompra> ordenes = ordenCompraRepositorio.findByClienteIdWithAllDetails(cliente.getIdPersona());
+        return ordenes.stream()
+                .map(this::convertirAHistorialDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Obtiene una compra individual por ID de orden.
+     * 
+     * @param idOrdenCompra ID de la orden de compra
+     * @param emailCliente Email del cliente (para validar que sea su orden)
+     * @return DTO de historial de compra
+     */
+    public HistorialCompraDTO obtenerCompraIndividual(Integer idOrdenCompra, String emailCliente) {
+        log.info("Obteniendo compra individual ID: {} para cliente: {}", idOrdenCompra, emailCliente);
+        
+        OrdenCompra orden = ordenCompraRepositorio.findByIdWithAllDetailsForHistorial(idOrdenCompra)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden de compra no encontrada con ID: " + idOrdenCompra));
+        
+        // Validar que la orden pertenezca al cliente
+        if (!orden.getCliente().getEmail().equals(emailCliente)) {
+            throw new BusinessException("No tiene permisos para acceder a esta orden");
+        }
+        
+        return convertirAHistorialDTO(orden);
+    }
+
+    /**
+     * Convierte una OrdenCompra a HistorialCompraDTO.
+     * 
+     * @param orden Orden de compra
+     * @return DTO de historial
+     */
+    private HistorialCompraDTO convertirAHistorialDTO(OrdenCompra orden) {
+        // Obtener evento: primero intentar desde carroCompras, luego desde items -> tipoTicket -> evento
+        Evento evento = null;
+        
+        // Método 1: Desde carroCompras.idEventoActual
+        if (orden.getCarroCompras() != null && orden.getCarroCompras().getIdEventoActual() != null) {
+            evento = eventoRepositorio.findById(orden.getCarroCompras().getIdEventoActual())
+                    .orElse(null);
+        }
+        
+        // Método 2: Si no se encontró, obtener desde los items (todos los items de una orden pertenecen al mismo evento)
+        if (evento == null && orden.getItems() != null && !orden.getItems().isEmpty()) {
+            for (var item : orden.getItems()) {
+                if (item.getTipoTicket() != null && item.getTipoTicket().getEvento() != null) {
+                    evento = item.getTipoTicket().getEvento();
+                    break; // Todos los items tienen el mismo evento
+                }
+            }
+        }
+        
+        // Construir EventoHistorialDTO
+        EventoHistorialDTO eventoDTO = null;
+        if (evento != null) {
+            eventoDTO = EventoHistorialDTO.builder()
+                    .idEvento(evento.getIdEvento())
+                    .nombre(evento.getNombre())
+                    .imagenUrl(evento.getImagenUrl())
+                    .build();
+        }
+        
+        // Construir PagoHistorialDTO
+        PagoHistorialDTO pagoDTO = null;
+        if (orden.getPago() != null) {
+            pagoDTO = PagoHistorialDTO.builder()
+                    .idPago(orden.getPago().getIdPago())
+                    .monto(orden.getPago().getMonto())
+                    .estado(orden.getPago().getEstado())
+                    .fechaPago(orden.getPago().getFechaPago())
+                    .metodo(orden.getPago().getMetodo())
+                    .build();
+        }
+        
+        // Construir ItemHistorialDTO
+        List<ItemHistorialDTO> itemsDTO = orden.getItems().stream()
+                .map(item -> ItemHistorialDTO.builder()
+                        .idItemCarrito(item.getIdItemCarrito())
+                        .cantidad(item.getCantidad())
+                        .precio(item.getPrecio())
+                        .precioFinal(item.getPrecioFinal())
+                        .tipoTicketNombre(item.getTipoTicket() != null ? item.getTipoTicket().getNombre() : null)
+                        .build())
+                .collect(Collectors.toList());
+        
+        // Obtener tickets de la orden
+        List<Ticket> tickets = ticketRepositorio.findByOrdenCompraId(orden.getIdOrdenCompra());
+        
+        // Construir TicketHistorialDTO
+        List<TicketHistorialDTO> ticketsDTO = tickets.stream()
+                .map(ticket -> TicketHistorialDTO.builder()
+                        .idTicket(ticket.getIdTicket())
+                        .codigoQr(ticket.getCodigoQr())
+                        .asiento(ticket.getAsiento())
+                        .fila(ticket.getFila())
+                        .estado(ticket.getEstado() != null ? ticket.getEstado().toString() : null)
+                        .build())
+                .collect(Collectors.toList());
+        
+        // Construir HistorialCompraDTO
+        return HistorialCompraDTO.builder()
+                .idOrdenCompra(orden.getIdOrdenCompra())
+                .fechaOrden(orden.getFechaOrden())
+                .total(orden.getTotal())
+                .estado(orden.getEstado())
+                .codigoSeguimiento(orden.getCodigoSeguimiento())
+                .pago(pagoDTO)
+                .evento(eventoDTO)
+                .items(itemsDTO)
+                .tickets(ticketsDTO)
+                .build();
     }
 
     /**
@@ -262,6 +384,7 @@ public class ClienteService {
         dto.setNivel(cliente.getNivel());
         dto.setEdad(cliente.calcularEdad());
         dto.setFechaCreacion(cliente.getFechaCreacion());
+        dto.setVerificado(cliente.getVerificado());
         return dto;
     }
 

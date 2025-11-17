@@ -214,11 +214,33 @@ public class AuthController {
         return ResponseEntity.ok(StandardResponse.success("Código validado"));
     }
 
-    @Operation(summary = "Resetear contraseña por ID de cliente")
+    @Operation(
+        summary = "Resetear contraseña por correo",
+        description = "Permite al usuario restablecer su contraseña usando su correo electrónico después de validar el código de verificación"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Contraseña actualizada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos inválidos o código no validado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
     @PutMapping("/olvido-contrasena/reset")
-    public ResponseEntity<StandardResponse<String>> resetPorId(@RequestBody pe.edu.pucp.fasticket.dto.auth.ResetPasswordByIdRequestDTO request) {
+    public ResponseEntity<StandardResponse<String>> resetPorEmail(
+            @Valid @RequestBody pe.edu.pucp.fasticket.dto.auth.ResetPasswordByIdRequestDTO request) {
+        
+        log.info("PUT /api/v1/auth/olvido-contrasena/reset - Correo: {}", request.getEmail());
         authService.resetearContrasenaPorId(request);
-        return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada"));
+        return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada exitosamente"));
     }
 
 

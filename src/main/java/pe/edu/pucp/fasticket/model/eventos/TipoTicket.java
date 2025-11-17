@@ -55,10 +55,10 @@ public class TipoTicket {
     private Integer cantidadVendida = 0;
 
     @Column(name = "fechaInicioVenta")
-    private LocalDateTime fechaInicioVenta;
+    private LocalDate fechaInicioVenta;
 
     @Column(name = "fechaFinVenta")
-    private LocalDateTime fechaFinVenta;
+    private LocalDate fechaFinVenta;
 
     @Column(name = "activo")
     private Boolean activo = true;

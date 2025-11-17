@@ -14,14 +14,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.mail.FetchProfile.Item;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
+import pe.edu.pucp.fasticket.dto.compra.BeneficiosDTO;
 import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
+import pe.edu.pucp.fasticket.dto.compra.ItemsDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.compra.ProcesarCompraResponseDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -41,6 +45,16 @@ import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
+import pe.edu.pucp.fasticket.model.fidelizacion.CodigoPromocional;
+import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+
+import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
@@ -754,6 +768,47 @@ public class OrdenServicio {
                 .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
 
+    // Helper para crear una lista de duplas a partir de DTOs seleccionados
+
+    @Transactional
+    private ProcesarCompraResponseDTO procesarOrdenCompra(OrdenCompra orden,boolean esCanjeable, List<CodigoPromocional> codigosPromocionales) {
+        // Lógica para procesar la orden de compra y verificar los beneficios aplicados 
+        ProcesarCompraResponseDTO responseDTO = new ProcesarCompraResponseDTO(); // incluye los items y beneficios
+        
+        List<ItemsDTO> itemsDTOList = new ArrayList<>();// [ {idTipoTicket, cantidad}, ... ]
+        BeneficiosDTO beneficios = new BeneficiosDTO();// [ esCanjeable, codigosPromocionales]
+
+        List<ItemCarrito> items = orden.getItems();
+
+        for (ItemCarrito item : items) {
+            // Aquí se puede agregar lógica para verificar beneficios específicos por ítem
+            ItemsDTO itemsDTO = new ItemsDTO(item.getTipoTicket().getIdTipoTicket(), item.getCantidad());
+            itemsDTOList.add(itemsDTO);
+        }
+
+        List<Integer> idCodigosPromocionales = new ArrayList<>();
+        for (CodigoPromocional codigo : codigosPromocionales) {
+            idCodigosPromocionales.add(codigo.getIdCodigoPromocional());
+        }
+
+
+        // Normalizar y proteger la lista de códigos promocionales; evitar nulls y permitir lectura segura
+        if (esCanjeable) {
+            beneficios.setEsCanjeable(true);
+            beneficios.setIdCodigosPromocionales(java.util.Collections.emptyList());
+        } else {
+            beneficios.setEsCanjeable(false);
+            List<Integer> validos = (idCodigosPromocionales == null)
+                ? new ArrayList<>()
+                : idCodigosPromocionales.stream()
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+            beneficios.setIdCodigosPromocionales(java.util.Collections.unmodifiableList(validos));
+        }
+            
+        return new ProcesarCompraResponseDTO(itemsDTOList, beneficios);
+    }
+    
     /**
      * Lista todas las órdenes de un cliente específico.
      * @param idCliente ID del cliente

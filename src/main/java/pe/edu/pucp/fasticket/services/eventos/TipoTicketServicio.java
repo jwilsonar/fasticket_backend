@@ -119,6 +119,8 @@ public class TipoTicketServicio {
         tipoTicket.setActivo(true);
         tipoTicket.setLimitePorPersona(dto.getLimitePorPersona());
         tipoTicket.setEvento(evento);
+        tipoTicket.setFechaInicioVenta(dto.getFechaInicioVenta());
+        tipoTicket.setFechaFinVenta(dto.getFechaFinVenta());
 
         TipoTicket guardado = tipoTicketRepositorio.save(tipoTicket);
         log.info("Tipo de ticket creado exitosamente con ID: {}", guardado.getIdTipoTicket());
@@ -167,6 +169,8 @@ public class TipoTicketServicio {
         int diferenciaStock = dto.getStock() - tipoTicket.getStock();
         tipoTicket.setStock(dto.getStock());
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + diferenciaStock);
+        tipoTicket.setFechaInicioVenta(dto.getFechaInicioVenta());
+        tipoTicket.setFechaFinVenta(dto.getFechaFinVenta());
         
         TipoTicket actualizado = tipoTicketRepositorio.save(tipoTicket);
         log.info("Tipo de ticket actualizado exitosamente");

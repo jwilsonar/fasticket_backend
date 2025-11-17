@@ -55,6 +55,17 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
 
+
+        LocalDate hoy = LocalDate.now();
+        if (tipoTicket.getFechaInicioVenta() != null && hoy.isBefore(tipoTicket.getFechaInicioVenta())) {
+            throw new BusinessException("La venta para el tipo de ticket '" + tipoTicket.getNombre() +
+                    "' aún no ha comenzado. Fecha de inicio: " + tipoTicket.getFechaInicioVenta());
+        }
+        if (tipoTicket.getFechaFinVenta() != null && hoy.isAfter(tipoTicket.getFechaFinVenta())) {
+            throw new BusinessException("La venta para el tipo de ticket '" + tipoTicket.getNombre() +
+                    "' ha finalizado. Fecha de fin: " + tipoTicket.getFechaFinVenta());
+        }
+
         if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
             throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
         }

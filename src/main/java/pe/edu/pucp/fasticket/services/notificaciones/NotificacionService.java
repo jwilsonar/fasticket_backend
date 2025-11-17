@@ -1,6 +1,8 @@
 package pe.edu.pucp.fasticket.services.notificaciones;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,7 @@ import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.notificaciones.TipoNotificacion;
 import pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+import pe.edu.pucp.fasticket.services.pago.PagoServicio;
 
 /**
  * Servicio de notificaciones que orquesta el envío de diferentes tipos de emails.
@@ -39,6 +42,7 @@ public class NotificacionService {
     private final PlantillaService plantillaService;
     private final NotificationManager notificationManager;
     private final PersonasRepositorio personasRepo;
+    private final PagoServicio pagoServicio;
 
     @Value("${app.frontend-url:http://localhost:4200}")
     private String frontendUrl;
@@ -94,7 +98,7 @@ public class NotificacionService {
     }
 
     /**
-     * RF-049, RF-086: Envía confirmación de compra con detalles.
+     * RF-049, RF-086: Envía confirmación de compra con detalles y comprobante PDF adjunto.
      */
     public void enviarConfirmacionCompra(OrdenCompra orden, String emailCliente, String nombreCliente) {
         log.info("Enviando confirmación de compra a: {}", emailCliente);
@@ -110,11 +114,32 @@ public class NotificacionService {
             String html = plantilla != null
                 ? plantillaService.render(plantilla.getHtml(), params)
                 : String.format("<h2>Hola %s</h2><p>Tu compra fue confirmada.</p>"
-                    + "<p>Número de Orden: #%d</p><p>Total: S/ %.2f</p>",
+                    + "<p>Número de Orden: #%d</p><p>Total: S/ %.2f</p>"
+                    + "<p>Adjunto encontrarás el comprobante de pago en formato PDF.</p>",
                     nombreCliente, orden.getIdOrdenCompra(), orden.getTotal());
             if (plantilla != null) asunto = plantilla.getAsunto();
 
-            boolean enviado = emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
+            // Generar PDF del comprobante y adjuntarlo
+            List<Map<String, Object>> adjuntos = new ArrayList<>();
+            try {
+                byte[] pdfComprobante = pagoServicio.generarComprobantePdf(orden);
+                Map<String, Object> adjunto = new HashMap<>();
+                adjunto.put("nombre", "Comprobante_ORD-" + orden.getIdOrdenCompra() + ".pdf");
+                adjunto.put("contenido", pdfComprobante);
+                adjuntos.add(adjunto);
+                log.info("PDF del comprobante generado exitosamente para orden ID: {}", orden.getIdOrdenCompra());
+            } catch (Exception e) {
+                log.warn("No se pudo generar el PDF del comprobante para orden ID: {}. Error: {}", 
+                    orden.getIdOrdenCompra(), e.getMessage());
+                // Continuamos sin adjunto si falla la generación del PDF
+            }
+
+            boolean enviado;
+            if (!adjuntos.isEmpty()) {
+                enviado = emailService.enviarEmailHtmlConAdjuntos(emailCliente, nombreCliente, asunto, html, adjuntos);
+            } else {
+                enviado = emailService.enviarEmailHtml(emailCliente, nombreCliente, asunto, html);
+            }
 
             // Notificación in-app vía NotificationManager
             NotificationRequest reqCompra = NotificationRequest.builder()
@@ -129,7 +154,7 @@ public class NotificacionService {
             notificationManager.notifyAllChannels(reqCompra);
 
             if (enviado) {
-                log.info("Confirmación de compra enviada exitosamente");
+                log.info("Confirmación de compra enviada exitosamente con comprobante adjunto");
             } else {
                 log.warn("No se pudo enviar confirmación, pero la compra se completó");
             }

@@ -257,23 +257,25 @@ public class ClienteService {
      * @return DTO de historial
      */
     private HistorialCompraDTO convertirAHistorialDTO(OrdenCompra orden) {
-        // Obtener evento: primero intentar desde carroCompras, luego desde items -> tipoTicket -> evento
+        // Obtener evento: primero desde items -> tipoTicket -> evento (ya cargado con FETCH)
+        // Luego como fallback desde carroCompras.idEventoActual
         Evento evento = null;
         
-        // Método 1: Desde carroCompras.idEventoActual
-        if (orden.getCarroCompras() != null && orden.getCarroCompras().getIdEventoActual() != null) {
-            evento = eventoRepositorio.findById(orden.getCarroCompras().getIdEventoActual())
-                    .orElse(null);
-        }
-        
-        // Método 2: Si no se encontró, obtener desde los items (todos los items de una orden pertenecen al mismo evento)
-        if (evento == null && orden.getItems() != null && !orden.getItems().isEmpty()) {
+        // Método 1: Obtener desde los items (todos los items de una orden pertenecen al mismo evento)
+        // El evento ya está cargado con LEFT JOIN FETCH en el repositorio
+        if (orden.getItems() != null && !orden.getItems().isEmpty()) {
             for (var item : orden.getItems()) {
                 if (item.getTipoTicket() != null && item.getTipoTicket().getEvento() != null) {
                     evento = item.getTipoTicket().getEvento();
                     break; // Todos los items tienen el mismo evento
                 }
             }
+        }
+        
+        // Método 2: Fallback - Desde carroCompras.idEventoActual si no se encontró en items
+        if (evento == null && orden.getCarroCompras() != null && orden.getCarroCompras().getIdEventoActual() != null) {
+            evento = eventoRepositorio.findById(orden.getCarroCompras().getIdEventoActual())
+                    .orElse(null);
         }
         
         // Construir EventoHistorialDTO
@@ -284,6 +286,10 @@ public class ClienteService {
                     .nombre(evento.getNombre())
                     .imagenUrl(evento.getImagenUrl())
                     .build();
+            log.debug("Evento cargado para orden {}: id={}, nombre={}, imagenUrl={}", 
+                    orden.getIdOrdenCompra(), evento.getIdEvento(), evento.getNombre(), evento.getImagenUrl());
+        } else {
+            log.warn("No se encontró evento para la orden de compra ID: {}", orden.getIdOrdenCompra());
         }
         
         // Construir PagoHistorialDTO

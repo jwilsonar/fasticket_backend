@@ -184,29 +184,30 @@ public class EventoController {
             }
 
             EventoCreateDTO dto = new EventoCreateDTO();
-            dto.setNombre(nombre);
-            dto.setDescripcion(descripcion);
-            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
-            dto.setRestricciones(restricciones);
-            dto.setPoliticasDevolucion(politicasDevolucion);
+            if (nombre != null) dto.setNombre(nombre);
+			if (descripcion != null) dto.setDescripcion(descripcion);
+			if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
+			if (restricciones != null) dto.setRestricciones(restricciones);
+			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
+			
+			if (fechaEvento != null) {
+				dto.setFechaEvento(LocalDate.parse(fechaEvento));
+			}
+			if (horaInicio != null) {
+				dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+			}
+			if (horaFin != null) {
+				dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+			}
+			if (tipoEvento != null) {
+				dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+			}
+			if (estadoEvento != null) {
+				dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+			}
+			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
+			if (idLocal != null) dto.setIdLocal(idLocal);
 
-            if (fechaEvento != null) {
-                dto.setFechaEvento(LocalDate.parse(fechaEvento));
-            }
-            if (horaInicio != null) {
-                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
-            }
-            if (horaFin != null) {
-                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
-            }
-            if (tipoEvento != null) {
-                dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
-            }
-            if (estadoEvento != null) {
-                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
-            }
-            dto.setAforoDisponible(aforoDisponible);
-            dto.setIdLocal(idLocal);
 
             EventoResponseDTO evento = eventoService.crear(dto);
 
@@ -273,53 +274,52 @@ public class EventoController {
         log.info("PUT /api/v1/eventos/{}/con-imagen", id);
 
         try {
-            if (nombre == null) {
-                return ResponseEntity.badRequest()
-                        .body(StandardResponse.error("Se requiere información del evento"));
-            }
+                        
+			EventoCreateDTO dto = new EventoCreateDTO();
+		
+			if (nombre != null) dto.setNombre(nombre);
+			if (descripcion != null) dto.setDescripcion(descripcion);
+			if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
+			if (restricciones != null) dto.setRestricciones(restricciones);
+			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
+			
+			if (fechaEvento != null) {
+			dto.setFechaEvento(LocalDate.parse(fechaEvento));
+			}
+			if (horaInicio != null) {
+			dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+			}
+			if (horaFin != null) {
+			dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+			}
+			if (tipoEvento != null) {
+			dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+			}
+			if (estadoEvento != null) {
+			dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+			}
+			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
+			if (idLocal != null) dto.setIdLocal(idLocal);
 
-            EventoCreateDTO dto = new EventoCreateDTO();
-            dto.setNombre(nombre);
-            dto.setDescripcion(descripcion);
-            dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos != null ? menoresDeEdadPermitidos : false);
-            dto.setRestricciones(restricciones);
-            dto.setPoliticasDevolucion(politicasDevolucion);
-            if (fechaEvento != null) {
-                dto.setFechaEvento(LocalDate.parse(fechaEvento));
-            }
-            if (horaInicio != null) {
-                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
-            }
-            if (horaFin != null) {
-                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
-            }
-            if (tipoEvento != null) {
-                dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
-            }
-            if (estadoEvento != null) {
-                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
-            }
-            dto.setAforoDisponible(aforoDisponible);
-            dto.setIdLocal(idLocal);
 
-            EventoResponseDTO evento = eventoService.actualizar(id, dto);
+			EventoResponseDTO evento = eventoService.actualizar(id, dto);
 
-            // Subir y guardar imagenes de forma independiente si fueron proporcionadas
-            if (imagenUrl != null && !imagenUrl.isEmpty()) {
-                String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-                evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
-            }
-            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
-                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
-                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
-            }
+			// Subir y guardar imagenes de forma independiente si fueron proporcionadas
+			if (imagenUrl != null && !imagenUrl.isEmpty()) {
+					String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
+					evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
+			}
+			if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+					String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
+					evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
+			}
 
-            StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
-            return ResponseEntity.ok(response);
+			StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
+			return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error al actualizar evento: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(StandardResponse.error("Error al actualizar evento: " + e.getMessage()));
+			log.error("Error al actualizar evento: {}", e.getMessage());
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(StandardResponse.error("Error al actualizar evento: " + e.getMessage()));
         }
     }
 

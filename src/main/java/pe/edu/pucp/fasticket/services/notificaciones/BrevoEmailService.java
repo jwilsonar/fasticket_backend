@@ -1,6 +1,9 @@
 package pe.edu.pucp.fasticket.services.notificaciones;
 
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -10,6 +13,7 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import sibApi.TransactionalEmailsApi;
 import sibModel.SendSmtpEmail;
+import sibModel.SendSmtpEmailAttachment;
 import sibModel.SendSmtpEmailSender;
 import sibModel.SendSmtpEmailTo;
 
@@ -158,6 +162,75 @@ public class BrevoEmailService implements EmailService {
 	private String safe(String s) {
 		if (s == null) return "";
 		return s.replaceAll("[\\r\\n]", " ").trim();
+	}
+
+	@Override
+	public boolean enviarEmailHtmlConAdjuntos(String destinatario, String nombreDestinatario,
+			String asunto, String contenidoHtml, List<Map<String, Object>> adjuntos) {
+		if (!enabled || apiKey == null || apiKey.isBlank()) {
+			log.warn("⚠️ Brevo no está habilitado. Email HTML con adjuntos simulado enviado a: {}", destinatario);
+			log.info("📧 [SIMULADO] Asunto: {} | Destinatario: {} | Adjuntos: {}", 
+					asunto, destinatario, adjuntos != null ? adjuntos.size() : 0);
+			return true;
+		}
+
+		try {
+			final String cid = UUID.randomUUID().toString();
+			final long startNs = System.nanoTime();
+
+			log.debug("BREVO [{}] -> Preparando envío HTML con adjuntos | enabled={} | senderEmail={} | to={} | asunto={} | htmlSize={} | adjuntos={}",
+				cid, enabled, senderEmail, maskEmail(destinatario), safe(asunto),
+				contenidoHtml != null ? contenidoHtml.length() : 0,
+				adjuntos != null ? adjuntos.size() : 0);
+
+			if (apiKey == null || apiKey.isBlank()) {
+				log.error("❌ BREVO [{}] API key vacía o no configurada. Revisa BREVO_API_KEY / brevo.api-key", cid);
+				return false;
+			}
+
+			SendSmtpEmail email = new SendSmtpEmail()
+				.sender(new SendSmtpEmailSender().email(senderEmail).name(senderName))
+				.to(java.util.Collections.singletonList(
+					new SendSmtpEmailTo().email(destinatario).name(nombreDestinatario)
+				))
+				.subject(asunto)
+				.htmlContent(contenidoHtml);
+
+			// Agregar adjuntos si existen
+			if (adjuntos != null && !adjuntos.isEmpty()) {
+				List<SendSmtpEmailAttachment> attachments = new ArrayList<>();
+				for (Map<String, Object> adjunto : adjuntos) {
+					String nombre = (String) adjunto.get("nombre");
+					byte[] contenido = (byte[]) adjunto.get("contenido");
+					if (nombre != null && contenido != null) {
+						SendSmtpEmailAttachment attachment = new SendSmtpEmailAttachment();
+						attachment.setName(nombre);
+						// Brevo espera el contenido en Base64 como String, pero setContent espera byte[]
+						// Codificamos en Base64 y luego convertimos a bytes
+						String contenidoBase64 = Base64.getEncoder().encodeToString(contenido);
+						attachment.setContent(contenidoBase64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+						attachments.add(attachment);
+					}
+				}
+				if (!attachments.isEmpty()) {
+					email.setAttachment(attachments);
+				}
+			}
+
+			var response = transactionalEmailsApi.sendTransacEmail(email);
+
+			long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
+			log.info("✅ BREVO [{}] Email HTML con adjuntos enviado | to={} | asunto={} | htmlSize={} | adjuntos={} | elapsedMs={} | messageId={}",
+				cid, maskEmail(destinatario), safe(asunto),
+				contenidoHtml != null ? contenidoHtml.length() : 0,
+				adjuntos != null ? adjuntos.size() : 0, elapsedMs,
+				response != null ? response.getMessageId() : "n/a");
+			return true;
+
+		} catch (Exception e) {
+			log.error("❌ BREVO Error enviando email HTML con adjuntos a {}: {}", maskEmail(destinatario), e.getMessage(), e);
+			return false;
+		}
 	}
 }
 

@@ -36,5 +36,20 @@ public interface EmailService {
      */
     boolean enviarEmailHtml(String destinatario, String nombreDestinatario, 
                            String asunto, String contenidoHtml);
+    
+    /**
+     * Envía un email simple con HTML y adjuntos.
+     * 
+     * @param destinatario Email del destinatario
+     * @param nombreDestinatario Nombre del destinatario
+     * @param asunto Asunto del email
+     * @param contenidoHtml Contenido HTML del email
+     * @param adjuntos Lista de adjuntos. Cada adjunto es un array de bytes con el contenido del archivo.
+     *                 El formato esperado es: Map con clave "nombre" (String) y "contenido" (byte[])
+     * @return true si se envió exitosamente, false en caso contrario
+     */
+    boolean enviarEmailHtmlConAdjuntos(String destinatario, String nombreDestinatario, 
+                                       String asunto, String contenidoHtml, 
+                                       java.util.List<java.util.Map<String, Object>> adjuntos);
 }
 

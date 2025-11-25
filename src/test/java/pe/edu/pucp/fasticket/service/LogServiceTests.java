@@ -35,12 +35,11 @@ public class LogServiceTests {
 
     @Test
     public void testRegistrarErrorManual_Exitoso() {
-        // 1. Preparar Datos (Arrange)
+
         String adminEmail = "admin@fasticket.com";
         ErrorLogRequestDTO requestDTO = new ErrorLogRequestDTO();
         requestDTO.setModulo("Pagos");
         requestDTO.setFechaHora(LocalDateTime.now());
-        // ... (setear los demás campos del requestDTO)
 
         Administrador adminMock = new Administrador();
         adminMock.setIdPersona(1);
@@ -58,21 +57,17 @@ public class LogServiceTests {
         detalleDTOMock.setModulo("Pagos");
         detalleDTOMock.setNombreAdmin("Admin Prueba");
 
-        // 2. Definir Comportamiento de Mocks (Arrange)
         when(administradorRepository.findByEmail(adminEmail)).thenReturn(Optional.of(adminMock));
         when(errorLogRepository.save(any(ErrorLog.class))).thenReturn(errorLogGuardadoMock);
         when(errorLogMapper.toDetalleDTO(errorLogGuardadoMock)).thenReturn(detalleDTOMock);
 
-        // 3. Ejecutar el método a probar (Act)
         ErrorLogDetalleDTO resultado = logService.registrarErrorManual(requestDTO, adminEmail);
 
-        // 4. Verificar Resultados (Assert)
         assertNotNull(resultado);
         assertEquals(1, resultado.getIdError());
         assertEquals("Pagos", resultado.getModulo());
         assertEquals("Admin Prueba", resultado.getNombreAdmin());
 
-        // Verificar que los mocks se llamaron
         verify(administradorRepository, times(1)).findByEmail(adminEmail);
         verify(errorLogRepository, times(1)).save(any(ErrorLog.class));
         verify(errorLogMapper, times(1)).toDetalleDTO(errorLogGuardadoMock);

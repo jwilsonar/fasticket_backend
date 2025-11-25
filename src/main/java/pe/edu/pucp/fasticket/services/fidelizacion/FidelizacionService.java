@@ -18,6 +18,7 @@ import pe.edu.pucp.fasticket.dto.fidelizacion.ReglaPuntosDTO;
 import pe.edu.pucp.fasticket.dto.fidelizacion.ReglaPuntosRequestDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.fidelizacion.Canje;
 import pe.edu.pucp.fasticket.model.fidelizacion.CodigoPromocional;
@@ -29,6 +30,7 @@ import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoRegla;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoTransaccion;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.fidelizacion.CanjeRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.CodigoPromocionalRepository;
@@ -57,11 +59,13 @@ public class FidelizacionService {
     private final ClienteRepository clienteRepository;
     private final OrdenCompraRepositorio ordenCompraRepositorio;
 
+    private final ConfiguracionRepository configuracionRepository;
+
     private final AuditLogService auditLogService;
     private final AdministradorRepository administradorRepository;
 
-    // ============ REGLAS DE PUNTOS ============
-    
+    // ============ 1. REGLAS DE PUNTOS (CRUD) ============
+
     public List<ReglaPuntosDTO> listarReglasPuntos() {
         return reglaPuntosRepository.findAll().stream()
                 .map(ReglaPuntosDTO::new)
@@ -82,24 +86,21 @@ public class FidelizacionService {
 
     @Transactional
     public ReglaPuntosDTO crearReglaPuntos(ReglaPuntosRequestDTO request) {
-        Administrador adminActual = getAdminActual(); // Obtener admin
+        Administrador adminActual = getAdminActual();
 
         ReglaPuntos regla = new ReglaPuntos();
         regla.setSolesPorPunto(request.getSolesPorPunto());
         regla.setTipoRegla(request.getTipoRegla());
         regla.setActivo(request.getActivo());
         regla.setEstado(request.getEstado());
-        
+
         ReglaPuntos guardada = reglaPuntosRepository.save(regla);
 
-        // --- INICIO AUDITORÍA RF-109 ---
+        // Auditoría
         try {
-            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") CREÓ la Regla de Puntos ID: " + guardada.getIdRegla() + " (Tipo: " + guardada.getTipoRegla() + ")";
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") CREÓ la Regla de Puntos ID: " + guardada.getIdRegla();
             auditLogService.registrarAuditoria(adminActual, "CREAR_REGLA_PUNTOS", "FidelizacionService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (CREAR_REGLA_PUNTOS): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
+        } catch (Exception e) { log.error("Error auditoría", e); }
 
         log.info("Regla de puntos creada con ID: {}", guardada.getIdRegla());
         return new ReglaPuntosDTO(guardada);
@@ -107,55 +108,41 @@ public class FidelizacionService {
 
     @Transactional
     public ReglaPuntosDTO actualizarReglaPuntos(Integer id, ReglaPuntosRequestDTO request) {
-        Administrador adminActual = getAdminActual(); // Obtener admin
+        Administrador adminActual = getAdminActual();
 
         ReglaPuntos regla = reglaPuntosRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Regla de puntos no encontrada con ID: " + id));
-        
+
         regla.setSolesPorPunto(request.getSolesPorPunto());
         regla.setTipoRegla(request.getTipoRegla());
         regla.setActivo(request.getActivo());
         regla.setEstado(request.getEstado());
-        
+
         ReglaPuntos actualizada = reglaPuntosRepository.save(regla);
 
-        // --- INICIO AUDITORÍA RF-109 ---
         try {
             String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") ACTUALIZÓ la Regla de Puntos ID: " + id;
             auditLogService.registrarAuditoria(adminActual, "ACTUALIZAR_REGLA_PUNTOS", "FidelizacionService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (ACTUALIZAR_REGLA_PUNTOS): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
+        } catch (Exception e) { log.error("Error auditoría", e); }
 
-        log.info("Regla de puntos actualizada con ID: {}", actualizada.getIdRegla());
         return new ReglaPuntosDTO(actualizada);
     }
 
     @Transactional
     public void eliminarReglaPuntos(Integer id) {
-        Administrador adminActual = getAdminActual(); // Obtener admin
-
-        ReglaPuntos regla = reglaPuntosRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Regla de puntos no encontrada con ID: " + id));
-        
+        Administrador adminActual = getAdminActual();
+        ReglaPuntos regla = reglaPuntosRepository.findById(id).orElseThrow();
         regla.setActivo(false);
         reglaPuntosRepository.save(regla);
 
-        // --- INICIO AUDITORÍA RF-109 ---
         try {
             String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") DESACTIVÓ la Regla de Puntos ID: " + id;
             auditLogService.registrarAuditoria(adminActual, "DESACTIVAR_REGLA_PUNTOS", "FidelizacionService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (DESACTIVAR_REGLA_PUNTOS): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
-
-        log.info("Regla de puntos desactivada con ID: {}", id);
+        } catch (Exception e) { log.error("Error auditoría", e); }
     }
 
     // ============ PUNTOS ============
-    
+
     public List<PuntosDTO> listarPuntosPorCliente(Integer idCliente) {
         return puntosRepository.findByCliente_IdPersona(idCliente).stream()
                 .map(PuntosDTO::new)
@@ -218,12 +205,9 @@ public class FidelizacionService {
 
     @Transactional
     public PuntosDTO generarPuntos(Integer idCliente, Integer idRegla, Integer cantidad) {
-        ReglaPuntos regla = reglaPuntosRepository.findById(idRegla)
-                .orElseThrow(() -> new ResourceNotFoundException("Regla de puntos no encontrada con ID: " + idRegla));
-        
-        Cliente cliente = clienteRepository.findById(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
-        
+        ReglaPuntos regla = reglaPuntosRepository.findById(idRegla).orElseThrow();
+        Cliente cliente = clienteRepository.findById(idCliente).orElseThrow();
+
         Puntos puntos = new Puntos();
         puntos.setCantPuntos(cantidad);
         puntos.setTipoTransaccion(TipoTransaccion.GANADO);
@@ -231,19 +215,14 @@ public class FidelizacionService {
         puntos.setCliente(cliente);
         puntos.setReglaPuntos(regla);
         puntos.setActivo(true);
-        
         if (regla.getTipoRegla() == TipoRegla.COMPRA) {
-            // Los puntos por compra tienen vencimiento
             puntos.setFechaVencimiento(LocalDate.now().plusYears(1));
         }
-        
-        Puntos guardado = puntosRepository.save(puntos);
-        log.info("Puntos generados: {} para cliente ID: {}", cantidad, idCliente);
-        return new PuntosDTO(guardado);
+        return new PuntosDTO(puntosRepository.save(puntos));
     }
 
     // ============ CANJES ============
-    
+
     public List<CanjeDTO> listarCanjesPorCliente(Integer idCliente) {
         return canjeRepository.findByOrdenCompra_Cliente_IdPersona(idCliente).stream()
                 .map(CanjeDTO::new)
@@ -252,132 +231,108 @@ public class FidelizacionService {
 
     @Transactional
     public CanjeDTO realizarCanje(CanjeRequestDTO request) {
+        // Validaciones
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + request.getIdCliente()));
-        
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
         OrdenCompra orden = ordenCompraRepositorio.findById(request.getIdOrdenCompra())
-                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + request.getIdOrdenCompra()));
-        
-        // Validar que la orden pertenezca al cliente
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada"));
+
         if (!orden.getCliente().getIdPersona().equals(cliente.getIdPersona())) {
-            throw new BusinessException("La orden no pertenece al cliente autenticado"); 
+            throw new BusinessException("La orden no pertenece al cliente");
         }
-        
-        // Validar que la orden esté en estado PENDIENTE
         if (orden.getEstado() != pe.edu.pucp.fasticket.model.compra.EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden canjear puntos en órdenes pendientes");
         }
-        
-        // El monto a canjear debe ser el TOTAL de la orden (subtotal - descuento por membresía)
-        // Primero calculamos el total que debería tener la orden sin canje
+
         orden.calcularTotal();
         Double totalOrden = orden.getTotal();
-        
-        // Obtener regla de canje activa
-        List<ReglaPuntos> reglasCanje = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.CANJE);
-        if (reglasCanje.isEmpty()) {
-            throw new BusinessException("No hay reglas de canje activas");
+
+        // --- LÓGICA MATEMÁTICA CORREGIDA ---
+        // Leemos el factor de Configuración Global (Ej: 10 puntos para 1 sol)
+        int puntosParaUnSol = Integer.parseInt(getConfig("PUNTOS_PARA_DESCONTAR_UN_SOL", "10"));
+
+        // Usamos la regla de BD solo por integridad referencial (FK)
+        ReglaPuntos reglaReferencia = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.CANJE)
+                .stream().findFirst().orElseThrow(() -> new BusinessException("Error interno: Falta regla CANJE"));
+
+        // Fórmula Multiplicación: TotalSoles * PuntosPorSol
+        // Ej: 100 Soles * 10 = 1000 Puntos necesarios
+        Integer puntosNecesarios = (int) Math.ceil(totalOrden * puntosParaUnSol);
+
+        // Validaciones de Saldo
+        int saldoActual = cliente.getPuntosAcumulados() != null ? cliente.getPuntosAcumulados() : 0;
+
+        if (saldoActual < puntosNecesarios) {
+            throw new BusinessException("Puntos insuficientes. Tienes " + saldoActual + ", necesitas " + puntosNecesarios);
         }
-        
-        ReglaPuntos reglaCanje = reglasCanje.get(0);
-        
-        // Calcular puntos necesarios para cubrir el total de la orden
-        Integer puntosNecesarios = (int) Math.ceil(totalOrden / reglaCanje.getSolesPorPunto());
-        
-        // Verificar que el cliente tenga suficientes puntos
-        Integer puntosDisponibles = calcularPuntosAcumulados(request.getIdCliente());
-        if (puntosDisponibles < puntosNecesarios) {
-            throw new BusinessException("Puntos insuficientes. Disponibles: " + puntosDisponibles + ", Necesarios: " + puntosNecesarios);
-        }
-        
-        // Validar que los puntos enviados coincidan con los necesarios
         if (!request.getPuntosCanje().equals(puntosNecesarios)) {
-            throw new BusinessException("La cantidad de puntos debe ser " + puntosNecesarios + " para cubrir el total de la orden");
+            throw new BusinessException("Debes canjear exactamente " + puntosNecesarios + " puntos para esta orden.");
         }
-        
-        // El monto de descuento debe ser exactamente el total de la orden
         if (!request.getMontoDescuento().equals(totalOrden)) {
-            throw new BusinessException("El monto de descuento debe ser el total de la orden: " + totalOrden);
+            throw new BusinessException("El monto de descuento debe cubrir el total de la orden.");
         }
-        
-        // Crear registro de puntos perdidos (canje)
+
+        // Ejecutar Canje (Puntos Perdidos)
         Puntos puntosCanje = new Puntos();
-        puntosCanje.setCantPuntos(request.getPuntosCanje());
+        puntosCanje.setCantPuntos(puntosNecesarios);
         puntosCanje.setTipoTransaccion(TipoTransaccion.PERDIDO);
         puntosCanje.setFechaTransaccion(LocalDate.now());
         puntosCanje.setCliente(cliente);
-        puntosCanje.setReglaPuntos(reglaCanje);
+        puntosCanje.setReglaPuntos(reglaReferencia);
         puntosCanje.setActivo(true);
-        
         Puntos puntosGuardados = puntosRepository.save(puntosCanje);
-        
-        // Aplicar el descuento por canje a la orden
-        orden.setDescuentoPorCanje(request.getMontoDescuento());
-        orden.aplicarDescuentoYRecalcular(); // Esto establecerá el total en 0
+
+        // Actualizar Saldo Cliente
+        cliente.setPuntosAcumulados(saldoActual - puntosNecesarios);
+        // ¡NO ACTUALIZAMOS NIVEL AQUÍ! (Protección de Status)
+        clienteRepository.save(cliente);
+
+        // Aplicar Descuento
+        orden.setDescuentoPorCanje(totalOrden);
+        orden.aplicarDescuentoYRecalcular();
         ordenCompraRepositorio.save(orden);
-        
-        // Crear registro de canje
+
         Canje canje = new Canje();
         canje.setFechaCanje(LocalDate.now());
         canje.setOrdenCompra(orden);
         canje.setPuntos(puntosGuardados);
-        
-        Canje canjeGuardado = canjeRepository.save(canje);
-        log.info("Canje realizado: {} puntos (soles {} por punto) para cubrir orden ID: {} con total: {}", 
-                request.getPuntosCanje(), reglaCanje.getSolesPorPunto(), request.getIdOrdenCompra(), totalOrden);
-        
-        return new CanjeDTO(canjeGuardado);
+
+        log.info("Canje Exitoso: Orden {} cubierta con {} puntos.", orden.getIdOrdenCompra(), puntosNecesarios);
+        return new CanjeDTO(canjeRepository.save(canje));
     }
 
     // ============ CÓDIGOS PROMOCIONALES ============
-    
+
     public List<CodigoPromocionalDTO> listarCodigosPromocionales() {
-        return codigoPromocionalRepository.findAll().stream()
-                .map(CodigoPromocionalDTO::new)
-                .collect(Collectors.toList());
+        return codigoPromocionalRepository.findAll().stream().map(CodigoPromocionalDTO::new).collect(Collectors.toList());
     }
-
     public CodigoPromocionalDTO obtenerCodigoPromocional(Integer id) {
-        CodigoPromocional codigo = codigoPromocionalRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado con ID: " + id));
-        return new CodigoPromocionalDTO(codigo);
+        return new CodigoPromocionalDTO(codigoPromocionalRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Código no encontrado")));
     }
-
     public CodigoPromocionalDTO obtenerPorCodigo(String codigo) {
-        CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
-                .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado: " + codigo));
-        return new CodigoPromocionalDTO(codigoPromo);
+        return new CodigoPromocionalDTO(codigoPromocionalRepository.findByCodigo(codigo).orElseThrow(() -> new ResourceNotFoundException("Código no encontrado")));
     }
 
     @Transactional
     public CodigoPromocionalDTO crearCodigoPromocional(CodigoPromocionalRequestDTO request) {
-        Administrador adminActual = getAdminActual(); // Obtener admin
+        Administrador admin = getAdminActual();
+        if (codigoPromocionalRepository.existsByCodigo(request.getCodigo())) throw new BusinessException("Código duplicado");
 
-        if (codigoPromocionalRepository.existsByCodigo(request.getCodigo())) {
-            throw new BusinessException("Ya existe un código promocional con el código: " + request.getCodigo());
-        }
-        
-        CodigoPromocional codigo = new CodigoPromocional();
-        codigo.setCodigo(request.getCodigo());
-        codigo.setDescripcion(request.getDescripcion());
-        codigo.setFechaFin(request.getFechaFin());
-        codigo.setTipo(request.getTipo());
-        codigo.setValor(request.getValor());
-        codigo.setStock(request.getStock());
-        codigo.setCantidadPorCliente(request.getCantidadPorCliente());
-        
-        CodigoPromocional guardado = codigoPromocionalRepository.save(codigo);
+        CodigoPromocional c = new CodigoPromocional();
+        c.setCodigo(request.getCodigo());
+        c.setDescripcion(request.getDescripcion());
+        c.setFechaFin(request.getFechaFin());
+        c.setTipo(request.getTipo());
+        c.setValor(request.getValor());
+        c.setStock(request.getStock());
+        c.setCantidadPorCliente(request.getCantidadPorCliente());
 
-        // --- INICIO AUDITORÍA RF-109 ---
+        CodigoPromocional guardado = codigoPromocionalRepository.save(c);
+
         try {
-            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") CREÓ el Código Promocional: " + guardado.getCodigo() + " (ID: " + guardado.getIdCodigoPromocional() + ")";
-            auditLogService.registrarAuditoria(adminActual, "CREAR_CODIGO_PROMO", "FidelizacionService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (CREAR_CODIGO_PROMO): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
+            auditLogService.registrarAuditoria(admin, "CREAR_CODIGO_PROMO", "FidelizacionService", "Creó código: " + guardado.getCodigo());
+        } catch (Exception e) {}
 
-        log.info("Código promocional creado con ID: {}", guardado.getIdCodigoPromocional());
         return new CodigoPromocionalDTO(guardado);
     }
 
@@ -387,12 +342,12 @@ public class FidelizacionService {
 
         CodigoPromocional codigo = codigoPromocionalRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado con ID: " + id));
-        
+
         // Verificar si el código ya existe en otra entidad
         if (!codigo.getCodigo().equals(request.getCodigo()) && codigoPromocionalRepository.existsByCodigo(request.getCodigo())) {
             throw new BusinessException("Ya existe un código promocional con el código: " + request.getCodigo());
         }
-        
+
         codigo.setCodigo(request.getCodigo());
         codigo.setDescripcion(request.getDescripcion());
         codigo.setFechaFin(request.getFechaFin());
@@ -400,7 +355,7 @@ public class FidelizacionService {
         codigo.setValor(request.getValor());
         codigo.setStock(request.getStock());
         codigo.setCantidadPorCliente(request.getCantidadPorCliente());
-        
+
         CodigoPromocional actualizado = codigoPromocionalRepository.save(codigo);
 
         // --- INICIO AUDITORÍA RF-109 ---
@@ -439,43 +394,100 @@ public class FidelizacionService {
     }
 
     // ============ MÉTODOS AUXILIARES ============
-    
+
+    /**
+     * Calcula descuento dinámico leyendo configuración (Para el Checkout)
+     */
     @Transactional
     public Double calcularDescuentoPorMembresia(TipoMembresia tipoMembresia, Integer cantidadEntradas) {
-        double porcentajeDescuento = 0.0;
-        
-        switch (tipoMembresia) {
-            case BRONCE, PLATA, ORO -> {
-                if (cantidadEntradas < 10) {
-                    porcentajeDescuento = 0.02; // 2%
-                } else if (cantidadEntradas < 50) {
-                    porcentajeDescuento = 0.05; // 5%
-                } else {
-                    porcentajeDescuento = 0.10; // 10%
-                }
-            }
-        }
-        
-        return porcentajeDescuento;
+        // La configuración espera valores decimales (0.10 para 10%)
+        // Claves esperadas en BD: DSCTO_MEMBRESIA_BRONCE, DSCTO_MEMBRESIA_PLATA, DSCTO_MEMBRESIA_ORO
+        String key = "DSCTO_MEMBRESIA_" + tipoMembresia.name();
+        String valorConfig = getConfig(key, "0.0");
+
+        return Double.parseDouble(valorConfig);
     }
 
     @Transactional
     public void generarPuntosPorCompra(Integer idCliente, Double montoTotal, Integer idOrdenCompra) {
-        List<ReglaPuntos> reglasCompra = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.COMPRA);
-        
-        if (reglasCompra.isEmpty()) {
-            log.warn("No hay reglas de compra activas para generar puntos");
-            return;
+        // Lee Configuración Global (1 Sol = 1 Punto)
+        int puntosPorSol = Integer.parseInt(getConfig("PUNTOS_POR_MONEDA", "1"));
+        int puntosGenerados = (int) (montoTotal * puntosPorSol);
+
+        if (puntosGenerados <= 0) return;
+
+        ReglaPuntos reglaBase = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.COMPRA)
+                .stream().findFirst().orElse(null);
+
+        if (reglaBase != null) {
+            generarPuntos(idCliente, reglaBase.getIdRegla(), puntosGenerados);
+
+            Cliente cliente = clienteRepository.findById(idCliente).orElseThrow();
+            int nuevoAcumulado = (cliente.getPuntosAcumulados() != null ? cliente.getPuntosAcumulados() : 0) + puntosGenerados;
+            cliente.setPuntosAcumulados(nuevoAcumulado);
+
+            // SÍ actualiza nivel (Ganancia)
+            actualizarNivelCliente(cliente, nuevoAcumulado);
+
+            clienteRepository.save(cliente);
+            log.info("Orden {}: Cliente {} ganó {} puntos.", idOrdenCompra, idCliente, puntosGenerados);
         }
-        
-        ReglaPuntos reglaCompra = reglasCompra.get(0);
-        
-        // Calcular puntos basado en solesPorPunto
-        Integer puntosGenerados = (int) (montoTotal / reglaCompra.getSolesPorPunto());
-        
-        if (puntosGenerados > 0) {
-            generarPuntos(idCliente, reglaCompra.getIdRegla(), puntosGenerados);
-            log.info("Generados {} puntos por compra ID: {} para cliente ID: {}", puntosGenerados, idOrdenCompra, idCliente);
+    }
+
+    /**
+     * Revertir puntos cuando se cancela una orden
+     */
+    @Transactional
+    public void revertirPuntosPorAnulacion(OrdenCompra orden) {
+        int puntosPorSol = Integer.parseInt(getConfig("PUNTOS_POR_MONEDA", "1"));
+        int puntosARestar = (int) (orden.getTotal() * puntosPorSol);
+
+        if (puntosARestar <= 0) return;
+
+        Cliente cliente = orden.getCliente();
+        ReglaPuntos reglaBase = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.COMPRA)
+                .stream().findFirst().orElse(null);
+
+        if (reglaBase != null) {
+            Puntos reverso = new Puntos();
+            reverso.setCantPuntos(puntosARestar);
+            reverso.setTipoTransaccion(TipoTransaccion.PERDIDO);
+            reverso.setFechaTransaccion(LocalDate.now());
+            reverso.setCliente(cliente);
+            reverso.setReglaPuntos(reglaBase);
+            reverso.setActivo(true);
+            puntosRepository.save(reverso);
+        }
+
+        int nuevoAcumulado = Math.max((cliente.getPuntosAcumulados() != null ? cliente.getPuntosAcumulados() : 0) - puntosARestar, 0);
+        cliente.setPuntosAcumulados(nuevoAcumulado);
+
+        // SÍ actualiza nivel (Pérdida por anulación)
+        actualizarNivelCliente(cliente, nuevoAcumulado);
+
+        clienteRepository.save(cliente);
+        log.info("Reversión: Cliente {} perdió {} puntos.", cliente.getIdPersona(), puntosARestar);
+    }
+
+    /**
+     * Lógica centralizada para determinar el nivel (Bronze/Silver/Gold)
+     */
+    private void actualizarNivelCliente(Cliente cliente, int puntosTotales) {
+        int umbralSilver = Integer.parseInt(getConfig("NIVEL_SILVER_MIN_PUNTOS", "1000"));
+        int umbralGold = Integer.parseInt(getConfig("NIVEL_GOLD_MIN_PUNTOS", "5000"));
+
+        TipoMembresia nivelActual = cliente.getNivel();
+        TipoMembresia nuevoNivel = TipoMembresia.BRONCE;
+
+        if (puntosTotales >= umbralGold) {
+            nuevoNivel = TipoMembresia.ORO;
+        } else if (puntosTotales >= umbralSilver) {
+            nuevoNivel = TipoMembresia.PLATA;
+        }
+
+        if (nuevoNivel != nivelActual) {
+            cliente.setNivel(nuevoNivel);
+            log.info("Cambio de Nivel: Cliente {} pasó de {} a {}", cliente.getIdPersona(), nivelActual, nuevoNivel);
         }
     }
 
@@ -483,30 +495,30 @@ public class FidelizacionService {
     public void aplicarDescuentoPorCodigoPromocional(Integer idOrdenCompra, String codigo) {
         CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado: " + codigo));
-        
+
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrdenCompra)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrdenCompra));
-        
+
         // Validar que la orden esté en estado PENDIENTE
         if (orden.getEstado() != pe.edu.pucp.fasticket.model.compra.EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden aplicar códigos promocionales en órdenes pendientes");
         }
-        
+
         // Validar que no haya canje aplicado (mutuamente excluyente)
         if (orden.getDescuentoPorCanje() != null && orden.getDescuentoPorCanje() > 0) {
             throw new BusinessException("No se pueden aplicar códigos promocionales cuando se ha canjeado puntos. Los descuentos son mutuamente excluyentes.");
         }
-        
+
         // Validar stock
         if (codigoPromo.getStock() <= 0) {
             throw new BusinessException("El código promocional no tiene stock disponible");
         }
-        
+
         // Validar vigencia
         if (codigoPromo.getFechaFin() != null && codigoPromo.getFechaFin().isBefore(java.time.LocalDateTime.now())) {
             throw new BusinessException("El código promocional ha expirado");
         }
-        
+
         // Aplicar descuento
         Double descuento = 0.0;
         if (codigoPromo.getTipo() == TipoCodigoPromocional.PORCENTAJE) {
@@ -514,18 +526,18 @@ public class FidelizacionService {
         } else {
             descuento = codigoPromo.getValor();
         }
-        
+
         // Registrar descuento
         DescuentosRealizados descuentoRealizado = new DescuentosRealizados();
         descuentoRealizado.setCodigoPromocional(codigoPromo);
         descuentoRealizado.setOrdenCompra(orden);
         descuentoRealizado.setValor(descuento);
         descuentosRealizadosRepository.save(descuentoRealizado);
-        
+
         // Actualizar stock
         codigoPromo.setStock(codigoPromo.getStock() - 1);
         codigoPromocionalRepository.save(codigoPromo);
-        
+
         log.info("Descuento aplicado: {} por código promocional: {}", descuento, codigo);
     }
 
@@ -561,6 +573,13 @@ public class FidelizacionService {
 
         log.info("Descuento calculado: {} por código promocional: {}", descuento, codigo);
         return descuento;
+    }
+
+    // Helper para leer config seguro
+    private String getConfig(String key, String defaultValue) {
+        return configuracionRepository.findById(key)
+                .map(ConfiguracionGlobal::getValue)
+                .orElse(defaultValue);
     }
 }
 

@@ -2,338 +2,250 @@ package pe.edu.pucp.fasticket.services.compra;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.dto.compra.*;
-import pe.edu.pucp.fasticket.events.TicketTransferidoEvent;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
 import pe.edu.pucp.fasticket.model.compra.EstadoSolicitud;
 import pe.edu.pucp.fasticket.model.compra.SolicitudTransferencia;
 import pe.edu.pucp.fasticket.model.compra.TransferenciaEntrada;
 import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
-import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.repository.compra.SolicitudTransferenciaRepository;
-import pe.edu.pucp.fasticket.repository.compra.TransferenciaRepositorio;
+import pe.edu.pucp.fasticket.repository.compra.TransferenciaEntradaRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.services.EmailService;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional
 public class TransferenciaEntradaServicio {
 
     private final TicketRepository ticketRepository;
     private final ClienteRepository clienteRepository;
-    private final TransferenciaRepositorio transferenciaRepositorio;
     private final SolicitudTransferenciaRepository solicitudRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final TransferenciaEntradaRepository historialRepository;
+    private final ConfiguracionRepository configuracionRepository;
+    private final EmailService emailService;
 
-    private static final Integer HORAS_EXPIRACION_SOLICITUD = 48;
+    // --- 1. CREAR SOLICITUD ---
+    public SolicitudTransferenciaDTO crearSolicitudTransferencia(Integer idEmisor, CrearSolicitudTransferenciaDTO dto) {
 
-    @Transactional
-    public SolicitudTransferenciaDTO crearSolicitudTransferencia(
-            Integer idEmisor, CrearSolicitudTransferenciaDTO dto) {
-        log.info("Creando solicitud de transferencia de ticket {} de emisor {} a email {}",
-                dto.getIdTicket(), idEmisor, dto.getEmailReceptor());
         Ticket ticket = ticketRepository.findById(dto.getIdTicket())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket no encontrado"));
+
         if (!ticket.getCliente().getIdPersona().equals(idEmisor)) {
             throw new BusinessException("No eres el propietario de este ticket.");
         }
-        if (ticket.getEstado() != EstadoTicket.VENDIDA && ticket.getEstado() != EstadoTicket.TRANSFERIDA) {
-            throw new BusinessException("Solo puedes transferir tickets VENDIDOS o TRANSFERIDOS.");
+        if (ticket.getEstado() != EstadoTicket.VENDIDA) {
+            throw new BusinessException("El ticket no está en un estado válido para transferir.");
         }
+
+        // Validación Configuración Dinámica
+        int limiteMax = Integer.parseInt(
+                configuracionRepository.findById("LIMITE_TRANSFERENCIAS_TICKET")
+                        .map(ConfiguracionGlobal::getValue).orElse("1")
+        );
+
+        if (ticket.getContadorTransferencias() >= limiteMax) {
+            throw new BusinessException("Límite de transferencias alcanzado (" + limiteMax + ").");
+        }
+
+        // Verificar pendientes (Usando el repo que me pasaste)
+        boolean existePendiente = !solicitudRepository.findByTicket_IdTicketAndEstadoAndActivoTrue(
+                ticket.getIdTicket(), EstadoSolicitud.PENDIENTE).isEmpty();
+
+        if (existePendiente) {
+            throw new BusinessException("Ya existe una solicitud pendiente para este ticket.");
+        }
+
         Cliente receptor = clienteRepository.findByEmail(dto.getEmailReceptor())
-                .orElseThrow(() -> new BusinessException(
-                        "El email '" + dto.getEmailReceptor() + "' no está registrado. " +
-                                "El destinatario debe crear una cuenta."));
+                .orElseThrow(() -> new BusinessException("El correo destinatario no existe."));
+
         if (receptor.getIdPersona().equals(idEmisor)) {
-            throw new BusinessException("No puedes transferir un ticket a ti mismo.");
+            throw new BusinessException("No puedes transferirte a ti mismo.");
         }
-        String nombreCompletoEntidad = receptor.getNombres() + " " + receptor.getApellidos();
-        boolean nombreCoincide = nombreCompletoEntidad.equalsIgnoreCase(dto.getNombreCompletoReceptor());
-        boolean docCoincide = receptor.getDocIdentidad().equals(dto.getNumeroDocumentoReceptor());
-        boolean telCoincide = receptor.getTelefono().equals(dto.getTelefonoReceptor());
-
-        if (!nombreCoincide || !docCoincide || !telCoincide) {
-            throw new BusinessException("Los datos (Nombre, Documento o Teléfono) no coinciden con el email registrado.");
-        }
-
-        Evento evento = ticket.getEvento();
-        Integer maxTransf = evento.getMaxTransferenciasPermitidas();
-        Integer contActual = ticket.getContadorTransferencias();
-
-        if (contActual >= maxTransf) {
-            throw new BusinessException("Este ticket ya alcanzó el límite de " + maxTransf + " transferencias.");
-        }
-
-        Integer cooldownHoras = evento.getHorasCooldownTransferencia();
-        if (ticket.getFechaUltimaTransferencia() != null) {
-            LocalDateTime finCooldown = ticket.getFechaUltimaTransferencia().plusHours(cooldownHoras);
-
-            if (LocalDateTime.now().isBefore(finCooldown)) {
-                long horasRestantes = ChronoUnit.HOURS.between(LocalDateTime.now(), finCooldown);
-                long minutosRestantes = ChronoUnit.MINUTES.between(LocalDateTime.now(), finCooldown) % 60;
-
-                throw new BusinessException(
-                        String.format("Debes esperar el período de enfriamiento. Tiempo restante: %d horas y %d minutos.",
-                                horasRestantes, minutosRestantes));
-            }
-        }
-
-        solicitudRepository.findByTicket_IdTicketAndReceptor_IdPersonaAndEstadoAndActivoTrue(
-                        ticket.getIdTicket(), receptor.getIdPersona(), EstadoSolicitud.PENDIENTE)
-                .ifPresent(s -> {
-                    if (s.getFechaExpiracion() != null &&
-                            LocalDateTime.now().isAfter(s.getFechaExpiracion())) {
-                        s.setEstado(EstadoSolicitud.EXPIRADA);
-                        s.setFechaRespuesta(LocalDateTime.now());
-                        solicitudRepository.save(s);
-                    } else {
-                        throw new BusinessException("Ya existe una solicitud pendiente para este ticket y receptor.");
-                    }
-                });
-
-        Cliente emisor = clienteRepository.findById(idEmisor).orElseThrow();
 
         SolicitudTransferencia solicitud = new SolicitudTransferencia();
         solicitud.setTicket(ticket);
-        solicitud.setEmisor(emisor);
+        solicitud.setEmisor(ticket.getCliente());
         solicitud.setReceptor(receptor);
         solicitud.setEstado(EstadoSolicitud.PENDIENTE);
-        solicitud.setFechaSolicitud(LocalDateTime.now());
-        solicitud.setFechaExpiracion(LocalDateTime.now().plusHours(HORAS_EXPIRACION_SOLICITUD));
+        solicitud.setFechaSolicitud(LocalDateTime.now()); // NOMBRE CORREGIDO
         solicitud.setActivo(true);
 
-        SolicitudTransferencia solicitudGuardada = solicitudRepository.save(solicitud);
-        log.info("Solicitud de transferencia ID {} creada", solicitudGuardada.getIdSolicitud());
+        int horasExp = Integer.parseInt(
+                configuracionRepository.findById("TIEMPO_EXPIRACION_SOLICITUD_HORAS")
+                        .map(ConfiguracionGlobal::getValue).orElse("48")
+        );
+        solicitud.setFechaExpiracion(LocalDateTime.now().plusHours(horasExp)); // NOMBRE CORREGIDO
 
-        return convertirSolicitudADTO(solicitudGuardada);
+        solicitudRepository.save(solicitud);
+        return mapToDTO(solicitud);
     }
 
-    @Transactional(readOnly = true)
+    // --- 2. LISTAR ---
     public List<SolicitudTransferenciaDTO> obtenerSolicitudesPendientes(Integer idReceptor) {
-        List<SolicitudTransferencia> solicitudes = solicitudRepository
-                .findByReceptor_IdPersonaAndEstadoAndActivoTrue(idReceptor, EstadoSolicitud.PENDIENTE);
-
-        return solicitudes.stream()
-                .filter(s -> !estaExpirada(s))
-                .map(this::convertirSolicitudADTO)
-                .collect(Collectors.toList());
+        return solicitudRepository.findByReceptor_IdPersonaAndEstadoAndActivoTrue(idReceptor, EstadoSolicitud.PENDIENTE)
+                .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
-    /**
-     * Listar todas las solicitudes enviadas por un emisor
-     */
-    @Transactional(readOnly = true)
     public List<SolicitudTransferenciaDTO> obtenerSolicitudesEnviadas(Integer idEmisor) {
-        List<SolicitudTransferencia> solicitudes = solicitudRepository
-                .findByEmisor_IdPersonaAndActivoTrueOrderByFechaSolicitudDesc(idEmisor);
-
-        return solicitudes.stream()
-                .map(this::convertirSolicitudADTO)
-                .collect(Collectors.toList());
+        return solicitudRepository.findByEmisor_IdPersonaAndActivoTrueOrderByFechaSolicitudDesc(idEmisor)
+                .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
-    /**
-     * Responder a una solicitud (aceptar o rechazar)
-     */
-    @Transactional
-    public SolicitudTransferenciaDTO responderSolicitud(
-            Integer idReceptor, ResponderSolicitudDTO dto) {
-
-        log.info("Receptor {} respondiendo solicitud {}: {}",
-                idReceptor, dto.getIdSolicitud(), dto.getAceptar() ? "ACEPTAR" : "RECHAZAR");
-
+    // --- 3. RESPONDER ---
+    public SolicitudTransferenciaDTO responderSolicitud(Integer idReceptor, ResponderSolicitudDTO dto) {
         SolicitudTransferencia solicitud = solicitudRepository.findById(dto.getIdSolicitud())
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
 
         if (!solicitud.getReceptor().getIdPersona().equals(idReceptor)) {
-            throw new BusinessException("No eres el destinatario de esta solicitud.");
+            throw new BusinessException("No autorizado.");
+        }
+
+        // Validación manual de vencimiento si el estado sigue PENDIENTE pero la fecha pasó
+        if (solicitud.getEstado() == EstadoSolicitud.PENDIENTE && LocalDateTime.now().isAfter(solicitud.getFechaExpiracion())) {
+            solicitud.setEstado(EstadoSolicitud.VENCIDO);
+            solicitudRepository.save(solicitud);
+            throw new BusinessException("La solicitud ha expirado.");
         }
 
         if (solicitud.getEstado() != EstadoSolicitud.PENDIENTE) {
-            throw new BusinessException("Esta solicitud ya fue respondida o expiró.");
-        }
-
-        // ⏰ VERIFICAR SI EXPIRÓ
-        if (estaExpirada(solicitud)) {
-            solicitud.setEstado(EstadoSolicitud.EXPIRADA);
-            solicitud.setFechaRespuesta(LocalDateTime.now());
-            solicitudRepository.save(solicitud);
-            throw new BusinessException("Esta solicitud ha expirado.");
+            throw new BusinessException("Solicitud ya procesada o vencida.");
         }
 
         solicitud.setFechaRespuesta(LocalDateTime.now());
 
         if (dto.getAceptar()) {
-            solicitud.setEstado(EstadoSolicitud.ACEPTADA);
-            solicitudRepository.save(solicitud);
-
-            ejecutarTransferenciaDesdeAceptacion(solicitud);
-
-            log.info("✅ Solicitud {} ACEPTADA. Transferencia ejecutada.", solicitud.getIdSolicitud());
-
+            ejecutarTransferencia(solicitud);
+            solicitud.setEstado(EstadoSolicitud.ACEPTADO);
         } else {
-            solicitud.setEstado(EstadoSolicitud.RECHAZADA);
-            solicitudRepository.save(solicitud);
-
-            log.info("❌ Solicitud {} RECHAZADA.", solicitud.getIdSolicitud());
+            solicitud.setEstado(EstadoSolicitud.RECHAZADO);
         }
 
-        return convertirSolicitudADTO(solicitud);
+        return mapToDTO(solicitudRepository.save(solicitud));
     }
 
-    /**
-     * Cancelar una solicitud (solo el emisor)
-     */
-    @Transactional
+    // --- 4. CANCELAR ---
     public void cancelarSolicitud(Integer idEmisor, Integer idSolicitud) {
         SolicitudTransferencia solicitud = solicitudRepository.findById(idSolicitud)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud no encontrada"));
 
         if (!solicitud.getEmisor().getIdPersona().equals(idEmisor)) {
-            throw new BusinessException("No eres el emisor de esta solicitud.");
+            throw new BusinessException("No eres el emisor.");
         }
-
         if (solicitud.getEstado() != EstadoSolicitud.PENDIENTE) {
-            throw new BusinessException("Solo puedes cancelar solicitudes pendientes.");
+            throw new BusinessException("Solo se cancelan solicitudes pendientes.");
         }
 
-        if (estaExpirada(solicitud)) {
-            solicitud.setEstado(EstadoSolicitud.EXPIRADA);
-            solicitud.setFechaRespuesta(LocalDateTime.now());
-            solicitudRepository.save(solicitud);
-            throw new BusinessException("Esta solicitud ya expiró.");
-        }
-
-        solicitud.setEstado(EstadoSolicitud.CANCELADA);
-        solicitud.setFechaRespuesta(LocalDateTime.now());
+        solicitud.setEstado(EstadoSolicitud.CANCELADO);
         solicitudRepository.save(solicitud);
-
-        log.info("🚫 Solicitud {} CANCELADA por el emisor", idSolicitud);
     }
 
-    /**
-     * ⏰ VERIFICAR SI EXPIRÓ (TIEMPO REAL)
-     */
-    private boolean estaExpirada(SolicitudTransferencia solicitud) {
-        if (solicitud.getEstado() != EstadoSolicitud.PENDIENTE) {
-            return false;
-        }
-
-        if (solicitud.getFechaExpiracion() == null) {
-            return false;
-        }
-
-        return LocalDateTime.now().isAfter(solicitud.getFechaExpiracion());
-    }
-
-    /**
-     * Ejecutar la transferencia cuando se acepta
-     */
-    private void ejecutarTransferenciaDesdeAceptacion(SolicitudTransferencia solicitud) {
+    // --- LÓGICA INTERNA ---
+    private void ejecutarTransferencia(SolicitudTransferencia solicitud) {
         Ticket ticket = solicitud.getTicket();
-        Cliente emisor = solicitud.getEmisor();
-        Cliente receptor = solicitud.getReceptor();
+        Cliente nuevo = solicitud.getReceptor();
+        Cliente antiguo = solicitud.getEmisor();
 
-        ticket.setCliente(receptor);
-        ticket.setEstado(EstadoTicket.TRANSFERIDA);
+        ticket.setCliente(nuevo);
+        ticket.setNombreAsistente(nuevo.getNombres());
+        ticket.setApellidoAsistente(nuevo.getApellidos());
+        ticket.setDocumentoAsistente(nuevo.getDocIdentidad());
+        ticket.setTipoDocumentoAsistente(nuevo.getTipoDocumento());
+
         ticket.setContadorTransferencias(ticket.getContadorTransferencias() + 1);
         ticket.setFechaUltimaTransferencia(LocalDateTime.now());
+        ticket.setCodigoQr(UUID.randomUUID().toString()); // Nuevo QR
+
         ticketRepository.save(ticket);
 
+        // --- AQUÍ SE GUARDA EL HISTORIAL/AUDITORÍA (RF-093) ---
         TransferenciaEntrada historial = new TransferenciaEntrada();
         historial.setTicket(ticket);
-        historial.setEmisor(emisor);
-        historial.setReceptor(receptor);
+        historial.setEmisor(antiguo);
+        historial.setReceptor(nuevo);
         historial.setFechaTransferencia(LocalDateTime.now());
-        TransferenciaEntrada historialGuardado = transferenciaRepositorio.save(historial);
 
-        log.info("✅ Transferencia registrada en historial ID {}", historialGuardado.getIdTransferencia());
+        historialRepository.save(historial);
 
-        eventPublisher.publishEvent(new TicketTransferidoEvent(historialGuardado));
+        try {
+            emailService.enviarCorreoTransferencia(antiguo, nuevo, ticket);
+        } catch(Exception e) { log.error("Error email", e); }
     }
 
-    // ==================== HISTORIAL ====================
-
-    @Transactional(readOnly = true)
+    // --- HISTORIAL ---
     public List<TransferenciaResponseDTO> verHistorialDeTicket(Integer idTicket) {
-        List<TransferenciaEntrada> historial = transferenciaRepositorio
-                .findByTicket_IdTicketOrderByFechaTransferenciaDesc(idTicket);
-        return historial.stream()
-                .map(this::convertirHistorialADTO)
-                .collect(Collectors.toList());
+        // Debes tener un método en TransferenciaEntradaRepository que busque por ticket
+        // return historialRepository.findByTicketId(idTicket)...
+        return new ArrayList<>();
     }
 
-    // ==================== CONVERSORES DTO ====================
-
-    private SolicitudTransferenciaDTO convertirSolicitudADTO(SolicitudTransferencia s) {
+    private SolicitudTransferenciaDTO mapToDTO(SolicitudTransferencia entity) {
         SolicitudTransferenciaDTO dto = new SolicitudTransferenciaDTO();
-        dto.setIdSolicitud(s.getIdSolicitud());
-        dto.setIdTicket(s.getTicket().getIdTicket());
-        dto.setCodigoTicket(s.getTicket().getCodigoQr());
-        dto.setNombreEvento(s.getTicket().getEvento().getNombre());
-        dto.setFechaEvento(s.getTicket().getEvento().getFechaEvento());
 
-        dto.setIdEmisor(s.getEmisor().getIdPersona());
-        dto.setNombreEmisor(s.getEmisor().getNombres() + " " + s.getEmisor().getApellidos());
-        dto.setEmailEmisor(s.getEmisor().getEmail());
+        // 1. Datos de la Solicitud
+        dto.setIdSolicitud(entity.getIdSolicitud());
+        dto.setEstado(entity.getEstado());
+        dto.setFechaSolicitud(entity.getFechaSolicitud());
+        dto.setFechaExpiracion(entity.getFechaExpiracion());
+        dto.setFechaRespuesta(entity.getFechaRespuesta());
 
-        dto.setIdReceptor(s.getReceptor().getIdPersona());
-        dto.setNombreReceptor(s.getReceptor().getNombres() + " " + s.getReceptor().getApellidos());
-        dto.setEmailReceptor(s.getReceptor().getEmail());
-
-        dto.setEstado(s.getEstado());
-        dto.setFechaSolicitud(s.getFechaSolicitud());
-        dto.setFechaRespuesta(s.getFechaRespuesta());
-        dto.setFechaExpiracion(s.getFechaExpiracion());
-
-        // ⏰ Calcular horas restantes
-        if (s.getEstado() == EstadoSolicitud.PENDIENTE && s.getFechaExpiracion() != null) {
-            if (LocalDateTime.now().isBefore(s.getFechaExpiracion())) {
-                long horas = ChronoUnit.HOURS.between(LocalDateTime.now(), s.getFechaExpiracion());
-                dto.setHorasRestantes(horas);
-            } else {
-                dto.setHorasRestantes(0L);
-            }
+        // 2. Cálculos de Tiempo (Horas Restantes)
+        if (entity.getEstado() == EstadoSolicitud.PENDIENTE && entity.getFechaExpiracion() != null) {
+            long horas = java.time.temporal.ChronoUnit.HOURS.between(LocalDateTime.now(), entity.getFechaExpiracion());
+            dto.setHorasRestantes(horas > 0 ? horas : 0);
+        } else {
+            dto.setHorasRestantes(0L);
         }
 
-        Evento evento = s.getTicket().getEvento();
-        dto.setTransferenciasRestantes(
-                evento.getMaxTransferenciasPermitidas() - s.getTicket().getContadorTransferencias());
+        // 3. Datos del Ticket y Evento
+        Ticket ticket = entity.getTicket();
+        dto.setIdTicket(ticket.getIdTicket());
+        dto.setCodigoTicket(ticket.getCodigoQr());
 
-        // Validar si puede transferir (cooldown)
-        Ticket ticket = s.getTicket();
-        boolean puedeTransferir = true;
-        if (ticket.getFechaUltimaTransferencia() != null) {
-            LocalDateTime finCooldown = ticket.getFechaUltimaTransferencia()
-                    .plusHours(evento.getHorasCooldownTransferencia());
-            puedeTransferir = LocalDateTime.now().isAfter(finCooldown);
+        if (ticket.getEvento() != null) {
+            dto.setNombreEvento(ticket.getEvento().getNombre());
+            dto.setFechaEvento(ticket.getEvento().getFechaEvento());
         }
-        dto.setPuedeTransferir(puedeTransferir);
 
-        return dto;
-    }
+        // 4. Datos de Emisor y Receptor
+        Cliente emisor = entity.getEmisor();
+        dto.setIdEmisor(emisor.getIdPersona());
+        dto.setNombreEmisor(emisor.getNombres() + " " + emisor.getApellidos());
+        dto.setEmailEmisor(emisor.getEmail());
 
-    private TransferenciaResponseDTO convertirHistorialADTO(TransferenciaEntrada h) {
-        TransferenciaResponseDTO dto = new TransferenciaResponseDTO();
-        dto.setIdHistorial(h.getIdTransferencia());
-        dto.setIdTicket(h.getTicket().getIdTicket());
-        dto.setNombreEmisor(h.getEmisor().getNombres() + " " + h.getEmisor().getApellidos());
-        dto.setEmailEmisor(h.getEmisor().getEmail());
-        dto.setNombreReceptor(h.getReceptor().getNombres() + " " + h.getReceptor().getApellidos());
-        dto.setEmailReceptor(h.getReceptor().getEmail());
-        dto.setFechaTransferencia(h.getFechaTransferencia());
+        Cliente receptor = entity.getReceptor();
+        dto.setIdReceptor(receptor.getIdPersona());
+        dto.setNombreReceptor(receptor.getNombres() + " " + receptor.getApellidos());
+        dto.setEmailReceptor(receptor.getEmail());
+
+        // 5. Cálculos de Límites (Para saber si se puede volver a transferir)
+        // Obtenemos el límite de la configuración (o 1 por defecto)
+        int limiteMax = Integer.parseInt(
+                configuracionRepository.findById("LIMITE_TRANSFERENCIAS_TICKET")
+                        .map(ConfiguracionGlobal::getValue).orElse("1")
+        );
+
+        int transferenciasHechas = ticket.getContadorTransferencias() != null ? ticket.getContadorTransferencias() : 0;
+        int restantes = limiteMax - transferenciasHechas;
+
+        dto.setTransferenciasRestantes(restantes > 0 ? restantes : 0);
+        dto.setPuedeTransferir(restantes > 0 && ticket.getEstado() == EstadoTicket.VENDIDA);
+
         return dto;
     }
 }

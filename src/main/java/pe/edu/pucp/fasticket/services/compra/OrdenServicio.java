@@ -518,11 +518,17 @@ public class OrdenServicio {
         } catch (Exception e) {
             log.error("Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
         }
-        fidelizacionService.generarPuntosPorCompra(
-                orden.getCliente().getIdPersona(),
-                orden.getTotal(),
-                orden.getIdOrdenCompra()
-        );
+        try {
+            // Calculamos puntos basados en el total de la orden
+            fidelizacionService.generarPuntosPorCompra(
+                    orden.getCliente().getIdPersona(),
+                    orden.getTotal(),
+                    orden.getIdOrdenCompra()
+            );
+        } catch (Exception e) {
+            log.error("Error no bloqueante al generar puntos: {}", e.getMessage());
+        }
+
         log.info("Puntos generados para cliente ID {} (orden {}).",
                 orden.getCliente().getIdPersona(), idOrden);
     }
@@ -544,7 +550,6 @@ public class OrdenServicio {
 
         orden.setEstado(EstadoCompra.RECHAZADO);
 
-        // RF-090: Revertir cupos al stock
         revertirStockDeOrden(orden);
 
         ordenCompraRepositorio.save(orden);
@@ -695,7 +700,6 @@ public class OrdenServicio {
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrden));
 
-        // Validación de negocio (RF-089)
         if (orden.getEstado() != EstadoCompra.APROBADO) {
             throw new BusinessException("Solo se pueden anular compras que ya están APROBADAS. " +
                     "El estado actual es: " + orden.getEstado());
@@ -703,18 +707,23 @@ public class OrdenServicio {
 
         // 1. Cambiar estado de la orden
         orden.setEstado(EstadoCompra.ANULADO);
-        orden.setActivo(false); // Marcar como inactiva
+        orden.setActivo(false);
 
-        // 2. RF-090: Revertir cupos al stock
+        // 2. Revertir Tickets (Stock y Limpieza)
         revertirStockDeOrden(orden);
 
-        // 3. TODO: Revertir puntos de fidelización (hablar con el encargado de FidelizacionService)
-        // fidelizacionService.revertirPuntosPorAnulacion(orden);
+        // 3. Revertir Puntos
+        try {
+            fidelizacionService.revertirPuntosPorAnulacion(orden);
+        } catch (Exception e) {
+            log.error("Error al revertir puntos de la orden {}: {}", idOrden, e.getMessage());
+            // No detenemos la anulación, pero queda el log
+        }
 
         // 4. Guardar la orden anulada
         ordenCompraRepositorio.save(orden);
 
-        // --- INICIO AUDITORÍA RF-109 ---
+        // --- INICIO AUDITORÍA ---
         try {
             Administrador admin = getAdminActual();
             String detalle = "Se ANULÓ la orden ID: " + idOrden +
@@ -731,24 +740,40 @@ public class OrdenServicio {
     }
 
     private void revertirStockDeOrden(OrdenCompra orden) {
-        log.info("Revirtiendo stock para Orden ID: {}", orden.getIdOrdenCompra());
-        for (ItemCarrito item : orden.getItems()) {
-            for (Ticket ticket : item.getTickets()) {
-                // Opción 1: Devolver el ticket al pool
-                ticket.setEstado(EstadoTicket.DISPONIBLE);
-                ticket.setActivo(false); // Opcional: Desactivarlo para que no se use el mismo QR
-                ticket.setCliente(null); // Desasociar cliente
-                // ... etc.
+        log.info("Revirtiendo stock y limpiando datos para Orden ID: {}", orden.getIdOrdenCompra());
 
-                // Opción 2 (Más simple si la lógica lo permite):
-                // Simplemente actualizar el contador del TipoTicket
+        for (ItemCarrito item : orden.getItems()) {
+            // 1. Limpiar cada ticket individualmente
+            for (Ticket ticket : item.getTickets()) {
+                ticket.setEstado(EstadoTicket.DISPONIBLE);
+                ticket.setCliente(null); // Desvincular del comprador
+                ticket.setOrdenCompra(null); // Desvincular de la orden
+                ticket.setItemCarrito(null);// Opcional: dependerá si quieremos mantener historial del carrito
+
+                // IMPORTANTE: Borrar datos del asistente para proteger privacidad y evitar errores
+                ticket.setNombreAsistente(null);
+                ticket.setApellidoAsistente(null);
+                ticket.setDocumentoAsistente(null);
+                ticket.setTipoDocumentoAsistente(null);
+
+                // Resetear QR y transferencias
+                ticket.setCodigoQr(null);
+                ticket.setQrImage(null);
+                ticket.setContadorTransferencias(0);
+                ticket.setFechaUltimaTransferencia(null);
             }
+
+            // 2. Actualizar contadores del TipoTicket
             TipoTicket tipo = item.getTipoTicket();
             int disponibleActual = tipo.getCantidadDisponible() != null ? tipo.getCantidadDisponible() : 0;
             int vendidaActual = tipo.getCantidadVendida() != null ? tipo.getCantidadVendida() : 0;
             int cantidad = item.getCantidad() != null ? item.getCantidad() : 0;
+
             tipo.setCantidadDisponible(disponibleActual + cantidad);
-            tipo.setCantidadVendida(Math.max(vendidaActual - cantidad, 0)); // Corregir contador de vendidos
+            tipo.setCantidadVendida(Math.max(vendidaActual - cantidad, 0));
+
+            // Guardamos los cambios
+            ticketRepository.saveAll(item.getTickets()); // Guardamos tickets limpios
             tipoTicketRepositorio.save(tipo);
         }
     }

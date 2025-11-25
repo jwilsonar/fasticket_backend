@@ -19,4 +19,6 @@ public interface ItemCarritoRepository extends JpaRepository<ItemCarrito, Intege
     @Modifying
     @Query("UPDATE ItemCarrito i SET i.carroCompra = NULL, i.ordenCompra = :orden WHERE i.idItemCarrito = :itemId")
     void transferirItemAOrden(@Param("itemId") Integer itemId, @Param("orden") OrdenCompra orden);
+
+    List<ItemCarrito> findByOrdenCompra_IdOrdenCompra(Integer idOrdenCompra);
 }

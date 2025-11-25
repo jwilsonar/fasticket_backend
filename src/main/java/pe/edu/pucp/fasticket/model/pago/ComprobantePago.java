@@ -1,25 +1,17 @@
 package pe.edu.pucp.fasticket.model.pago;
 
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Data
 @NoArgsConstructor
@@ -67,4 +59,9 @@ public class ComprobantePago {
 
     @OneToMany(mappedBy = "comprobantePago", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Boleta> boletas = new ArrayList<>();
+
+    @Lob
+    @JdbcTypeCode(Types.VARBINARY)
+    @Column(name = "pdf_contenido")
+    private byte[] pdfContenido;
 }

@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -38,8 +37,7 @@ public class NotificacionUsuario {
 	@Column(name = "titulo", nullable = false, length = 200)
 	private String titulo;
 
-	@Lob
-	@Column(name = "mensaje", nullable = false)
+	@Column(name = "mensaje", nullable = false, columnDefinition = "TEXT")
 	private String mensaje;
 
 	@Column(name = "leida", nullable = false)
@@ -51,8 +49,7 @@ public class NotificacionUsuario {
 	@Column(name = "leida_en")
 	private Instant leidaEn;
 
-	@Lob
-	@Column(name = "metadata_json")
+	@Column(name = "metadata_json", columnDefinition = "TEXT")
 	private String metadataJson;
 }
 

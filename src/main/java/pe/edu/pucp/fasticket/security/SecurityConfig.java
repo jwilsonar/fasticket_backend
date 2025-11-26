@@ -50,9 +50,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api-docs/**",
-                                "/actuator/health",
-                                "/",
-                                "/public/**"
+                                "/actuator/health"
                         ).permitAll()
                         .requestMatchers("/api/v1/geografia/**").permitAll()
                         // Endpoints de solo lectura para clientes
@@ -79,14 +77,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
-                /**Extra para el Google Login - se añadieron 2 endpoints en el público*/
-                .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login")     // Opcional: tu página de login
-                )
-                .logout(logout -> logout
-                        .logoutSuccessUrl("/")
-                );
+                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

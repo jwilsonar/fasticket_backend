@@ -19,6 +19,9 @@ import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
+import sibApi.TransactionalEmailsApi;
+import sibModel.CreateSmtpEmail;
+import sibModel.SendSmtpEmail;
 
 import java.util.Arrays;
 import java.util.List;
@@ -37,6 +40,9 @@ class EmailServiceTest {
     private JavaMailSender mailSender;
 
     @Mock
+    private TransactionalEmailsApi transactionalEmailsApi;
+
+    @Mock
     private ConfiguracionRepository configuracionRepository;
 
     @InjectMocks
@@ -44,9 +50,9 @@ class EmailServiceTest {
 
     @BeforeEach
     void setup() {
+
         // Retornar un nuevo MimeMessage por cada invocación
-        when(mailSender.createMimeMessage()).thenAnswer(invocation -> {
-            // Crear una Session dummy para evitar NPEs con algunas propiedades
+        lenient().when(mailSender.createMimeMessage()).thenAnswer(invocation -> {
             Properties props = new Properties();
             Session session = Session.getInstance(props);
             return new MimeMessage(session);
@@ -74,33 +80,35 @@ class EmailServiceTest {
     }
 
     @Test
-    void enviarCorreoConfirmacionCompra_enviaACliente() throws Exception {
-        // Construir orden mínima con item -> tipoTicket -> evento
-        Evento evento = new Evento();
-        evento.setNombre("Rock Fest");
-
-        TipoTicket tipo = new TipoTicket();
-        tipo.setEvento(evento);
-
-        ItemCarrito item = new ItemCarrito();
-        item.setTipoTicket(tipo);
-
+    void enviarCorreoConfirmacionCompra_usaApiBrevo() throws Exception {
+        // 1. Datos de prueba
+        OrdenCompra orden = new OrdenCompra();
+        orden.setIdOrdenCompra(100);
         Cliente cliente = new Cliente();
         cliente.setNombres("Ana");
         cliente.setEmail("ana@example.com");
-
-        OrdenCompra orden = new OrdenCompra();
         orden.setCliente(cliente);
-        orden.getItems().add(item);
 
+        // Item dummy para que no falle por lista vacía
+        ItemCarrito item = new ItemCarrito();
+        item.setTipoTicket(new TipoTicket());
+        item.getTipoTicket().setEvento(new Evento());
+        item.getTipoTicket().getEvento().setNombre("Evento Test");
+        orden.getItems().add(item);
+        when(transactionalEmailsApi.sendTransacEmail(any())).thenReturn(new CreateSmtpEmail());
+        // 2. Ejecutar
         emailService.enviarCorreoConfirmacionCompra(orden);
 
-        ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
-        verify(mailSender, times(1)).send(captor.capture());
-        MimeMessage message = captor.getValue();
-        assertArrayEquals(new InternetAddress[]{new InternetAddress("ana@example.com")},
-                message.getRecipients(MimeMessage.RecipientType.TO));
-        assertTrue(message.getSubject() != null && !message.getSubject().isEmpty());
+        // 3. VERIFICACIÓN (Lo que cambió)
+        // Ya no verificamos mailSender.send(), sino la API de Brevo
+        ArgumentCaptor<SendSmtpEmail> captor = ArgumentCaptor.forClass(SendSmtpEmail.class);
+        verify(transactionalEmailsApi, times(1)).sendTransacEmail(captor.capture());
+
+        SendSmtpEmail emailEnviado = captor.getValue();
+
+        // Validar destinatario en el objeto de Brevo
+        assertEquals("ana@example.com", emailEnviado.getTo().get(0).getEmail());
+        assertTrue(emailEnviado.getHtmlContent().contains("Evento Test"));
     }
 
     @Test

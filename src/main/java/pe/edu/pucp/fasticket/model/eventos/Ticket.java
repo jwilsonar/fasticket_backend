@@ -1,6 +1,22 @@
 package pe.edu.pucp.fasticket.model.eventos;
 
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -11,10 +27,6 @@ import pe.edu.pucp.fasticket.model.compra.SolicitudTransferencia;
 import pe.edu.pucp.fasticket.model.compra.TransferenciaEntrada;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
-
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -32,8 +44,7 @@ public class Ticket {
     @Column(name = "codigoQr", unique = true, length = 255)
     private String codigoQr;
 
-    @Lob
-    @Column(name = "qrImage")
+    @Column(name = "qrImage", columnDefinition = "BYTEA")
     private byte[] qrImage;
 
     @Column(name = "asiento", length = 50)

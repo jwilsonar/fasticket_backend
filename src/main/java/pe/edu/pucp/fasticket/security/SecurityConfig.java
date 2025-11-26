@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/**",
                                 "/api/v1/eventos/publicos/**",
                                 "/swagger-ui/**",
+                                "/api/v1/public/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/api-docs/**",
@@ -70,6 +71,7 @@ public class SecurityConfig {
                         // Endpoints de compras (requiere autenticación)
                         .requestMatchers("/api/v1/compras/**").authenticated()
                         .requestMatchers("/api/v1/carrito/**").authenticated()
+                        .requestMatchers("/api/v1/ordenes/**").authenticated()
                         
                         // Todo lo demás requiere autenticación
                         .anyRequest().authenticated()

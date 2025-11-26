@@ -54,12 +54,7 @@ public class TicketService {
         }
 
         Ticket nuevoTicket = ticketMapper.toEntity(ticketDTO, evento);
-
-        // --- CORRECCIÓN AQUÍ ---
-        // Cambiamos el ENUM por el String exacto de tu base de datos
         nuevoTicket.setEstado(EstadoTicket.DISPONIBLE);
-        // --- FIN DE LA CORRECCIÓN ---
-
         nuevoTicket.setActivo(true);
 
         Ticket ticketGuardado = ticketRepository.save(nuevoTicket);
@@ -69,15 +64,23 @@ public class TicketService {
     }
 
     public byte[] generarPdfDeTicket(Integer idTicket, String emailClienteLogueado) throws IOException {
-        log.info("Generando PDF para Ticket ID: {} por Cliente: {}", idTicket, emailClienteLogueado);
+        log.info("Solicitud de PDF para Ticket ID: {} por Cliente: {}", idTicket, emailClienteLogueado);
+
         Ticket ticket = ticketRepository.findById(idTicket)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket no encontrado con ID: " + idTicket));
+
         if (ticket.getEstado() != EstadoTicket.VENDIDA) {
             throw new BusinessException("Solo se pueden descargar tickets que hayan sido VENDIDOS.");
         }
+
         if (ticket.getCliente() == null || !ticket.getCliente().getEmail().equals(emailClienteLogueado)) {
             throw new SecurityException("No tiene permiso para descargar este ticket.");
         }
+
+        return generarPdfDeTicket(ticket);
+    }
+
+    public byte[] generarPdfDeTicket(Ticket ticket) throws IOException {
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage();
             document.addPage(page);
@@ -85,6 +88,7 @@ public class TicketService {
             PDPageContentStream contentStream = new PDPageContentStream(document, page);
             PDType1Font fontBold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
             contentStream.beginText();
             contentStream.setFont(fontBold, 18);
             contentStream.newLineAtOffset(150, 750);

@@ -21,12 +21,17 @@ class EventoMapperTest {
 
     @BeforeEach
     void setUp() {
-        eventoMapper = new EventoMapper();
+        // Instanciación directa ya que EventoMapper no tiene dependencias inyectadas
+        eventoMapper = new EventoMapper(); 
         localTest = new Local();
         localTest.setIdLocal(1);
         localTest.setNombre("Estadio Nacional");
     }
 
+    // -------------------------------------------------------------------------
+    // --- Mapeo Entidad -> DTO (Respuesta) ---
+    // -------------------------------------------------------------------------
+    
     @Test
     void testToResponseDTO_MapeoCorrecto() {
         // Arrange
@@ -38,6 +43,7 @@ class EventoMapperTest {
         evento.setHoraInicio(LocalTime.of(20, 0));
         evento.setHoraFin(LocalTime.of(23, 0));
         evento.setImagenUrl("https://example.com/img.jpg");
+        evento.setImagenZonasUrl("https://example.com/zones.jpg");
         evento.setTipoEvento(TipoEvento.ROCK);
         evento.setEstadoEvento(EstadoEvento.ACTIVO);
         evento.setAforoDisponible(5000);
@@ -56,12 +62,18 @@ class EventoMapperTest {
         assertEquals(TipoEvento.ROCK, dto.getTipoEvento());
         assertEquals("Estadio Nacional", dto.getNombreLocal());
         assertEquals(1, dto.getIdLocal());
+        assertEquals("https://example.com/img.jpg", dto.getImagenUrl(), "Debe mapear la URL principal.");
+        assertEquals("https://example.com/zones.jpg", dto.getImagenZonasUrl(), "Debe mapear la URL de zonas.");
     }
 
     @Test
     void testToResponseDTO_NullDevuelveNull() {
         assertNull(eventoMapper.toResponseDTO(null));
     }
+
+    // -------------------------------------------------------------------------
+    // --- Mapeo DTO -> Entidad (Creación) ---
+    // -------------------------------------------------------------------------
 
     @Test
     void testToEntity_MapeoCorrecto() {
@@ -72,11 +84,12 @@ class EventoMapperTest {
         dto.setFechaEvento(LocalDate.now().plusDays(30));
         dto.setHoraInicio(LocalTime.of(18, 0));
         dto.setHoraFin(LocalTime.of(22, 0));
-        dto.setImagenUrl("https://example.com/rock.jpg");
         dto.setTipoEvento(TipoEvento.ROCK);
         dto.setEstadoEvento(EstadoEvento.ACTIVO);
         dto.setAforoDisponible(10000);
-
+        dto.setMenoresDeEdadPermitidos(false);
+        dto.setRestricciones("Solo mayores de edad");
+        
         // Act
         Evento evento = eventoMapper.toEntity(dto, localTest);
 
@@ -86,8 +99,10 @@ class EventoMapperTest {
         assertEquals(TipoEvento.ROCK, evento.getTipoEvento());
         assertEquals(localTest, evento.getLocal());
         assertEquals(EstadoEvento.ACTIVO, evento.getEstadoEvento());
-        assertTrue(evento.getActivo());
+        assertTrue(evento.getActivo(), "El evento debe estar activo por defecto.");
         assertNotNull(evento.getFechaCreacion());
+        assertNull(evento.getImagenUrl(), "Las URLs deben ser null, el mapper no las establece.");
+        assertEquals(false, evento.getMenoresDeEdadPermitidos());
     }
 
     @Test
@@ -98,24 +113,28 @@ class EventoMapperTest {
         dto.setFechaEvento(LocalDate.now().plusDays(10));
         dto.setTipoEvento(TipoEvento.POP);
         dto.setAforoDisponible(2000);
+        // EstadoEvento = null en el DTO
 
         // Act
         Evento evento = eventoMapper.toEntity(dto, localTest);
 
         // Assert
-        assertEquals(EstadoEvento.ACTIVO, evento.getEstadoEvento());
+        // El mapper aplica EstadoEvento.ACTIVO si el DTO lo trae null
+        assertEquals(EstadoEvento.ACTIVO, evento.getEstadoEvento(), "Debe aplicar el estado ACTIVO por defecto.");
     }
 
+    // -------------------------------------------------------------------------
+    // --- Actualización de Entidad (Update) ---
+    // -------------------------------------------------------------------------
+    
     @Test
     void testUpdateEntity_ActualizaCamposCorrectamente() {
         // Arrange
         Evento evento = new Evento();
         evento.setNombre("Antiguo");
-        evento.setDescripcion("Viejo");
-        evento.setFechaEvento(LocalDate.now().plusDays(5));
-        evento.setTipoEvento(TipoEvento.ROCK);
+        evento.setImagenUrl("https://old-image.com"); // URL Antigua (debe mantenerse)
+        evento.setImagenZonasUrl("https://old-zones.com"); // URL Antigua de Zonas (debe mantenerse)
         evento.setEstadoEvento(EstadoEvento.BORRADOR);
-        evento.setLocal(localTest);
 
         Local nuevoLocal = new Local();
         nuevoLocal.setIdLocal(2);
@@ -126,11 +145,13 @@ class EventoMapperTest {
         dto.setDescripcion("Nueva descripción");
         dto.setFechaEvento(LocalDate.now().plusDays(30));
         dto.setHoraInicio(LocalTime.of(19, 0));
-        dto.setHoraFin(LocalTime.of(23, 30));
-        dto.setImagenUrl("https://new-image.com");
         dto.setTipoEvento(TipoEvento.POP);
         dto.setEstadoEvento(EstadoEvento.ACTIVO);
         dto.setAforoDisponible(8000);
+        
+        // Nota: Las URLs en el DTO son ignoradas por el mapper, por lo que las seteamos a null.
+        dto.setImagenUrl(null); 
+        dto.setImagenZonasUrl(null); 
 
         // Act
         eventoMapper.updateEntity(evento, dto, nuevoLocal);
@@ -142,24 +163,40 @@ class EventoMapperTest {
         assertEquals(EstadoEvento.ACTIVO, evento.getEstadoEvento());
         assertEquals(8000, evento.getAforoDisponible());
         assertEquals(nuevoLocal, evento.getLocal());
+        
+        // ASUNCIÓN CLAVE: El mapper ignora las URLs, por lo que DEBEN MANTENERSE las antiguas.
+        assertEquals("https://old-image.com", evento.getImagenUrl(), "La URL de imagen debe mantenerse (el mapper la ignora).");
+        assertEquals("https://old-zones.com", evento.getImagenZonasUrl(), "La URL de zonas debe mantenerse (el mapper la ignora).");
+        
         assertNotNull(evento.getFechaActualizacion());
     }
 
     @Test
-    void testUpdateEntity_NoCambiaEstadoSiDTOEsNulo() {
+    void testUpdateEntity_NoSobreescribeConNullSiElDtoEsParcial() {
         // Arrange
         Evento evento = new Evento();
+        evento.setNombre("Nombre Anterior");
+        evento.setDescripcion("Descripción Original");
         evento.setEstadoEvento(EstadoEvento.BORRADOR);
+        evento.setTipoEvento(TipoEvento.ROCK);
+        evento.setAforoDisponible(1000);
+        evento.setMenoresDeEdadPermitidos(true);
+
+        // DTO parcial: solo actualiza el nombre
         EventoCreateDTO dto = new EventoCreateDTO();
-        dto.setNombre("Evento Sin Estado");
-        dto.setFechaEvento(LocalDate.now().plusDays(5));
-        dto.setTipoEvento(TipoEvento.ROCK);
-        dto.setAforoDisponible(1000);
+        dto.setNombre("Solo Cambia Nombre");
+        // El resto de campos del DTO son null
 
         // Act
         eventoMapper.updateEntity(evento, dto, localTest);
 
         // Assert
+        assertEquals("Solo Cambia Nombre", evento.getNombre());
+        // Estos campos no deben ser sobreescritos por null
+        assertEquals("Descripción Original", evento.getDescripcion());
+        assertEquals(TipoEvento.ROCK, evento.getTipoEvento());
         assertEquals(EstadoEvento.BORRADOR, evento.getEstadoEvento());
+        assertEquals(1000, evento.getAforoDisponible());
+        assertEquals(true, evento.getMenoresDeEdadPermitidos());
     }
 }

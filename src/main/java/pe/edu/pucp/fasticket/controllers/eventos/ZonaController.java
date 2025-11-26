@@ -33,7 +33,6 @@ import pe.edu.pucp.fasticket.dto.zonas.ZonaDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.mapper.ZonaMapper;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.eventos.ZonaServicio;
 
 @Tag(
@@ -48,7 +47,6 @@ public class ZonaController {
 
     private final ZonaServicio zonaServicio;
     private final ZonaMapper zonaMapper;
-    private final S3Service s3Service;
 
     @Operation(
         summary = "Listar zonas",

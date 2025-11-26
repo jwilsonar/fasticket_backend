@@ -3,6 +3,8 @@ package pe.edu.pucp.fasticket.dto.eventos;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -42,12 +44,10 @@ public class EventoCreateDTO {
     private LocalTime horaFin;
 
     @Schema(description = "URL de la imagen", example = "https://example.com/imagen.jpg")
-    @Size(max = 500, message = "La URL no puede exceder 500 caracteres")
-    private String imagenUrl;
+    private MultipartFile imagenUrl;
 
     @Schema(description = "URL de la imagen de las zonas", example = "https://example.com/imagen.jpg")
-    @Size(max = 500, message = "La URL no puede exceder 500 caracteres")
-    private String imagenZonasUrl;
+    private MultipartFile imagenZonasUrl;
 
     @Schema(description = "Tipo de evento", example = "ROCK", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "El tipo de evento es obligatorio")

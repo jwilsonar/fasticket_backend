@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.*;
 import org.springframework.security.core.Authentication;
-import pe.edu.pucp.fasticket.security.CustomUserDetailsService;
 import pe.edu.pucp.fasticket.security.UserDetailsImpl;
 import pe.edu.pucp.fasticket.services.compra.TransferenciaEntradaServicio;
 import lombok.extern.slf4j.Slf4j;

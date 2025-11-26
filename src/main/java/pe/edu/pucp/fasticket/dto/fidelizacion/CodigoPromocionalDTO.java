@@ -31,6 +31,7 @@ public class CodigoPromocionalDTO {
         this.valor = codigoPromocional.getValor();
         this.stock = codigoPromocional.getStock();
         this.cantidadPorCliente = codigoPromocional.getCantidadPorCliente();
+        this.activo=codigoPromocional.getActivo();
     }
 }
 

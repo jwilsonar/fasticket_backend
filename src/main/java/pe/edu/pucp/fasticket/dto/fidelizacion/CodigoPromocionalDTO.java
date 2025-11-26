@@ -20,6 +20,7 @@ public class CodigoPromocionalDTO {
     private Double valor;
     private Integer stock;
     private Integer cantidadPorCliente;
+    private Boolean activo;
 
     public CodigoPromocionalDTO(CodigoPromocional codigoPromocional) {
         this.idCodigoPromocional = codigoPromocional.getIdCodigoPromocional();

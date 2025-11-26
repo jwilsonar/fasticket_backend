@@ -391,6 +391,7 @@ public class ClienteService {
         dto.setEdad(cliente.calcularEdad());
         dto.setFechaCreacion(cliente.getFechaCreacion());
         dto.setVerificado(cliente.getVerificado());
+        dto.setActivo(cliente.getActivo());
         return dto;
     }
 

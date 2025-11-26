@@ -326,7 +326,7 @@ public class FidelizacionService {
         c.setValor(request.getValor());
         c.setStock(request.getStock());
         c.setCantidadPorCliente(request.getCantidadPorCliente());
-
+        c.setActivo(request.getActivo() != null ? request.getActivo() : true);
         CodigoPromocional guardado = codigoPromocionalRepository.save(c);
 
         try {
@@ -355,7 +355,9 @@ public class FidelizacionService {
         codigo.setValor(request.getValor());
         codigo.setStock(request.getStock());
         codigo.setCantidadPorCliente(request.getCantidadPorCliente());
-
+        if (request.getActivo() != null) {
+            codigo.setActivo(request.getActivo());
+        }
         CodigoPromocional actualizado = codigoPromocionalRepository.save(codigo);
 
         // --- INICIO AUDITORÍA RF-109 ---
@@ -495,7 +497,9 @@ public class FidelizacionService {
     public void aplicarDescuentoPorCodigoPromocional(Integer idOrdenCompra, String codigo) {
         CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado: " + codigo));
-
+        if (Boolean.FALSE.equals(codigoPromo.getActivo())) {
+            throw new BusinessException("El código promocional está desactivado o inhabilitado.");
+        }
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrdenCompra)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrdenCompra));
 
@@ -556,6 +560,9 @@ public class FidelizacionService {
     public Double validarYCalcularDescuento(String codigo, Double subtotal) {
         CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
                 .orElseThrow(() -> new ResourceNotFoundException("Código promocional no encontrado: " + codigo));
+        if (Boolean.FALSE.equals(codigoPromo.getActivo())) {
+            throw new BusinessException("El código promocional está inhabilitado.");
+        }
         if (codigoPromo.getStock() <= 0) {
             throw new BusinessException("El código promocional no tiene stock disponible");
         }

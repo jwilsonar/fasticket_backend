@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoCodigoPromocional;
+import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 
 @Data
 @NoArgsConstructor
@@ -33,5 +34,7 @@ public class CodigoPromocionalRequestDTO {
     private Integer stock;
     
     private Integer cantidadPorCliente;
+
+    private Boolean activo;
 }
 

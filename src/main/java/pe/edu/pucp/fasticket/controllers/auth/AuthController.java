@@ -243,6 +243,30 @@ public class AuthController {
         return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada exitosamente"));
     }
 
+    @Operation(
+            summary = "Verificar el token al crear una cuenta",
+            description = "Permite al usuario verificar el correo que uso al crear una cuenta"
+    )
+    @ApiResponses({
+
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Token inválido o token caducado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Token no encontrado",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @PostMapping("/verificar/cuenta")
+    public ResponseEntity<StandardResponse<Void>> verificar(UserDetails userDetails, String token) {
+
+        log.info("POST /api/v1/auth/verificar/cuenta - token: {}", token);
+        authService.verificarCuenta(userDetails,token);
+        return ResponseEntity.ok(StandardResponse.success("Se verifico la cuenta del usuario"));
+    }
 
 }
 

@@ -71,6 +71,14 @@ public class JwtUtil {
         return createToken(claims, username);
     }
 
+    /**Nuevo tipo de generar token para verificar email*/
+    public String generateVerificationToken(String email) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", "email_verification");
+        /**Como carambolas cambiar la expiracion?*/
+        return createToken(claims, email);
+    }
+
     private String createToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
                 .setClaims(claims)

@@ -185,28 +185,28 @@ public class EventoController {
 
             EventoCreateDTO dto = new EventoCreateDTO();
             if (nombre != null) dto.setNombre(nombre);
-			if (descripcion != null) dto.setDescripcion(descripcion);
-			if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
-			if (restricciones != null) dto.setRestricciones(restricciones);
-			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
-			
-			if (fechaEvento != null) {
-				dto.setFechaEvento(LocalDate.parse(fechaEvento));
-			}
-			if (horaInicio != null) {
-				dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
-			}
-			if (horaFin != null) {
-				dto.setHoraFin(java.time.LocalTime.parse(horaFin));
-			}
-			if (tipoEvento != null) {
-				dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
-			}
-			if (estadoEvento != null) {
-				dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
-			}
-			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
-			if (idLocal != null) dto.setIdLocal(idLocal);
+            if (descripcion != null) dto.setDescripcion(descripcion);
+            if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
+            if (restricciones != null) dto.setRestricciones(restricciones);
+            if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
+            
+            if (fechaEvento != null) {
+                dto.setFechaEvento(LocalDate.parse(fechaEvento));
+            }
+            if (horaInicio != null) {
+                dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+            }
+            if (horaFin != null) {
+                dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+            }
+            if (tipoEvento != null) {
+                dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+            }
+            if (estadoEvento != null) {
+                dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+            }
+            if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
+            if (idLocal != null) dto.setIdLocal(idLocal);
 
 
             EventoResponseDTO evento = eventoService.crear(dto);
@@ -284,19 +284,19 @@ public class EventoController {
 			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
 			
 			if (fechaEvento != null) {
-			dto.setFechaEvento(LocalDate.parse(fechaEvento));
+			    dto.setFechaEvento(LocalDate.parse(fechaEvento));
 			}
 			if (horaInicio != null) {
-			dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
+			    dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
 			}
 			if (horaFin != null) {
-			dto.setHoraFin(java.time.LocalTime.parse(horaFin));
+			    dto.setHoraFin(java.time.LocalTime.parse(horaFin));
 			}
 			if (tipoEvento != null) {
-			dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
+			    dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
 			}
 			if (estadoEvento != null) {
-			dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
+			    dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
 			}
 			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
 			if (idLocal != null) dto.setIdLocal(idLocal);

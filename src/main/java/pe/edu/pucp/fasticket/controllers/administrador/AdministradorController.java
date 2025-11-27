@@ -6,12 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -25,6 +20,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.auth.PromoverUsuarioDTO;
 import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
@@ -163,6 +159,18 @@ public class AdministradorController {
         log.info("GET /api/v1/administrador/listar - Usuario: {}", userDetails.getUsername());
         List<AdministradorPerfilResponseDTO> admins = administradorService.obtenerTodosLosAdmins();
         return ResponseEntity.ok(StandardResponse.success("Lista de administradores obtenida exitosamente", admins));
+    }
+
+    @Operation(summary = "Promover Cliente a Administrador", description = "Convierte un usuario registrado como Cliente en Administrador y le asigna un cargo.")
+    @PostMapping("/promover/{idCliente}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')") // Solo un admin existente puede hacer esto
+    public ResponseEntity<StandardResponse<Void>> promoverUsuario(
+            @PathVariable Integer idCliente,
+            @Valid @RequestBody PromoverUsuarioDTO dto) {
+
+        administradorService.promoverClienteAAdmin(idCliente, dto.getCargo());
+
+        return ResponseEntity.ok(StandardResponse.success("Usuario promovido exitosamente.", null));
     }
 
 }

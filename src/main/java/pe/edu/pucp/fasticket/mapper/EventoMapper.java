@@ -83,7 +83,6 @@ public class EventoMapper {
         if (dto.getFechaFinEvento() != null) evento.setFechaFinEvento(dto.getFechaFinEvento());
         if (dto.getHoraInicio() != null) evento.setHoraInicio(dto.getHoraInicio());
         if (dto.getHoraFin() != null) evento.setHoraFin(dto.getHoraFin());
-
         if (dto.getMenoresDeEdadPermitidos() != null) evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
         if (dto.getRestricciones() != null) evento.setRestricciones(dto.getRestricciones());
         if (dto.getPoliticasDevolucion() != null) evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());

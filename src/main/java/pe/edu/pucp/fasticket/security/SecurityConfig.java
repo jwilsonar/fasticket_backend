@@ -53,6 +53,8 @@ public class SecurityConfig {
                                 "/actuator/health"
                         ).permitAll()
                         .requestMatchers("/api/v1/geografia/**").permitAll()
+                        //Enpoint extra para tema de OAUth
+                        .requestMatchers("/", "/public/**").permitAll()
                         // Endpoints de solo lectura para clientes
                         .requestMatchers(HttpMethod.GET, "/api/v1/eventos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/locales/**").permitAll()
@@ -77,7 +79,13 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class)
+                .oauth2Login(oauth2 -> oauth2
+                        .loginPage("/login")     // Opcional: tu página de login
+                )
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/")
+                );
 
         return http.build();
     }

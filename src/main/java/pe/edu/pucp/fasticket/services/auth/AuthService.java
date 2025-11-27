@@ -80,18 +80,6 @@ public class AuthService {
     private static final int[] LOCK_TIME_DURATION = {0, 1, 15};
     private static final int N_MAX_ATTEMPTS = LOCK_TIME_DURATION.length;
 
-    /**
-     * Determina el rol del usuario basado en el dominio del email.
-     * Los emails que terminen en @pucp.edu.pe serán ADMINISTRADOR,
-     * todos los demás serán CLIENTE.
-     */
-    private Rol determinarRolPorEmail(String email) {
-        if (email != null && email.toLowerCase().endsWith("@pucp.edu.pe")) {
-            return Rol.ADMINISTRADOR;
-        }
-        return Rol.CLIENTE;
-    }
-
     private String formatInstant(Instant instant) {
     return instant.atZone(ZoneId.systemDefault())
                   .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
@@ -201,76 +189,52 @@ public class AuthService {
     public LoginResponseDTO registrarCliente(RegistroRequestDTO request) {
         log.info("Registro de nuevo usuario: {}", request.getEmail());
 
-        // Validaciones
+        // 1. Validaciones
         if (personasRepositorio.existsByEmail(request.getEmail())) {
             throw new BusinessException("El email ya está registrado");
         }
-
         if (personasRepositorio.existsByDocIdentidad(request.getDocIdentidad())) {
             throw new BusinessException("El documento de identidad ya está registrado");
         }
 
-        // Determinar rol basado en el dominio del email
-        Rol rol = determinarRolPorEmail(request.getEmail());
-        log.info("Rol asignado para {}: {}", request.getEmail(), rol);
-
-        // Buscar distrito si fue proporcionado
+        // 2. Buscar distrito
         Distrito distrito = null;
         if (request.getIdDistrito() != null) {
-            distrito = distritoRepository.findById(request.getIdDistrito())
-                    .orElse(null);
+            distrito = distritoRepository.findById(request.getIdDistrito()).orElse(null);
         }
 
-        Persona personaGuardada;
-        
-        if (rol == Rol.ADMINISTRADOR) {
-            // Crear administrador
-            Administrador administrador = new Administrador();
-            administrador.setTipoDocumento(request.getTipoDocumento());
-            administrador.setDocIdentidad(request.getDocIdentidad());
-            administrador.setNombres(request.getNombres());
-            administrador.setApellidos(request.getApellidos());
-            administrador.setEmail(request.getEmail());
-            administrador.setContrasena(passwordEncoder.encode(request.getContrasena()));
-            administrador.setTelefono(request.getTelefono());
-            administrador.setFechaNacimiento(request.getFechaNacimiento());
-            administrador.setDireccion(request.getDireccion());
-            administrador.setDistrito(distrito);
-            administrador.setCargo("Administrador del Sistema"); // Cargo por defecto
-            administrador.setActivo(true);
-            administrador.setFechaCreacion(LocalDate.now());
+        // 3. SIEMPRE CREAR COMO CLIENTE (Eliminamos el if/else de roles)
+        Cliente cliente = new Cliente();
+        cliente.setTipoDocumento(request.getTipoDocumento());
+        cliente.setDocIdentidad(request.getDocIdentidad());
+        cliente.setNombres(request.getNombres());
+        cliente.setApellidos(request.getApellidos());
+        cliente.setEmail(request.getEmail());
+        cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
+        cliente.setTelefono(request.getTelefono());
+        cliente.setFechaNacimiento(request.getFechaNacimiento());
+        cliente.setDireccion(request.getDireccion());
+        cliente.setDistrito(distrito);
 
-            personaGuardada = administradorRepository.save(administrador);
-            log.info("Administrador registrado exitosamente: {}", personaGuardada.getEmail());
-        } else {
-            // Crear cliente
-            Cliente cliente = new Cliente();
-            cliente.setTipoDocumento(request.getTipoDocumento());
-            cliente.setDocIdentidad(request.getDocIdentidad());
-            cliente.setNombres(request.getNombres());
-            cliente.setApellidos(request.getApellidos());
-            cliente.setEmail(request.getEmail());
-            cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
-            cliente.setTelefono(request.getTelefono());
-            cliente.setFechaNacimiento(request.getFechaNacimiento());
-            cliente.setDireccion(request.getDireccion());
-            cliente.setDistrito(distrito);
-            cliente.setActivo(true);
-            cliente.setFechaCreacion(LocalDate.now());
+        // Configuración por defecto
+        cliente.setActivo(true);
+        cliente.setRol(Rol.CLIENTE); // Forzamos rol Cliente
+        cliente.setFechaCreacion(LocalDate.now());
+        // cliente.setVerificado(false); // Recomendado: iniciar como no verificado
 
-            personaGuardada = clienteRepository.save(cliente);
+        Persona personaGuardada = clienteRepository.save(cliente);
 
-            // Notificación de bienvenida/Verificación (email + in-app) usando NotificationManager
-            try {
-                /**El token tiene que ser creado diferente, creo, y guardado en algun lado, o no se :v*/
-                /**Ya cree un nuevo metodo para el token, eso si, como carambolas cambias la expiracion?*/
-                String tokenVerificacion = jwtUtil.generateVerificationToken(personaGuardada.getEmail());
-                String linkVerificacion = frontendUrl + "/verificar-cuenta?token=" + tokenVerificacion;
-                Map<String,Object> params = new java.util.HashMap<>();
-                params.put("nombre", personaGuardada.getNombres());
-                params.put("linkVerificacion", linkVerificacion);
+        // 4. Lógica de Notificación / Token (Se mantiene igual)
+        try {
+            String tokenVerificacion = jwtUtil.generateVerificationToken(personaGuardada.getEmail());
+            String linkVerificacion = frontendUrl + "/verificar-cuenta?token=" + tokenVerificacion;
 
-                NotificationRequest req = NotificationRequest.builder()
+            // ... (Tu código de NotificationManager se mantiene igual) ...
+            Map<String,Object> params = new java.util.HashMap<>();
+            params.put("nombre", personaGuardada.getNombres());
+            params.put("linkVerificacion", linkVerificacion);
+
+            NotificationRequest req = NotificationRequest.builder()
                     .personaId(personaGuardada.getIdPersona())
                     .email(personaGuardada.getEmail())
                     .nombre(personaGuardada.getNombres())
@@ -280,15 +244,15 @@ public class AuthService {
                     .titulo("Verifica tu cuenta")
                     .mensaje("Hemos enviado un correo con el enlace de verificación.")
                     .build();
-                notificationManager.notifyAllChannels(req);
-            } catch (Exception e) {
-                log.warn("Registro exitoso, pero falló la notificación de verificación: {}", e.getMessage());
-            }
+            notificationManager.notifyAllChannels(req);
 
-            log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
+        } catch (Exception e) {
+            log.warn("Error enviando verificación: {}", e.getMessage());
         }
 
-        // Generar token automáticamente
+        log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
+
+        // 5. Retornar respuesta
         String token = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
 
         return LoginResponseDTO.builder()

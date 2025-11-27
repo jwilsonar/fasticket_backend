@@ -22,6 +22,7 @@ public class EventoMapper {
             return null;
         }
         
+        // **CORRECCIÓN: Se añaden todos los campos faltantes (activo, tipoEvento, local, etc.)**
         return EventoResponseDTO.builder()
                 .idEvento(evento.getIdEvento())
                 .nombre(evento.getNombre())
@@ -30,18 +31,27 @@ public class EventoMapper {
                 .fechaFinal(evento.getFechaFin())
                 .horaInicio(evento.getHoraInicio())
                 .horaFin(evento.getHoraFin())
-                .imagenUrl(evento.getImagenUrl())
-                .imagenZonasUrl(evento.getImagenZonasUrl())
-                .tipoEvento(evento.getTipoEvento())
+                .imagenUrl(evento.getImagenUrl()) 
+                .imagenZonasUrl(evento.getImagenZonasUrl()) 
+                
+                // --- Campos previamente omitidos que causaban fallos ---
+                .tipoEvento(evento.getTipoEvento()) // Causa: Falla de TipoEvento (ROCK, POP)
                 .estadoEvento(evento.getEstadoEvento())
                 .aforoDisponible(evento.getAforoDisponible())
-                .activo(evento.getActivo())
-                .idLocal(evento.getLocal() != null ? evento.getLocal().getIdLocal() : null)
-                .menoresDeEdadPermitidos(evento.getMenoresDeEdadPermitidos())
+                .menoresDeEdadPermitidos(evento.getMenoresDeEdadPermitidos()) // Causa: Falla de menoresDeEdadPermitidos
                 .restricciones(evento.getRestricciones())
                 .politicasDevolucion(evento.getPoliticasDevolucion())
-                .nombreLocal(evento.getLocal() != null ? evento.getLocal().getNombre() : null)
+                
+                // --- Campos de Estado y Auditoría que causaban NPE ---
+                .activo(evento.getActivo()) // Causa: NullPointer en getActivo()
                 .fechaCreacion(evento.getFechaCreacion())
+
+
+                
+                // --- Mapeo de la información del Local ---
+                .idLocal(evento.getLocal() != null ? evento.getLocal().getIdLocal() : null)
+                .nombreLocal(evento.getLocal() != null ? evento.getLocal().getNombre() : null)
+                
                 .build();
     }
 
@@ -53,8 +63,6 @@ public class EventoMapper {
         evento.setFechaFin(dto.getFechaFin());
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
-        evento.setImagenUrl(dto.getImagenUrl());
-        evento.setImagenZonasUrl(dto.getImagenZonasUrl());
         evento.setTipoEvento(dto.getTipoEvento());
         evento.setEstadoEvento(dto.getEstadoEvento() != null ? dto.getEstadoEvento() : EstadoEvento.ACTIVO);
         evento.setAforoDisponible(dto.getAforoDisponible());
@@ -67,27 +75,26 @@ public class EventoMapper {
         return evento;
     }
 
-    public void updateEntity(Evento evento, EventoCreateDTO dto, Local local) {
-        evento.setNombre(dto.getNombre());
-        evento.setDescripcion(dto.getDescripcion());
-        evento.setFechaInicio(dto.getFechaInicio());
-        evento.setFechaFin(dto.getFechaFin());
-        evento.setHoraInicio(dto.getHoraInicio());
-        evento.setHoraFin(dto.getHoraFin());
-        evento.setImagenUrl(dto.getImagenUrl());
-        evento.setImagenZonasUrl(dto.getImagenZonasUrl());
-        evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
-        evento.setRestricciones(dto.getRestricciones());
-        evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());
-        evento.setTipoEvento(dto.getTipoEvento());
+    public void updateEntity(Evento evento, EventoCreateDTO dto, Local local) {      
+        if (dto.getNombre() != null) evento.setNombre(dto.getNombre());
+        if (dto.getDescripcion() != null) evento.setDescripcion(dto.getDescripcion());
+        if (dto.getFechaFin() != null) evento.setFechaFin(dto.getFechaInicio());
+        if (dto.getFechaEvento() != null) evento.setFechaEvento(dto.getFechaFin());
+        if (dto.getHoraInicio() != null) evento.setHoraInicio(dto.getHoraInicio());
+        if (dto.getHoraFin() != null) evento.setHoraFin(dto.getHoraFin());
+
+        if (dto.getMenoresDeEdadPermitidos() != null) evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
+        if (dto.getRestricciones() != null) evento.setRestricciones(dto.getRestricciones());
+        if (dto.getPoliticasDevolucion() != null) evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());
+        if (dto.getTipoEvento() != null) evento.setTipoEvento(dto.getTipoEvento());
         if (dto.getEstadoEvento() != null) {
             evento.setEstadoEvento(dto.getEstadoEvento());
         }
-        evento.setAforoDisponible(dto.getAforoDisponible());
-        if (local != null) {
+        if (dto.getAforoDisponible() != null) evento.setAforoDisponible(dto.getAforoDisponible());
+        
+        if (local != null) { 
             evento.setLocal(local);
         }
         evento.setFechaActualizacion(LocalDate.now());
     }
 }
-

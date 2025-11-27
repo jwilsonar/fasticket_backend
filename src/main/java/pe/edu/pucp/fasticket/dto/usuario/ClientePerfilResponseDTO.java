@@ -61,5 +61,7 @@ public class ClientePerfilResponseDTO {
     @Schema(description = "Indica si el cliente está verificado (correo/teléfono)", example = "true")
     private Boolean verificado;
 
+    @Schema(description = "Indica si el cliente tiene su cuenta activa", example = "true")
+    private Boolean activo;
 }
 

@@ -28,6 +28,7 @@ public class EventoMapper {
                 .nombre(evento.getNombre())
                 .descripcion(evento.getDescripcion())
                 .fechaEvento(evento.getFechaEvento())
+                .fechaFinEvento(evento.getFechaFinEvento())
                 .horaInicio(evento.getHoraInicio())
                 .horaFin(evento.getHoraFin())
                 .imagenUrl(evento.getImagenUrl()) 
@@ -59,6 +60,7 @@ public class EventoMapper {
         evento.setNombre(dto.getNombre());
         evento.setDescripcion(dto.getDescripcion());
         evento.setFechaEvento(dto.getFechaEvento());
+        evento.setFechaFinEvento(dto.getFechaFinEvento());
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
         evento.setTipoEvento(dto.getTipoEvento());
@@ -78,6 +80,7 @@ public class EventoMapper {
         if (dto.getNombre() != null) evento.setNombre(dto.getNombre());
         if (dto.getDescripcion() != null) evento.setDescripcion(dto.getDescripcion());
         if (dto.getFechaEvento() != null) evento.setFechaEvento(dto.getFechaEvento());
+        if (dto.getFechaFinEvento() != null) evento.setFechaFinEvento(dto.getFechaFinEvento());
         if (dto.getHoraInicio() != null) evento.setHoraInicio(dto.getHoraInicio());
         if (dto.getHoraFin() != null) evento.setHoraFin(dto.getHoraFin());
 

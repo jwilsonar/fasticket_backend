@@ -1,9 +1,12 @@
 package pe.edu.pucp.fasticket.model.pago;
 
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.hibernate.annotations.JdbcTypeCode;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -67,4 +70,8 @@ public class ComprobantePago {
 
     @OneToMany(mappedBy = "comprobantePago", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Boleta> boletas = new ArrayList<>();
+
+    @JdbcTypeCode(Types.VARBINARY)
+    @Column(name = "pdf_contenido", columnDefinition = "BYTEA")
+    private byte[] pdfContenido;
 }

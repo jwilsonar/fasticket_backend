@@ -69,4 +69,5 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
             "LEFT JOIN FETCH o.carroCompras cc " +
             "WHERE o.idOrdenCompra = :idOrden")
     Optional<OrdenCompra> findByIdWithAllDetailsForHistorial(@Param("idOrden") Integer idOrden);
+    Optional<OrdenCompra> findByCodigoSeguimiento(String codigoSeguimiento);
 }

@@ -10,8 +10,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+
+import pe.edu.pucp.fasticket.config.TestConfig;
 
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
@@ -37,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @ActiveProfiles("test")
+@Import(TestConfig.class)
 @ComponentScan(basePackages = "pe.edu.pucp.fasticket")
 public class CarroComprasServiceTests {
 

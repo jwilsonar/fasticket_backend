@@ -77,6 +77,8 @@ public class OrdenResumenDTO {
     @Schema(description = "Email del cliente", example = "cliente@example.com")
     private String emailCliente;
 
+    private Boolean tieneComprobante;
+
     public OrdenResumenDTO(OrdenCompra orden, TipoTicketRepositorio tipoTicketRepositorio) {
         this.idOrden = orden.getIdOrdenCompra();
         this.fechaOrden = orden.getFechaOrden();
@@ -119,6 +121,9 @@ public class OrdenResumenDTO {
                 return itemDTO;
             }).collect(Collectors.toList());
         }
+        this.tieneComprobante = orden.getPago() != null
+                && orden.getPago().getComprobantePago() != null
+                && orden.getPago().getComprobantePago().getPdfContenido() != null;
     }
 
     public OrdenResumenDTO(OrdenCompra orden) {

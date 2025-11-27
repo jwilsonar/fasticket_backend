@@ -3,10 +3,14 @@ package pe.edu.pucp.fasticket.controllers.compra;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -330,5 +334,36 @@ public class OrdenController {
             return userDetails.getIdPersona();
         }
         throw new SecurityException("El principal de autenticación no es del tipo esperado.");
+    }
+
+    @Operation(summary = "Descargar Comprobante PDF", description = "Descarga el PDF generado al momento de la compra.")
+    @GetMapping("/{idOrden}/comprobante")
+    @PreAuthorize("hasRole('CLIENTE') or hasRole('ADMINISTRADOR')")
+    public ResponseEntity<byte[]> descargarComprobante(
+            @PathVariable Integer idOrden,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // 1. Buscamos la orden
+        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
+                .orElseThrow(() -> new RuntimeException("Orden no encontrada"));
+        // 2. Seguridad: Verificar que sea el dueño o un admin
+        boolean isAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMINISTRADOR"));
+        if (!isAdmin && !orden.getCliente().getEmail().equals(userDetails.getUsername())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        // 3. Verificar existencia del PDF
+        if (orden.getPago() == null
+                || orden.getPago().getComprobantePago() == null
+                || orden.getPago().getComprobantePago().getPdfContenido() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        // 4. Retornar bytes
+        byte[] pdfContent = orden.getPago().getComprobantePago().getPdfContenido();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "comprobante-ORD-" + idOrden + ".pdf");
+        headers.setContentLength(pdfContent.length);
+
+        return new ResponseEntity<>(pdfContent, headers, HttpStatus.OK);
     }
 }

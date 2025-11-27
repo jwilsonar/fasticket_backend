@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -261,7 +262,9 @@ public class AuthService {
 
             // Notificación de bienvenida/Verificación (email + in-app) usando NotificationManager
             try {
-                String tokenVerificacion = jwtUtil.generateToken(personaGuardada.getEmail(), personaGuardada.getRol().name());
+                /**El token tiene que ser creado diferente, creo, y guardado en algun lado, o no se :v*/
+                /**Ya cree un nuevo metodo para el token, eso si, como carambolas cambias la expiracion?*/
+                String tokenVerificacion = jwtUtil.generateVerificationToken(personaGuardada.getEmail());
                 String linkVerificacion = frontendUrl + "/verificar-cuenta?token=" + tokenVerificacion;
                 Map<String,Object> params = new java.util.HashMap<>();
                 params.put("nombre", personaGuardada.getNombres());
@@ -476,6 +479,28 @@ public class AuthService {
         passwordResetCodeRepository.save(prc);
 
         log.info("Contraseña reseteada correctamente para {}", persona.getEmail());
+    }
+
+    @Transactional
+    public void verificarCuenta(UserDetails userDetails, String token) {
+        // 1. Validar token y firma
+        if (!jwtUtil.validateToken(token,userDetails)) {
+            throw new RuntimeException("Token inválido");
+        }
+        // 2. Extraer email del token
+        String userAVerificar = jwtUtil.extractUsername(token);
+        // 3. Verificar que el claim "type" sea email_verification
+        String type = jwtUtil.extractClaim(token, claims -> claims.get("type", String.class));
+        if (!"email_verification".equals(type)) {
+            throw new RuntimeException("Token no es de verificación de email");
+        }
+        // 4. Buscar usuario
+        Cliente cliente = clienteRepository.findByEmail(userAVerificar)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+
+        // 5. Activar cuenta
+        cliente.setVerificado(true);
+        clienteRepository.save(cliente);
     }
 
 }

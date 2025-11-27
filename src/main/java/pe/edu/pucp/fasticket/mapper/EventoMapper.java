@@ -26,7 +26,8 @@ public class EventoMapper {
                 .idEvento(evento.getIdEvento())
                 .nombre(evento.getNombre())
                 .descripcion(evento.getDescripcion())
-                .fechaEvento(evento.getFechaEvento())
+                .fechaInicial(evento.getFechaInicio())
+                .fechaFinal(evento.getFechaFin())
                 .horaInicio(evento.getHoraInicio())
                 .horaFin(evento.getHoraFin())
                 .imagenUrl(evento.getImagenUrl())
@@ -48,7 +49,8 @@ public class EventoMapper {
         Evento evento = new Evento();
         evento.setNombre(dto.getNombre());
         evento.setDescripcion(dto.getDescripcion());
-        evento.setFechaEvento(dto.getFechaEvento());
+        evento.setFechaInicio(dto.getFechaInicio());
+        evento.setFechaFin(dto.getFechaFin());
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
         evento.setImagenUrl(dto.getImagenUrl());
@@ -68,7 +70,8 @@ public class EventoMapper {
     public void updateEntity(Evento evento, EventoCreateDTO dto, Local local) {
         evento.setNombre(dto.getNombre());
         evento.setDescripcion(dto.getDescripcion());
-        evento.setFechaEvento(dto.getFechaEvento());
+        evento.setFechaInicio(dto.getFechaInicio());
+        evento.setFechaFin(dto.getFechaFin());
         evento.setHoraInicio(dto.getHoraInicio());
         evento.setHoraFin(dto.getHoraFin());
         evento.setImagenUrl(dto.getImagenUrl());

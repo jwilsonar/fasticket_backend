@@ -18,7 +18,7 @@ import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 public class EventoDTO {
     private Integer idEvento, usuarioCreacion, usuarioActualizacion;
     private String nombre, descripcion;
-    private LocalDate fechaEvento, fechaCreacion, fechaActualizacion;
+    private LocalDate fechaInicio, fechaFin, fechaCreacion, fechaActualizacion;
     private LocalTime horaInicio, horaFin;
     private String urlImagen;
     private String urlImagenZonas;
@@ -42,7 +42,8 @@ public class EventoDTO {
         this.usuarioActualizacion = p_evento.getUsuarioActualizacion();
         this.nombre = p_evento.getNombre();
         this.descripcion = p_evento.getDescripcion();
-        this.fechaEvento = p_evento.getFechaEvento();
+        this.fechaInicio = p_evento.getFechaInicio();
+        this.fechaFin = p_evento.getFechaFin();
         this.fechaCreacion = p_evento.getFechaCreacion();
         this.fechaActualizacion = p_evento.getFechaActualizacion();
         this.horaInicio = p_evento.getHoraInicio();

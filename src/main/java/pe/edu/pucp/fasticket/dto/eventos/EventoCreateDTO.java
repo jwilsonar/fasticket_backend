@@ -30,10 +30,15 @@ public class EventoCreateDTO {
     @Size(max = 2000, message = "La descripción no puede exceder 2000 caracteres")
     private String descripcion;
 
-    @Schema(description = "Fecha del evento", example = "2025-12-31", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Fecha inicial del evento", example = "2025-12-31", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "La fecha es obligatoria")
     @Future(message = "La fecha debe ser futura")
-    private LocalDate fechaEvento;
+    private LocalDate fechaInicio;
+
+    @Schema(description = "Fecha final del evento", example = "2025-12-31", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "La fecha es obligatoria")
+    @Future(message = "La fecha debe ser futura")
+    private LocalDate fechaFin;
 
     @Schema(description = "Hora de inicio", example = "20:00")
     private LocalTime horaInicio;

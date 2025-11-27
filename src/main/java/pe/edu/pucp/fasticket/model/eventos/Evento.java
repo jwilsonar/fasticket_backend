@@ -43,8 +43,11 @@ public class Evento {
     @Column(name = "descripcion", columnDefinition = "TEXT")
     private String descripcion;
 
-    @Column(name = "fechaEvento", nullable = false)
-    private LocalDate fechaEvento;
+    @Column(name = "fechaInicio", nullable = false)
+    private LocalDate fechaInicio;
+
+    @Column(name = "fechaFin", nullable = false)
+    private LocalDate fechaFin;
 
     @Column(name = "horaInicio")
     private LocalTime horaInicio;

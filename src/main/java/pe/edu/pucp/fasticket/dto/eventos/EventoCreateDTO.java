@@ -37,6 +37,11 @@ public class EventoCreateDTO {
     @Future(message = "La fecha debe ser futura")
     private LocalDate fechaEvento;
 
+    @Schema(description = "Fecha de fin del evento", example = "2025-12-31")
+    @NotNull(message = "La fecha de fin es obligatoria")
+    @Future(message = "La fecha de fin debe ser futura al inicio")
+    private LocalDate fechaFinEvento;
+
     @Schema(description = "Hora de inicio", example = "20:00")
     private LocalTime horaInicio;
 

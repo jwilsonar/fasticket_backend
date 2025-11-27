@@ -114,6 +114,10 @@ public class EventoService {
             throw new BusinessException("La fecha del evento debe ser futura");
         }
 
+        if(dto.getFechaFinEvento() != null && dto.getFechaFinEvento().isBefore(dto.getFechaEvento())){
+            throw new BusinessException("La fecha de fin del evento no puede ser anterior a la fecha de inicio");
+        }
+
         // 2. Obtener y validar local
         Local local = null;
         if (dto.getIdLocal() != null) {
@@ -186,6 +190,10 @@ public class EventoService {
         // Ejemplo: Validar fecha futura si el DTO tiene una nueva fecha
         if (dto.getFechaEvento() != null && dto.getFechaEvento().isBefore(LocalDate.now())) {
             throw new BusinessException("La nueva fecha del evento debe ser futura");
+        }
+
+        if(dto.getFechaFinEvento() != null && dto.getFechaFinEvento().isBefore(dto.getFechaEvento())){
+            throw new BusinessException("La fecha de fin del evento no puede ser anterior a la fecha de inicio");
         }
 
         // 3. Obtener y validar Local si se proporciona un nuevo ID
@@ -420,6 +428,7 @@ public class EventoService {
         dto.setId(evento.getIdEvento());
         dto.setNombre(evento.getNombre());
         dto.setFecha(evento.getFechaEvento());
+        dto.setFechaFinEvento(evento.getFechaFinEvento());
         dto.setHoraInicio(evento.getHoraInicio());
         dto.setHoraFin(evento.getHoraFin());
         dto.setMenoresDeEdadPermitidos(evento.getMenoresDeEdadPermitidos());

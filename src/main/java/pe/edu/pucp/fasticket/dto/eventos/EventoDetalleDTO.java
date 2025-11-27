@@ -13,6 +13,7 @@ public class EventoDetalleDTO {
     private Integer id;
     private String nombre;
     private LocalDate fecha;
+    private LocalDate fechaFinEvento;
     private LocalTime horaInicio;
     private LocalTime horaFin;
     private Boolean menoresDeEdadPermitidos;

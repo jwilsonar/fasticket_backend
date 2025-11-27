@@ -75,6 +75,7 @@ public class EventoServiceTest {
         dto.setNombre("Evento Base");
         dto.setDescripcion("Descripción Base");
         dto.setFechaEvento(LocalDate.now().plusMonths(3));
+        dto.setFechaFinEvento(LocalDate.now().plusMonths(3).plusDays(1));
         dto.setHoraInicio(LocalTime.of(18, 0));
         dto.setHoraFin(LocalTime.of(22, 0));
         dto.setTipoEvento(TipoEvento.FESTIVAL);
@@ -124,6 +125,7 @@ public class EventoServiceTest {
         EventoCreateDTO dto = crearDtoBase();
         dto.setNombre("Evento Pasado");
         dto.setFechaEvento(LocalDate.now().minusDays(1)); // Fecha pasada
+        dto.setFechaFinEvento(LocalDate.now().minusDays(1)); // Fecha fin también pasada
         dto.setTipoEvento(TipoEvento.ROCK);
 
         BusinessException exception = assertThrows(BusinessException.class,
@@ -298,6 +300,7 @@ public class EventoServiceTest {
         EventoCreateDTO dto = crearDtoBase();
         dto.setNombre("Evento Próximo");
         dto.setFechaEvento(LocalDate.now().plusDays(5));
+        dto.setFechaFinEvento(LocalDate.now().plusDays(6));
         eventoService.crear(dto);
 
         // Act

@@ -54,7 +54,6 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/api/v1/geografia/**").permitAll()
                         //Enpoint extra para tema de OAUth
-                        .requestMatchers("/", "/public/**").permitAll()
                         // Endpoints de solo lectura para clientes
                         .requestMatchers(HttpMethod.GET, "/api/v1/eventos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/locales/**").permitAll()

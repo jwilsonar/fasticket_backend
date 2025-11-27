@@ -40,6 +40,7 @@ class EventoMapperTest {
         evento.setNombre("Concierto de Prueba");
         evento.setDescripcion("Evento de prueba");
         evento.setFechaEvento(LocalDate.of(2025, 12, 31));
+        evento.setFechaFinEvento(LocalDate.of(2026, 1, 1));
         evento.setHoraInicio(LocalTime.of(20, 0));
         evento.setHoraFin(LocalTime.of(23, 0));
         evento.setImagenUrl("https://example.com/img.jpg");
@@ -82,6 +83,7 @@ class EventoMapperTest {
         dto.setNombre("Concierto Rock 2025");
         dto.setDescripcion("Gran concierto");
         dto.setFechaEvento(LocalDate.now().plusDays(30));
+        dto.setFechaFinEvento(LocalDate.now().plusDays(31));
         dto.setHoraInicio(LocalTime.of(18, 0));
         dto.setHoraFin(LocalTime.of(22, 0));
         dto.setTipoEvento(TipoEvento.ROCK);
@@ -111,6 +113,8 @@ class EventoMapperTest {
         EventoCreateDTO dto = new EventoCreateDTO();
         dto.setNombre("Evento sin estado");
         dto.setFechaEvento(LocalDate.now().plusDays(10));
+        dto.setFechaFinEvento(LocalDate.now().plusDays(11));
+        dto.setHoraInicio(LocalTime.of(20, 0));
         dto.setTipoEvento(TipoEvento.POP);
         dto.setAforoDisponible(2000);
         // EstadoEvento = null en el DTO
@@ -144,6 +148,7 @@ class EventoMapperTest {
         dto.setNombre("Nuevo Nombre");
         dto.setDescripcion("Nueva descripción");
         dto.setFechaEvento(LocalDate.now().plusDays(30));
+        dto.setFechaFinEvento(LocalDate.now().plusDays(31));
         dto.setHoraInicio(LocalTime.of(19, 0));
         dto.setTipoEvento(TipoEvento.POP);
         dto.setEstadoEvento(EstadoEvento.ACTIVO);

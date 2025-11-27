@@ -85,6 +85,7 @@ public class EventoControllerTest {
         evento.setNombre("Concierto Test Setup");
         evento.setDescripcion("Descripción test setup");
         evento.setFechaEvento(LocalDate.now().plusMonths(1));
+        evento.setFechaFinEvento(LocalDate.now().plusMonths(1).plusDays(1));
         evento.setHoraInicio(LocalTime.of(20, 0));
         evento.setHoraFin(LocalTime.of(22, 0));
         evento.setTipoEvento(TipoEvento.ROCK);
@@ -162,7 +163,7 @@ public class EventoControllerTest {
     @WithMockUser(roles = "CLIENTE")
     void testCrearEvento_SinPermisoCliente() throws Exception {
         // Los clientes no pueden crear eventos
-        String eventoJson = "{\"nombre\":\"Nuevo Evento\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000}";
+        String eventoJson = "{\"nombre\":\"Nuevo Evento\",\"fechaEvento\":\"2025-12-31\",\"fechaFinEvento\":\"2026-01-01\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000}";
 
         mockMvc.perform(post("/api/v1/eventos")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -174,7 +175,7 @@ public class EventoControllerTest {
     @WithMockUser(roles = "ADMINISTRADOR")
     void testCrearEvento_ConPermisoAdmin() throws Exception {
         String eventoJson = String.format(
-                "{\"nombre\":\"Nuevo Evento Admin\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000,\"idLocal\":%d}",
+                "{\"nombre\":\"Nuevo Evento Admin\",\"fechaEvento\":\"2025-12-31\",\"fechaFinEvento\":\"2026-01-01\",\"tipoEvento\":\"ROCK\",\"aforoDisponible\":1000,\"idLocal\":%d}",
                 localTest.getIdLocal()
         );
 
@@ -202,6 +203,7 @@ public class EventoControllerTest {
                         .param("nombre", "Evento Con Imagen")
                         .param("descripcion", "Descripción del evento con imagen")
                         .param("fechaEvento", "2025-12-31")
+                        .param("fechaFinEvento", "2026-01-01")
                         .param("horaInicio", "20:00")
                         .param("horaFin", "23:00")
                         .param("tipoEvento", "ROCK")
@@ -230,7 +232,7 @@ public class EventoControllerTest {
                 .andExpect(status().isBadRequest()) // Debería fallar sin datos del evento
                 .andExpect(jsonPath("$.ok").value(false))
                 // **CORRECCIÓN:** Se actualiza el mensaje esperado para coincidir con el error reportado.
-                .andExpect(jsonPath("$.mensaje").value("Datos del evento incompletos (Nombre, Fecha y Local son requeridos)."));
+                .andExpect(jsonPath("$.mensaje").value("Datos del evento incompletos (Nombre, Fecha, Fecha Fin, Hora Inicio y Local son requeridos)."));
     }
 
     @Test
@@ -254,6 +256,7 @@ public class EventoControllerTest {
                         .param("nombre", "Evento Completo Con Imagen")
                         .param("descripcion", "Descripción completa del evento con todos los campos")
                         .param("fechaEvento", "2026-06-15")
+                        .param("fechaFinEvento", "2026-06-16")
                         .param("horaInicio", "18:30")
                         .param("horaFin", "23:45")
                         .param("tipoEvento", "ELECTRONICA")
@@ -280,7 +283,7 @@ public class EventoControllerTest {
     @Test
     @WithMockUser(roles = "ADMINISTRADOR")
     void testActualizarEvento_Exitoso() throws Exception {
-        String eventoJson = "{\"nombre\":\"Evento Actualizado\",\"fechaEvento\":\"2025-12-31\",\"tipoEvento\":\"POP\",\"aforoDisponible\":2000}";
+        String eventoJson = "{\"nombre\":\"Evento Actualizado\",\"fechaEvento\":\"2025-12-31\",\"fechaFinEvento\":\"2026-01-01\",\"tipoEvento\":\"POP\",\"aforoDisponible\":2000}";
 
         mockMvc.perform(put("/api/v1/eventos/" + eventoTest.getIdEvento())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -311,6 +314,7 @@ public class EventoControllerTest {
                         .param("nombre", "Evento Actualizado Con Imagen")
                         .param("descripcion", "Descripción actualizada del evento con imagen")
                         .param("fechaEvento", "2025-12-31")
+                        .param("fechaFinEvento", "2026-01-01")
                         .param("horaInicio", "19:00")
                         .param("horaFin", "22:30")
                         .param("tipoEvento", "POP")

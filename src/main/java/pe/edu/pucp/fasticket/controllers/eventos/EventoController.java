@@ -162,9 +162,9 @@ public class EventoController {
 
         try {
             // **Validación de datos**
-            if (dto.getNombre() == null || dto.getFechaEvento() == null || dto.getIdLocal() == null) {
+            if (dto.getNombre() == null || dto.getFechaEvento() == null || dto.getIdLocal() == null || dto.getHoraInicio() == null || dto.getFechaFinEvento() == null) {
                 return ResponseEntity.badRequest()
-                        .body(StandardResponse.error("Datos del evento incompletos (Nombre, Fecha y Local son requeridos)."));
+                        .body(StandardResponse.error("Datos del evento incompletos (Nombre, Fecha, Fecha Fin, Hora Inicio y Local son requeridos)."));
             }
             
             // **La lógica de mapeo manual se ha eliminado**

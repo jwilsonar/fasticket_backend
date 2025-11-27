@@ -7,6 +7,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull; // Añadida
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +32,7 @@ import pe.edu.pucp.fasticket.services.eventos.EventoService;
 
 /**
  * Tests para EventoService.
- * Valida operaciones CRUD de eventos.
+ * Valida operaciones CRUD de eventos, incluyendo el manejo de imágenes.
  */
 @SpringBootTest
 @Transactional
@@ -45,6 +47,11 @@ public class EventoServiceTest {
     private LocalesRepositorio localRepository;
 
     private Local localTest;
+    
+    // URL Fija que devuelve tu mockS3Service en TestConfig:
+    // "https://test-bucket.s3.us-east-1.amazonaws.com/{folder}/{entityId}/mock-file.jpg"
+    private static final String S3_MOCK_BASE_URL = "https://test-bucket.s3.us-east-1.amazonaws.com/eventos/%d/mock-file.jpg";
+
 
     @BeforeEach
     void setUp() {
@@ -58,24 +65,53 @@ public class EventoServiceTest {
         localTest = localRepository.save(local);
     }
 
-    @Test
-    void testCrearEvento_Exitoso() {
-        // Arrange
+    // -------------------------------------------------------------------------
+    // --- MÉTODOS AUXILIARES ---
+    // -------------------------------------------------------------------------
+
+    /** Crea un DTO base válido para evitar repetición en los tests. */
+    private EventoCreateDTO crearDtoBase() {
         EventoCreateDTO dto = new EventoCreateDTO();
-        dto.setNombre("Concierto Rock");
-        dto.setDescripcion("Gran concierto de rock");
-        dto.setFechaEvento(LocalDate.now().plusMonths(2));
-        dto.setHoraInicio(LocalTime.of(20, 0));
-        dto.setHoraFin(LocalTime.of(23, 0));
-        dto.setTipoEvento(TipoEvento.ROCK);
+        dto.setNombre("Evento Base");
+        dto.setDescripcion("Descripción Base");
+        dto.setFechaEvento(LocalDate.now().plusMonths(3));
+        dto.setFechaFinEvento(LocalDate.now().plusMonths(3).plusDays(1));
+        dto.setHoraInicio(LocalTime.of(18, 0));
+        dto.setHoraFin(LocalTime.of(22, 0));
+        dto.setTipoEvento(TipoEvento.FESTIVAL);
         dto.setEstadoEvento(EstadoEvento.ACTIVO);
         dto.setAforoDisponible(5000);
         dto.setIdLocal(localTest.getIdLocal());
+        dto.setMenoresDeEdadPermitidos(false);
+        dto.setRestricciones("Restricciones");
+        dto.setPoliticasDevolucion("Políticas");
+        return dto;
+    }
 
-        // Act
+    /** Simula un archivo MultipartFile */
+    private MockMultipartFile crearMockFile(String paramName, String fileName, String content) {
+        // paramName debe coincidir con el campo del DTO (imagenUrl o imagenZonasUrl)
+        return new MockMultipartFile(
+            paramName, 
+            fileName, 
+            "image/jpeg",
+            content.getBytes()
+        );
+    }
+
+
+    // -------------------------------------------------------------------------
+    // --- TESTS DE CREACIÓN (CRUD y IMÁGENES) ---
+    // -------------------------------------------------------------------------
+
+    @Test
+    void testCrearEvento_Exitoso() {
+        EventoCreateDTO dto = crearDtoBase();
+        dto.setNombre("Concierto Rock");
+        dto.setTipoEvento(TipoEvento.ROCK);
+        
         EventoResponseDTO response = eventoService.crear(dto);
 
-        // Assert
         assertNotNull(response);
         assertNotNull(response.getIdEvento());
         assertEquals("Concierto Rock", response.getNombre());
@@ -86,34 +122,169 @@ public class EventoServiceTest {
 
     @Test
     void testCrearEvento_FechaPasada() {
-        // Arrange
-        EventoCreateDTO dto = new EventoCreateDTO();
+        EventoCreateDTO dto = crearDtoBase();
         dto.setNombre("Evento Pasado");
         dto.setFechaEvento(LocalDate.now().minusDays(1)); // Fecha pasada
+        dto.setFechaFinEvento(LocalDate.now().minusDays(1)); // Fecha fin también pasada
         dto.setTipoEvento(TipoEvento.ROCK);
-        dto.setAforoDisponible(1000);
 
-        // Act & Assert
         BusinessException exception = assertThrows(BusinessException.class,
             () -> eventoService.crear(dto));
         assertTrue(exception.getMessage().contains("debe ser futura"));
     }
 
     @Test
+    void testCrearEvento_1_SinImagenes() {
+        EventoCreateDTO dto = crearDtoBase();
+        dto.setImagenUrl(null);
+        dto.setImagenZonasUrl(null);
+        
+        EventoResponseDTO response = eventoService.crear(dto);
+
+        assertNotNull(response);
+        assertNull(response.getImagenUrl(), "La URL principal debe ser nula.");
+        assertNull(response.getImagenZonasUrl(), "La URL de zonas debe ser nula.");
+
+        System.out.println("Evento creado sin imágenes. ID: " + response.getIdEvento());
+    }
+
+    @Test
+    void testCrearEvento_2_ConAmbasImagenes() {
+        EventoCreateDTO dto = crearDtoBase();
+        
+        // Simular archivos
+        dto.setImagenUrl(crearMockFile("imagenUrl", "principal.jpg", "contenido-principal-v1"));
+        dto.setImagenZonasUrl(crearMockFile("imagenZonasUrl", "zonas.jpg", "contenido-zonas-v1"));
+        
+        EventoResponseDTO response = eventoService.crear(dto);
+        Integer eventoId = response.getIdEvento();
+        String expectedUrl = String.format(S3_MOCK_BASE_URL, eventoId); // URL Fija del mock
+        
+        assertNotNull(response);
+        assertEquals(expectedUrl, response.getImagenUrl(), "La URL principal debe ser la URL fija del mock.");
+        assertEquals(expectedUrl, response.getImagenZonasUrl(), "La URL de zonas debe ser la URL fija del mock.");
+
+    }
+
+    @Test
+    void testCrearEvento_3_ConSoloImagenPrincipal() {
+        EventoCreateDTO dto = crearDtoBase();
+        dto.setImagenUrl(crearMockFile("imagenUrl", "principal.jpg", "contenido-principal"));
+        dto.setImagenZonasUrl(null); 
+        
+        EventoResponseDTO response = eventoService.crear(dto);
+        Integer eventoId = response.getIdEvento();
+        String expectedUrl = String.format(S3_MOCK_BASE_URL, eventoId);
+        
+        assertNotNull(response);
+        assertEquals(expectedUrl, response.getImagenUrl(), "La URL principal debe ser la URL fija del mock.");
+        assertNull(response.getImagenZonasUrl(), "La URL de zonas debe ser nula."); 
+    }
+
+    // -------------------------------------------------------------------------
+    // --- TESTS DE ACTUALIZACIÓN (METADATA y IMÁGENES) ---
+    // -------------------------------------------------------------------------
+
+    @Test
+    void testActualizarEvento_Exitoso() {
+        // Arrange - Crear evento (metadatos)
+        EventoCreateDTO dtoCrear = crearDtoBase();
+        dtoCrear.setNombre("Evento Original");
+        dtoCrear.setTipoEvento(TipoEvento.ROCK);
+        EventoResponseDTO eventoCreado = eventoService.crear(dtoCrear);
+
+        // Preparar actualización (Metadata-only update)
+        EventoCreateDTO dtoActualizar = new EventoCreateDTO();
+        dtoActualizar.setNombre("Evento Actualizado Metadatos");
+        dtoActualizar.setTipoEvento(TipoEvento.POP);
+        dtoActualizar.setAforoDisponible(1500);
+
+        // Act
+        // Usamos .actualizar(id, dto) que no maneja MultipartFile
+        EventoResponseDTO eventoActualizado = eventoService.actualizar(eventoCreado.getIdEvento(), dtoActualizar);
+
+        // Assert
+        assertEquals("Evento Actualizado Metadatos", eventoActualizado.getNombre());
+        assertEquals(TipoEvento.POP, eventoActualizado.getTipoEvento());
+        assertEquals(1500, eventoActualizado.getAforoDisponible());
+    }
+    
+    @Test
+    void testActualizarEvento_4_ReemplazarImagenExistente() {
+        // 1. Crear evento con una imagen
+        EventoCreateDTO dtoInicial = crearDtoBase();
+        dtoInicial.setImagenUrl(crearMockFile("imagenUrl", "principal_v1.jpg", "contenido-v1"));
+        EventoResponseDTO eventoCreado = eventoService.crear(dtoInicial);
+        Integer eventoId = eventoCreado.getIdEvento();
+        
+        // La URL inicial es la URL fija del mock:
+        String urlInicial = eventoCreado.getImagenUrl();
+        
+        // 2. Preparar DTO de Actualización (nuevo archivo principal)
+        EventoCreateDTO dtoActualizar = new EventoCreateDTO();
+        dtoActualizar.setNombre("Evento Reemplazo Principal");
+        dtoActualizar.setImagenUrl(crearMockFile("imagenUrl", "principal_v2.jpg", "contenido-v2"));
+        dtoActualizar.setImagenZonasUrl(null); 
+
+        // 3. Act
+        // Usamos .actualizarConImagen(id, dto)
+        EventoResponseDTO eventoActualizado = eventoService.actualizarConImagen(eventoId, dtoActualizar);
+        String expectedNewUrl = String.format(S3_MOCK_BASE_URL, eventoId);
+
+        // 4. Assert
+        assertEquals("Evento Reemplazo Principal", eventoActualizado.getNombre());
+        
+        // Verificamos que se haya guardado la URL fija del mock (indicando que el servicio S3 fue llamado)
+        assertEquals(expectedNewUrl, eventoActualizado.getImagenUrl(), 
+                    "La URL principal debe ser la URL fija del mock (se llamó al servicio S3).");
+        assertNull(eventoActualizado.getImagenZonasUrl(), "La URL de zonas debe seguir siendo nula.");
+    }
+    
+    @Test
+    void testActualizarEvento_5_AgregarImagenFaltanteYDejarExistente() {
+        // 1. Crear evento solo con imagen principal
+        EventoCreateDTO dtoInicial = crearDtoBase();
+        dtoInicial.setImagenUrl(crearMockFile("imagenUrl", "principal.jpg", "contenido-princ"));
+        dtoInicial.setImagenZonasUrl(null);
+        EventoResponseDTO eventoCreado = eventoService.crear(dtoInicial);
+        Integer eventoId = eventoCreado.getIdEvento();
+        
+        String urlInicialPrincipal = eventoCreado.getImagenUrl();
+        
+        // 2. Preparar DTO de Actualización: agregamos zonas y dejamos principal en null.
+        EventoCreateDTO dtoActualizar = new EventoCreateDTO();
+        dtoActualizar.setNombre("Evento Agrega Zona");
+        
+        // Se envía null -> el servicio NO debe cambiar la URL existente
+        dtoActualizar.setImagenUrl(null); 
+        // Se sube nueva imagen de zonas
+        dtoActualizar.setImagenZonasUrl(crearMockFile("imagenZonasUrl", "zonas.jpg", "contenido-zonas-v1"));
+
+        // 3. Act
+        EventoResponseDTO eventoActualizado = eventoService.actualizarConImagen(eventoId, dtoActualizar);
+        String expectedZonasUrl = String.format(S3_MOCK_BASE_URL, eventoId);
+
+        // 4. Assert
+        assertEquals(urlInicialPrincipal, eventoActualizado.getImagenUrl(), 
+                     "La URL principal debe mantenerse igual.");
+        
+        // La URL de zonas debe ser la URL fija del mock (la nueva imagen)
+        assertEquals(expectedZonasUrl, eventoActualizado.getImagenZonasUrl(), "La URL de zonas debe ser la URL fija del mock.");
+    }
+    
+    // -------------------------------------------------------------------------
+    // --- TESTS DE CONSULTA Y ELIMINACIÓN ---
+    // -------------------------------------------------------------------------
+
+    @Test
     void testListarEventosActivos() {
         // Arrange - Crear eventos
-        EventoCreateDTO dto1 = new EventoCreateDTO();
+        EventoCreateDTO dto1 = crearDtoBase();
         dto1.setNombre("Evento 1");
-        dto1.setFechaEvento(LocalDate.now().plusDays(10));
-        dto1.setTipoEvento(TipoEvento.ROCK);
-        dto1.setAforoDisponible(1000);
         eventoService.crear(dto1);
 
-        EventoCreateDTO dto2 = new EventoCreateDTO();
+        EventoCreateDTO dto2 = crearDtoBase();
         dto2.setNombre("Evento 2");
-        dto2.setFechaEvento(LocalDate.now().plusDays(20));
-        dto2.setTipoEvento(TipoEvento.POP);
-        dto2.setAforoDisponible(500);
         eventoService.crear(dto2);
 
         // Act
@@ -126,11 +297,10 @@ public class EventoServiceTest {
     @Test
     void testListarEventosProximos() {
         // Arrange - Crear evento futuro
-        EventoCreateDTO dto = new EventoCreateDTO();
+        EventoCreateDTO dto = crearDtoBase();
         dto.setNombre("Evento Próximo");
         dto.setFechaEvento(LocalDate.now().plusDays(5));
-        dto.setTipoEvento(TipoEvento.ELECTRONICA);
-        dto.setAforoDisponible(2000);
+        dto.setFechaFinEvento(LocalDate.now().plusDays(6));
         eventoService.crear(dto);
 
         // Act
@@ -141,29 +311,20 @@ public class EventoServiceTest {
     }
 
     @Test
-    void testActualizarEvento_Exitoso() {
-        // Arrange - Crear evento
-        EventoCreateDTO dtoCrear = new EventoCreateDTO();
-        dtoCrear.setNombre("Evento Original");
-        dtoCrear.setFechaEvento(LocalDate.now().plusMonths(1));
-        dtoCrear.setTipoEvento(TipoEvento.ROCK);
-        dtoCrear.setAforoDisponible(1000);
-        EventoResponseDTO eventoCreado = eventoService.crear(dtoCrear);
-
-        // Preparar actualización
-        EventoCreateDTO dtoActualizar = new EventoCreateDTO();
-        dtoActualizar.setNombre("Evento Actualizado");
-        dtoActualizar.setFechaEvento(LocalDate.now().plusMonths(2));
-        dtoActualizar.setTipoEvento(TipoEvento.POP);
-        dtoActualizar.setAforoDisponible(1500);
+    void testListarEventosPorEstado() {
+        // Arrange - Crear eventos con diferentes estados
+        EventoCreateDTO dtoActivo = crearDtoBase();
+        dtoActivo.setNombre("Evento Activo");
+        dtoActivo.setEstadoEvento(EstadoEvento.ACTIVO);
+        eventoService.crear(dtoActivo);
 
         // Act
-        EventoResponseDTO eventoActualizado = eventoService.actualizar(eventoCreado.getIdEvento(), dtoActualizar);
+        List<EventoResponseDTO> eventosActivos = eventoService.listarPorEstado(EstadoEvento.ACTIVO);
 
         // Assert
-        assertEquals("Evento Actualizado", eventoActualizado.getNombre());
-        assertEquals(TipoEvento.POP, eventoActualizado.getTipoEvento());
-        assertEquals(1500, eventoActualizado.getAforoDisponible());
+        assertFalse(eventosActivos.isEmpty());
+        assertTrue(eventosActivos.stream()
+                .allMatch(e -> e.getEstadoEvento() == EstadoEvento.ACTIVO));
     }
 
     @Test
@@ -177,11 +338,8 @@ public class EventoServiceTest {
     @Test
     void testEliminarEvento_Logico() {
         // Arrange - Crear evento
-        EventoCreateDTO dto = new EventoCreateDTO();
+        EventoCreateDTO dto = crearDtoBase();
         dto.setNombre("Evento a Eliminar");
-        dto.setFechaEvento(LocalDate.now().plusDays(30));
-        dto.setTipoEvento(TipoEvento.ROCK);
-        dto.setAforoDisponible(1000);
         EventoResponseDTO evento = eventoService.crear(dto);
 
         // Act
@@ -191,25 +349,4 @@ public class EventoServiceTest {
         EventoResponseDTO eventoConsultado = eventoService.obtenerPorId(evento.getIdEvento());
         assertFalse(eventoConsultado.getActivo());
     }
-
-    @Test
-    void testListarEventosPorEstado() {
-        // Arrange - Crear eventos con diferentes estados
-        EventoCreateDTO dtoActivo = new EventoCreateDTO();
-        dtoActivo.setNombre("Evento Activo");
-        dtoActivo.setFechaEvento(LocalDate.now().plusDays(15));
-        dtoActivo.setTipoEvento(TipoEvento.ROCK);
-        dtoActivo.setEstadoEvento(EstadoEvento.ACTIVO);
-        dtoActivo.setAforoDisponible(1000);
-        eventoService.crear(dtoActivo);
-
-        // Act
-        List<EventoResponseDTO> eventosActivos = eventoService.listarPorEstado(EstadoEvento.ACTIVO);
-
-        // Assert
-        assertFalse(eventosActivos.isEmpty());
-        assertTrue(eventosActivos.stream()
-                .allMatch(e -> e.getEstadoEvento() == EstadoEvento.ACTIVO));
-    }
 }
-

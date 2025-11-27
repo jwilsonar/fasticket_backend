@@ -46,6 +46,9 @@ public class Evento {
     @Column(name = "fechaEvento", nullable = false)
     private LocalDate fechaEvento;
 
+    @Column(name = "fechaFinEvento")
+    private LocalDate fechaFinEvento;
+
     @Column(name = "horaInicio")
     private LocalTime horaInicio;
 

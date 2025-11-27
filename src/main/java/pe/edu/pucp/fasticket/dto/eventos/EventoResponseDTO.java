@@ -30,6 +30,9 @@ public class EventoResponseDTO {
     
     @Schema(description = "Fecha del evento", example = "2025-12-31")
     private LocalDate fechaEvento;
+
+    @Schema(description = "Fecha de fin del evento", example = "2026-01-01")
+    private LocalDate fechaFinEvento;
     
     @Schema(description = "Hora de inicio", example = "20:00")
     private LocalTime horaInicio;

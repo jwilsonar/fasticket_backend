@@ -288,35 +288,4 @@ public class AdministradorService {
 
         log.info("Usuario {} promovido a Administrador con cargo: {}", cliente.getEmail(), cargo);
     }
-
-    /**
-     * Permite a un administrador verificar manualmente la cuenta de un cliente.
-     * Útil si el correo falla o para soporte técnico.
-     */
-    @Transactional
-    public void verificarClienteManualmente(Integer idCliente) {
-        Administrador adminActual = getAdminActual();
-
-        Cliente cliente = clienteRepository.findById(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
-
-        if (Boolean.TRUE.equals(cliente.getVerificado())) {
-            // Opcional: Lanzar error o simplemente retornar si ya está verificado
-            log.info("El cliente ID {} ya estaba verificado.", idCliente);
-            return;
-        }
-
-        cliente.setVerificado(true);
-        clienteRepository.save(cliente);
-
-        // Auditoría
-        try {
-            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") verificó MANUALMENTE al cliente: " + cliente.getEmail();
-            auditLogService.registrarAuditoria(adminActual, "VERIFICAR_CLIENTE_MANUAL", "AdministradorService", detalle);
-        } catch (Exception e) {
-            log.error("Error auditoría", e);
-        }
-
-        log.info("Cliente ID {} verificado manualmente por Admin ID {}", idCliente, adminActual.getIdPersona());
-    }
 }

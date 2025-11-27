@@ -3,7 +3,6 @@
 package pe.edu.pucp.fasticket.controllers.eventos;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.core.io.ByteArrayResource;
@@ -15,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -38,11 +36,10 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.eventos.EstadoEvento;
-import pe.edu.pucp.fasticket.model.eventos.TipoEvento;
-import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.eventos.EventoService;
 
 @Tag(
@@ -58,8 +55,6 @@ import pe.edu.pucp.fasticket.services.eventos.EventoService;
 public class EventoController {
 
     private final EventoService eventoService;
-    private final S3Service s3Service;
-
     @Operation(
             summary = "Listar todos los eventos",
             description = "Obtiene lista de eventos. Endpoint público."
@@ -157,76 +152,42 @@ public class EventoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    // Se eliminan todos los @RequestParam individuales a favor de @ModelAttribute
     @PostMapping(value = "/con-imagen", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<EventoResponseDTO>> crearConImagen(
-            @RequestParam(value = "imagenUrl", required = false) MultipartFile imagenUrl,
-            @RequestParam(value = "imagenZonasUrl", required = false) MultipartFile imagenZonasUrl,
-            @RequestParam(value = "nombre", required = false) String nombre,
-            @RequestParam(value = "descripcion", required = false) String descripcion,
-            @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
-            @RequestParam(value = "horaInicio", required = false) String horaInicio,
-            @RequestParam(value = "horaFin", required = false) String horaFin,
-            @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
-            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
-            @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
-            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
-            @RequestParam(value = "restricciones", required = false) String restricciones,
-            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
-            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+            @ModelAttribute EventoCreateDTO dto) {
 
-        log.info("POST /api/v1/eventos/con-imagen - Crear: {}", nombre != null ? nombre : "con imagen");
+        log.info("POST /api/v1/eventos/con-imagen - Crear: {}", dto.getNombre() != null ? dto.getNombre() : "con imagen");
 
         try {
-            if (nombre == null) {
+            // **Validación de datos**
+            if (dto.getNombre() == null || dto.getFechaEvento() == null || dto.getIdLocal() == null || dto.getHoraInicio() == null || dto.getFechaFinEvento() == null) {
                 return ResponseEntity.badRequest()
-                        .body(StandardResponse.error("Se requiere información del evento"));
+                        .body(StandardResponse.error("Datos del evento incompletos (Nombre, Fecha, Fecha Fin, Hora Inicio y Local son requeridos)."));
             }
-
-            EventoCreateDTO dto = new EventoCreateDTO();
-            if (nombre != null) dto.setNombre(nombre);
-			if (descripcion != null) dto.setDescripcion(descripcion);
-			if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
-			if (restricciones != null) dto.setRestricciones(restricciones);
-			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
-			
-			if (fechaEvento != null) {
-				dto.setFechaEvento(LocalDate.parse(fechaEvento));
-			}
-			if (horaInicio != null) {
-				dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
-			}
-			if (horaFin != null) {
-				dto.setHoraFin(java.time.LocalTime.parse(horaFin));
-			}
-			if (tipoEvento != null) {
-				dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
-			}
-			if (estadoEvento != null) {
-				dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
-			}
-			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
-			if (idLocal != null) dto.setIdLocal(idLocal);
-
-
+            
+            // **La lógica de mapeo manual se ha eliminado**
+            // Spring ya ha poblado: dto.getNombre(), dto.getFechaEvento(), dto.getImagenUrl(), etc.
+            
+            // **Delegar al servicio** (El servicio maneja la creación y la subida de archivos)
             EventoResponseDTO evento = eventoService.crear(dto);
-
-            // Subir imagen si se proporcionó
-            if (imagenUrl != null && !imagenUrl.isEmpty()) {
-                String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-                evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
-            }
-            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
-                String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
-                evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
-            }
 
             StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento creado exitosamente", evento);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (Exception e) {
-            log.error("Error al crear evento: {}", e.getMessage());
+            
+        } catch (BusinessException e) {
+            log.error("Error de negocio al crear evento: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(StandardResponse.error("Error al crear evento: " + e.getMessage()));
+                    .body(StandardResponse.error("Error de negocio: " + e.getMessage()));
+        } catch (ResourceNotFoundException e) {
+             log.error("Recurso no encontrado al crear evento: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(StandardResponse.error("Recurso no encontrado: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error inesperado al crear evento: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(StandardResponse.error("Error interno al crear evento: " + e.getMessage()));
         }
     }
 
@@ -253,75 +214,36 @@ public class EventoController {
     }
 
     @PutMapping(value = "/{id}/con-imagen", consumes = "multipart/form-data")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
-            @PathVariable Integer id,
-            @RequestParam(value = "imagenUrl", required = false) MultipartFile imagenUrl,
-            @RequestParam(value = "imagenZonasUrl", required = false) MultipartFile imagenZonasUrl,
-            @RequestParam(value = "nombre", required = false) String nombre,
-            @RequestParam(value = "descripcion", required = false) String descripcion,
-            @RequestParam(value = "fechaEvento", required = false) String fechaEvento,
-            @RequestParam(value = "horaInicio", required = false) String horaInicio,
-            @RequestParam(value = "horaFin", required = false) String horaFin,
-            @RequestParam(value = "menoresDeEdadPermitidos", required = false) Boolean menoresDeEdadPermitidos,
-            @RequestParam(value = "restricciones", required = false) String restricciones,
-            @RequestParam(value = "politicasDevolucion", required = false) String politicasDevolucion,
-            @RequestParam(value = "tipoEvento", required = false) String tipoEvento,
-            @RequestParam(value = "estadoEvento", required = false) String estadoEvento,
-            @RequestParam(value = "aforoDisponible", required = false) Integer aforoDisponible,
-            @RequestParam(value = "idLocal", required = false) Integer idLocal) {
+@PreAuthorize("hasRole('ADMINISTRADOR')")
+public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
+        @PathVariable Integer id,
+        // **CAMBIO CLAVE:** Usamos @ModelAttribute para recibir todos los datos, incluyendo archivos.
+        @ModelAttribute EventoCreateDTO dto) { 
 
-        log.info("PUT /api/v1/eventos/{}/con-imagen", id);
+    log.info("PUT /api/v1/eventos/{}/con-imagen", id);
 
-        try {
-                        
-			EventoCreateDTO dto = new EventoCreateDTO();
-		
-			if (nombre != null) dto.setNombre(nombre);
-			if (descripcion != null) dto.setDescripcion(descripcion);
-			if (menoresDeEdadPermitidos != null) dto.setMenoresDeEdadPermitidos(menoresDeEdadPermitidos);
-			if (restricciones != null) dto.setRestricciones(restricciones);
-			if (politicasDevolucion != null) dto.setPoliticasDevolucion(politicasDevolucion);
-			
-			if (fechaEvento != null) {
-			dto.setFechaEvento(LocalDate.parse(fechaEvento));
-			}
-			if (horaInicio != null) {
-			dto.setHoraInicio(java.time.LocalTime.parse(horaInicio));
-			}
-			if (horaFin != null) {
-			dto.setHoraFin(java.time.LocalTime.parse(horaFin));
-			}
-			if (tipoEvento != null) {
-			dto.setTipoEvento(TipoEvento.valueOf(tipoEvento));
-			}
-			if (estadoEvento != null) {
-			dto.setEstadoEvento(EstadoEvento.valueOf(estadoEvento));
-			}
-			if (aforoDisponible != null) dto.setAforoDisponible(aforoDisponible);
-			if (idLocal != null) dto.setIdLocal(idLocal);
+    try {
+        // La conversión de String a LocalDate/LocalTime/Enum DEBE hacerse aquí si el DTO 
+        // no maneja automáticamente esos tipos desde el String del formulario, o bien, 
+        // deben estar declarados como String en el DTO y convertidos en el Service.
+        
+        // Asumiendo que EventoCreateDTO ya maneja las conversiones o los tipos de datos correctos,
+        // simplemente llamamos al servicio pasando el ID y el DTO completo.
 
+        // **Delegamos la actualización y el manejo de imágenes al servicio**
+        EventoResponseDTO evento = eventoService.actualizarConImagen(id, dto);
 
-			EventoResponseDTO evento = eventoService.actualizar(id, dto);
+        // **Se elimina toda la lógica manual de s3Service y actualizarImagenUrl/ZonasUrl**
 
-			// Subir y guardar imagenes de forma independiente si fueron proporcionadas
-			if (imagenUrl != null && !imagenUrl.isEmpty()) {
-					String imageUrl = s3Service.uploadFile(imagenUrl, "eventos", evento.getIdEvento());
-					evento = eventoService.actualizarImagenUrl(evento.getIdEvento(), imageUrl);
-			}
-			if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
-					String imageZonasUrlStr = s3Service.uploadFile(imagenZonasUrl, "eventos", evento.getIdEvento());
-					evento = eventoService.actualizarImagenZonasUrl(evento.getIdEvento(), imageZonasUrlStr);
-			}
-
-			StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
-			return ResponseEntity.ok(response);
-        } catch (Exception e) {
-			log.error("Error al actualizar evento: {}", e.getMessage());
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-					.body(StandardResponse.error("Error al actualizar evento: " + e.getMessage()));
-        }
+        StandardResponse<EventoResponseDTO> response = StandardResponse.success("Evento actualizado exitosamente", evento);
+        return ResponseEntity.ok(response);
+    } catch (Exception e) {
+        log.error("Error al actualizar evento: {}", e.getMessage());
+        // Manejo de excepciones más específico si es posible (ResourceNotFound, BusinessException)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(StandardResponse.error("Error al actualizar evento: " + e.getMessage()));
     }
+}
 
     @Operation(
             summary = "Desactivar evento",
@@ -379,111 +301,6 @@ public class EventoController {
         }
     }
 
-    @Operation(
-            summary = "Subir imagen de evento",
-            description = "Sube una imagen para un evento específico. Solo administradores.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Imagen subida exitosamente",
-                    content = @Content(schema = @Schema(implementation = String.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Archivo inválido",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "No autenticado"
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Sin permisos (requiere rol ADMINISTRADOR)"
-            )
-    })
-    @PostMapping("/{id}/imagen")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<String>> subirImagenEvento(
-            @Parameter(description = "ID del evento", required = true)
-            @PathVariable Integer id,
-            @Parameter(description = "Archivo de imagen", required = true)
-            @RequestParam("file") MultipartFile file) {
-
-        log.info("POST /api/v1/eventos/{}/imagen", id);
-
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(StandardResponse.error("El archivo no puede estar vacío"));
-        }
-
-        try {
-            String imageUrl = s3Service.uploadFile(file, "eventos", id);
-            // Guardar la URL de la imagen en la base de datos
-            eventoService.actualizarImagenUrl(id, imageUrl);
-            StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error al subir imagen del evento {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(StandardResponse.error("Error al subir la imagen: " + e.getMessage()));
-        }
-    }
-
-    @Operation(
-            summary = "Subir imagen de zonas del evento",
-            description = "Sube una imagen de la zonas para un evento específico. Solo administradores.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Imagen subida exitosamente",
-                    content = @Content(schema = @Schema(implementation = String.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Archivo inválido",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "No autenticado"
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Sin permisos (requiere rol ADMINISTRADOR)"
-            )
-    })
-    @PostMapping("/{id}/imagen/zonas")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<String>> subirImagenZonasEvento(
-            @Parameter(description = "ID del evento", required = true)
-            @PathVariable Integer id,
-            @Parameter(description = "Archivo de imagen", required = true)
-            @RequestParam("file") MultipartFile file) {
-
-        log.info("POST /api/v1/eventos/{}/imagen/zonas", id);
-
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(StandardResponse.error("El archivo no puede estar vacío"));
-        }
-
-        try {
-            String imageUrl = s3Service.uploadFile(file, "eventos", id);
-            // Guardar la URL de la imagen en la base de datos
-            eventoService.actualizarImagenZonasUrl(id, imageUrl);
-            StandardResponse<String> response = StandardResponse.success("Imagen subida exitosamente", imageUrl);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error al subir imagen de zonas del evento {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(StandardResponse.error("Error al subir la imagen de zonas: " + e.getMessage()));
-        }
-    }
 
     @Operation(
             summary = "Descargar Reporte de Ventas en PDF",

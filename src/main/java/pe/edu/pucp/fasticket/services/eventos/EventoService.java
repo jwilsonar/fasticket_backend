@@ -17,6 +17,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,8 +48,8 @@ import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.transaction.annotation.Transactional;
 import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.services.S3Service;
 
 @Service
 @RequiredArgsConstructor
@@ -62,6 +63,7 @@ public class EventoService {
     private final OrdenCompraRepositorio ordenCompraRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EventoMapper eventoMapper;
+    private final S3Service s3Service;
 
     // --- NUEVO PARA AUDITORÍA (RF-109) ---
     private final AuditLogService auditLogService;
@@ -103,12 +105,20 @@ public class EventoService {
     public EventoResponseDTO crear(EventoCreateDTO dto) {
         log.info("Creando nuevo evento: {}", dto.getNombre());
 
-        // Validar fecha futura
+        // Extraer archivos del DTO para su uso
+        MultipartFile imagenUrl = dto.getImagenUrl();
+        MultipartFile imagenZonasUrl = dto.getImagenZonasUrl();
+        
+        // 1. Validar fecha futura
         if (dto.getFechaEvento().isBefore(LocalDate.now())) {
             throw new BusinessException("La fecha del evento debe ser futura");
         }
 
-        // Obtener local
+        if(dto.getFechaFinEvento() != null && dto.getFechaFinEvento().isBefore(dto.getFechaEvento())){
+            throw new BusinessException("La fecha de fin del evento no puede ser anterior a la fecha de inicio");
+        }
+
+        // 2. Obtener y validar local
         Local local = null;
         if (dto.getIdLocal() != null) {
             local = localRepository.findById(dto.getIdLocal())
@@ -118,13 +128,41 @@ public class EventoService {
             }
         }
 
-        // Crear y guardar
+        // 3. Crear y guardar Evento (Primera vez para obtener el ID)
         Evento evento = eventoMapper.toEntity(dto, local);
-        Evento eventoGuardado = eventoRepository.save(evento);
+        evento.setImagenUrl(null); 
+        evento.setImagenZonasUrl(null);
+        Evento eventoGuardado = eventoRepository.save(evento); 
+        
+        int eventoId = eventoGuardado.getIdEvento();
+
+        // 4. Subir Imágenes a S3 y actualizar URLs en la entidad
+        try {
+            // Subir imagen principal
+            if (imagenUrl != null && !imagenUrl.isEmpty()) {
+                String url = s3Service.uploadFile(imagenUrl, "eventos", eventoId);
+                eventoGuardado.setImagenUrl(url); 
+            }
+            
+            // Subir imagen de zonas
+            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String urlZonas = s3Service.uploadFile(imagenZonasUrl, "eventos", eventoId);
+                eventoGuardado.setImagenZonasUrl(urlZonas); 
+            }
+
+            // 5. Guardar Evento por segunda vez con las URLs actualizadas
+            // Esto actualiza las URLs en la DB dentro de la misma transacción.
+            eventoRepository.save(eventoGuardado); 
+
+        } catch (Exception e) {
+            log.error("Error al subir imagen(es) para el evento {}. Se hará rollback si la excepción es lanzada.", eventoId);
+            // Si la subida a S3 falla, es mejor lanzar una excepción para asegurar el rollback completo
+            throw new RuntimeException("Error al procesar archivos de imagen del evento: " + e.getMessage(), e);
+        }
 
         // --- INICIO AUDITORÍA RF-109 ---
         try {
-            Administrador admin = getAdminActual();
+            Administrador admin = getAdminActual(); // Asumiendo que existe este método
             String detalle = "Se creó el evento: " + eventoGuardado.getNombre() + " (ID: " + eventoGuardado.getIdEvento() + ")";
             auditLogService.registrarAuditoria(admin, "CREAR_EVENTO", "EventoService", detalle);
         } catch (Exception e) {
@@ -132,10 +170,83 @@ public class EventoService {
         }
         // --- FIN AUDITORÍA ---
 
-        log.info("Evento creado con ID: {}", eventoGuardado.getIdEvento());
+        log.info("Evento creado y URLs actualizadas con ID: {}", eventoGuardado.getIdEvento());
         return eventoMapper.toResponseDTO(eventoGuardado);
     }
 
+    @Transactional
+    public EventoResponseDTO actualizarConImagen(Integer id, EventoCreateDTO dto) {
+        log.info("Actualizando evento con ID: {}", id);
+
+        // 1. Buscar evento existente
+        Evento eventoExistente = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
+
+        // Extraer archivos del DTO
+        MultipartFile imagenUrl = dto.getImagenUrl();
+        MultipartFile imagenZonasUrl = dto.getImagenZonasUrl();
+
+        // 2. Validaciones (si es necesario)
+        // Ejemplo: Validar fecha futura si el DTO tiene una nueva fecha
+        if (dto.getFechaEvento() != null && dto.getFechaEvento().isBefore(LocalDate.now())) {
+            throw new BusinessException("La nueva fecha del evento debe ser futura");
+        }
+
+        if(dto.getFechaFinEvento() != null && dto.getFechaFinEvento().isBefore(dto.getFechaEvento())){
+            throw new BusinessException("La fecha de fin del evento no puede ser anterior a la fecha de inicio");
+        }
+
+        // 3. Obtener y validar Local si se proporciona un nuevo ID
+        Local nuevoLocal = eventoExistente.getLocal();
+        if (dto.getIdLocal() != null && !dto.getIdLocal().equals(nuevoLocal != null ? nuevoLocal.getIdLocal() : null)) {
+            nuevoLocal = localRepository.findById(dto.getIdLocal())
+                    .orElseThrow(() -> new ResourceNotFoundException("Local no encontrado con ID: " + dto.getIdLocal()));
+            if (Boolean.FALSE.equals(nuevoLocal.getActivo())) {
+                throw new BusinessException("No se pueden actualizar eventos a un local inactivo: " + nuevoLocal.getNombre());
+            }
+        }
+
+        // 4. Mapear DTO a la Entidad Existente (Solo actualiza los campos no nulos)
+        // Asumo que tu EventoMapper tiene una lógica para actualizar una entidad existente.
+        eventoMapper.updateEntity(eventoExistente, dto, nuevoLocal);
+        
+        // 5. Subir Imágenes a S3 y actualizar URLs
+        try {
+            // Subir imagen principal (si se proporciona una nueva)
+            if (imagenUrl != null && !imagenUrl.isEmpty()) {
+                String url = s3Service.uploadFile(imagenUrl, "eventos", id);
+                eventoExistente.setImagenUrl(url); 
+            }
+            
+            // Subir imagen de zonas (si se proporciona una nueva)
+            if (imagenZonasUrl != null && !imagenZonasUrl.isEmpty()) {
+                String urlZonas = s3Service.uploadFile(imagenZonasUrl, "eventos", id);
+                eventoExistente.setImagenZonasUrl(urlZonas); 
+            }
+
+            // 6. Guardar la Entidad Actualizada
+            Evento eventoActualizado = eventoRepository.save(eventoExistente);
+
+            // --- INICIO AUDITORÍA RF-109 ---
+            try {
+                Administrador admin = getAdminActual();
+                String detalle = "Se actualizó el evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
+                auditLogService.registrarAuditoria(admin, "ACTUALIZAR_EVENTO", "EventoService", detalle);
+            } catch (Exception e) {
+                log.error("Fallo al registrar auditoría (ACTUALIZAR_EVENTO): {}", e.getMessage());
+            }
+            // --- FIN AUDITORÍA ---
+
+            log.info("Evento actualizado con ID: {}", id);
+            return eventoMapper.toResponseDTO(eventoActualizado);
+
+        } catch (Exception e) {
+            log.error("Error al subir o actualizar imágenes para el evento {}: {}", id, e.getMessage());
+            throw new RuntimeException("Error al procesar la actualización del evento: " + e.getMessage(), e);
+        }
+    }
+
+    // busca actualizasr los valores sin incluir las imagenes
     @Transactional
     public EventoResponseDTO actualizar(Integer id, EventoCreateDTO dto) {
         log.info("Actualizando evento ID: {}", id);
@@ -165,70 +276,6 @@ public class EventoService {
         // --- FIN AUDITORÍA --
 
         log.info("Evento actualizado: {}", id);
-        return eventoMapper.toResponseDTO(eventoActualizado);
-    }
-
-    /**
-     * Actualiza únicamente la URL de la imagen de un evento.
-     * 
-     * @param id ID del evento
-     * @param imagenUrl URL de la imagen a guardar
-     * @return EventoResponseDTO con la información actualizada
-     */
-    @Transactional
-    public EventoResponseDTO actualizarImagenUrl(Integer id, String imagenUrl) {
-        log.info("Actualizando URL de imagen para evento ID: {}", id);
-
-        Evento evento = eventoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
-
-        evento.setImagenUrl(imagenUrl);
-        evento.setFechaActualizacion(LocalDate.now());
-        Evento eventoActualizado = eventoRepository.save(evento);
-
-        // --- INICIO AUDITORÍA RF-109 ---
-        try {
-            Administrador admin = getAdminActual();
-            String detalle = "Se actualizó la IMAGEN del evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
-            auditLogService.registrarAuditoria(admin, "ACTUALIZAR_IMAGEN_EVENTO", "EventoService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (ACTUALIZAR_IMAGEN_EVENTO): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
-
-        log.info("URL de imagen actualizada para evento ID: {}", id);
-        return eventoMapper.toResponseDTO(eventoActualizado);
-    }
-
-    /**
-     * Actualiza únicamente la URL de la imagen de las zonas de un evento.
-     * 
-     * @param id ID del evento
-     * @param imagenUrl URL de la imagen de las zonas del evento a guardar
-     * @return EventoResponseDTO con la información actualizada
-     */
-    @Transactional
-    public EventoResponseDTO actualizarImagenZonasUrl(Integer id, String imagenUrl) {
-        log.info("Actualizando URL de imagen de zonas para evento ID: {}", id);
-
-        Evento evento = eventoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + id));
-
-        evento.setImagenZonasUrl(imagenUrl);
-        evento.setFechaActualizacion(LocalDate.now());
-        Evento eventoActualizado = eventoRepository.save(evento);
-
-        // --- INICIO AUDITORÍA RF-109 ---
-        try {
-            Administrador admin = getAdminActual();
-            String detalle = "Se actualizó la IMAGEN DE ZONAS del evento: " + eventoActualizado.getNombre() + " (ID: " + id + ")";
-            auditLogService.registrarAuditoria(admin, "ACTUALIZAR_IMAGEN_ZONAS_EVENTO", "EventoService", detalle);
-        } catch (Exception e) {
-            log.error("Fallo al registrar auditoría (ACTUALIZAR_IMAGEN_ZONAS_EVENTO): {}", e.getMessage());
-        }
-        // --- FIN AUDITORÍA ---
-
-        log.info("URL de imagen de zonas actualizada para evento ID: {}", id);
         return eventoMapper.toResponseDTO(eventoActualizado);
     }
 
@@ -381,7 +428,12 @@ public class EventoService {
         dto.setId(evento.getIdEvento());
         dto.setNombre(evento.getNombre());
         dto.setFecha(evento.getFechaEvento());
-        dto.setHora(evento.getHoraInicio());
+        dto.setFechaFinEvento(evento.getFechaFinEvento());
+        dto.setHoraInicio(evento.getHoraInicio());
+        dto.setHoraFin(evento.getHoraFin());
+        dto.setMenoresDeEdadPermitidos(evento.getMenoresDeEdadPermitidos());
+        dto.setPoliticasDevolucion(evento.getPoliticasDevolucion());
+        dto.setRestricciones(evento.getRestricciones());
         dto.setImagenUrl(evento.getImagenUrl());
         dto.setImagenZonasUrl(evento.getImagenZonasUrl());
         dto.setDescripcion(evento.getDescripcion());

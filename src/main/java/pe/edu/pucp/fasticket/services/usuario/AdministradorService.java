@@ -18,9 +18,11 @@ import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
 
@@ -38,6 +40,7 @@ import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
 public class AdministradorService {
 
     private final AdministradorRepository administradorRepository;
+    private final ClienteRepository clienteRepository;
     private final PersonasRepositorio personasRepositorio;
 
     private final AuditLogService auditLogService;
@@ -244,5 +247,45 @@ public class AdministradorService {
         
         // Delegar al método que recibe Administrador directamente
         return convertirAPerfilDTO((Administrador) persona);
+    }
+
+    @Transactional
+    public void promoverClienteAAdmin(Integer idCliente, String cargo) {
+        // 1. Buscar al cliente
+        Cliente cliente = clienteRepository.findById(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
+
+        // 2. Validar que no tenga datos críticos que se rompan al migrar
+        // (Opcional: Si el cliente ya compró entradas, cambiarlo de tabla puede ser delicado por las Foreign Keys.
+        //  Por ahora asumimos que es una cuenta nueva).
+
+        // 3. Crear el nuevo Administrador copiando datos
+        Administrador nuevoAdmin = new Administrador();
+        nuevoAdmin.setNombres(cliente.getNombres());
+        nuevoAdmin.setApellidos(cliente.getApellidos());
+        nuevoAdmin.setEmail(cliente.getEmail());
+        nuevoAdmin.setContrasena(cliente.getContrasena()); // Misma contraseña encriptada
+        nuevoAdmin.setTipoDocumento(cliente.getTipoDocumento());
+        nuevoAdmin.setDocIdentidad(cliente.getDocIdentidad());
+        nuevoAdmin.setTelefono(cliente.getTelefono());
+        nuevoAdmin.setDireccion(cliente.getDireccion());
+        nuevoAdmin.setFechaNacimiento(cliente.getFechaNacimiento());
+        nuevoAdmin.setDistrito(cliente.getDistrito());
+
+        // Datos de Admin
+        nuevoAdmin.setRol(Rol.ADMINISTRADOR);
+        nuevoAdmin.setCargo(cargo);
+        nuevoAdmin.setActivo(true);
+        nuevoAdmin.setFechaCreacion(cliente.getFechaCreacion());
+
+        // 4. Guardar Admin y Eliminar Cliente
+        // IMPORTANTE: Al ser tablas diferentes (joined o table-per-class), debemos hacer el switch.
+        // Hacemos flush para evitar conflictos de unique constraints (email/dni)
+        clienteRepository.delete(cliente);
+        clienteRepository.flush();
+
+        administradorRepository.save(nuevoAdmin);
+
+        log.info("Usuario {} promovido a Administrador con cargo: {}", cliente.getEmail(), cargo);
     }
 }

@@ -131,6 +131,7 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        
 
         <!-- AWS X-Ray for distributed tracing -->
         <dependency>
@@ -224,6 +225,9 @@
                     <version>0.2.0</version>
                 </path>
             </annotationProcessorPaths>
+            <compilerArgs>
+                <arg>-Amapstruct.verbose=true</arg>
+            </compilerArgs> 
             </configuration>
             </plugin>
 		</plugins>

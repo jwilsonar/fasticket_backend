@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.*;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
-import pe.edu.pucp.fasticket.model.eventos.PrecioEscalonado;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.services.eventos.TipoTicketServicio;
 

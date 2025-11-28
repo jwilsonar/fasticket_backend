@@ -11,8 +11,11 @@ public class ExcelEventoDTO {
     @ExcelCellName("Descripcion")
     private String descripcion;
 
-    @ExcelCellName("Fecha (YYYY-MM-DD)")
-    private String fechaEvento;
+    @ExcelCellName("Fecha Inicio (YYYY-MM-DD)")
+    private String fechaInicio;
+
+    @ExcelCellName("Fecha Fin (YYYY-MM-DD)")
+    private String fechaFin;
 
     @ExcelCellName("Hora Inicio (HH:mm)")
     private String horaInicio;
@@ -26,7 +29,7 @@ public class ExcelEventoDTO {
     @ExcelCellName("ID Local")
     private Integer idLocal;
 
-    @ExcelCellName("Tipo Evento") // Debe coincidir con tu Enum (CONCIERTO, TEATRO, etc.)
+    @ExcelCellName("Tipo Evento")
     private String tipoEvento;
 
     @ExcelCellName("Restricciones")
@@ -37,4 +40,7 @@ public class ExcelEventoDTO {
 
     @ExcelCellName("Menores Permitidos")
     private Boolean menoresDeEdadPermitidos;
+
+    @ExcelCellName("Imagen URL")
+    private String imagenUrl;
 }

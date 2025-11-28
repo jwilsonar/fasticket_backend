@@ -54,7 +54,7 @@ public class ConfiguracionController {
      * Útil si el front quiere guardar apenas cambias un input (auto-save).
      * Recibe sólo el valor (y opcionalmente descripción) en el body.
      */
-    @PatchMapping("/configs/{key}")
+    @PutMapping("/configs/{key}")
     @Operation(summary = "Actualizar individual", description = "Actualiza una sola variable por su clave.")
     public ResponseEntity<StandardResponse<ConfiguracionDTO>> actualizarConfiguracionIndividual(
             @PathVariable String key,

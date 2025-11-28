@@ -25,6 +25,7 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
     List<Evento> findByEstadoEventoAndActivoTrue(EstadoEvento estado);
     
     List<Evento> findByFechaEventoBetweenAndActivoTrue(LocalDate fechaInicio, LocalDate fechaFin);
+    
     /**
      * RF-065: Filtra por tipo de evento (String) y que esté activo.
      */

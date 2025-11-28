@@ -10,8 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.ConfiguracionDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
-import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
-import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.services.ConfiguracionService;
 
 import java.util.List;
@@ -25,7 +23,6 @@ import java.util.List;
 public class ConfiguracionController {
 
     private final ConfiguracionService configuracionService;
-    private final ConfiguracionRepository configuracionRepository;
 
     /**
      * OPCIÓN 1: Listar todo (Usando tu Servicio con DTOs)
@@ -55,21 +52,16 @@ public class ConfiguracionController {
     /**
      * OPCIÓN 3: Actualizar una sola clave (Edición rápida)
      * Útil si el front quiere guardar apenas cambias un input (auto-save).
+     * Recibe ConfiguracionDTO en body (usa only 'value' y opcional 'descripcion').
      */
     @PutMapping("/{key}")
     @Operation(summary = "Actualizar individual", description = "Actualiza una sola variable por su clave.")
-    public ResponseEntity<StandardResponse<ConfiguracionGlobal>> actualizarConfiguracionIndividual(
+    public ResponseEntity<StandardResponse<ConfiguracionDTO>> actualizarConfiguracionIndividual(
             @PathVariable String key,
-            @RequestBody String nuevoValor) {
+            @Valid @RequestBody ConfiguracionDTO dto) {
 
-        log.info("PUT /api/v1/admin/configuracion/{}", key);
-
-        ConfiguracionGlobal config = configuracionRepository.findById(key)
-                .orElseThrow(() -> new RuntimeException("Configuración no encontrada: " + key));
-
-        config.setValue(nuevoValor); // Asumiendo que el campo se llama 'value' en tu entidad
-        configuracionRepository.save(config);
-
-        return ResponseEntity.ok(StandardResponse.success("Configuración actualizada", config));
+        log.info("PUT /api/v1/admin/configuracion/{} - nuevo valor (masked) ", key);
+        ConfiguracionDTO updated = configuracionService.actualizarPorKey(key, dto.getValue());
+        return ResponseEntity.ok(StandardResponse.success("Configuración actualizada", updated));
     }
 }

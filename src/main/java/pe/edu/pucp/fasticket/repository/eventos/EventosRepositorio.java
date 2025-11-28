@@ -1,6 +1,8 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -46,4 +48,20 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
     
     @Query("SELECT e FROM Evento e WHERE e.fechaEvento >= :fecha AND e.activo = true ORDER BY e.fechaEvento ASC")
     List<Evento> findEventosProximos(@Param("fecha") LocalDate fecha);
+
+    @Query(value = """
+        SELECT COUNT(*) > 0 FROM evento e 
+        WHERE e.id_local = :idLocal
+          AND e.estado_evento != 'CANCELADO'
+          AND (
+            (e.fecha_evento + e.hora_inicio) < CAST(:fin AS TIMESTAMP)
+            AND
+            (e.fecha_fin_evento + e.hora_fin) > CAST(:inicio AS TIMESTAMP)
+          )
+    """, nativeQuery = true)
+    boolean existeCruceDeHorario(
+            @Param("idLocal") Integer idLocal,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

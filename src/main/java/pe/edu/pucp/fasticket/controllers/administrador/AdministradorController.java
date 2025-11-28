@@ -173,4 +173,20 @@ public class AdministradorController {
         return ResponseEntity.ok(StandardResponse.success("Usuario promovido exitosamente.", null));
     }
 
+    @Operation(
+            summary = "Verificar cliente manualmente",
+            description = "Permite al administrador forzar el estado de 'Verificado' de un cliente sin necesidad de correo.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @PutMapping("/clientes/{idCliente}/verificar")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> verificarClienteManual(
+            @PathVariable Integer idCliente) {
+
+        // Llamada al servicio que acabamos de crear
+        administradorService.verificarClienteManualmente(idCliente);
+
+        return ResponseEntity.ok(StandardResponse.success("Cliente verificado exitosamente.", null));
+    }
+
 }

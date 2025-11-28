@@ -80,10 +80,9 @@ public class EventoMapper {
         if (dto.getNombre() != null) evento.setNombre(dto.getNombre());
         if (dto.getDescripcion() != null) evento.setDescripcion(dto.getDescripcion());
         if (dto.getFechaEvento() != null) evento.setFechaEvento(dto.getFechaEvento());
-        if (dto.getFechaFinEvento() != null) evento.setFechaEvento(dto.getFechaFinEvento());
+        if (dto.getFechaFinEvento() != null) evento.setFechaFinEvento(dto.getFechaFinEvento());
         if (dto.getHoraInicio() != null) evento.setHoraInicio(dto.getHoraInicio());
         if (dto.getHoraFin() != null) evento.setHoraFin(dto.getHoraFin());
-
         if (dto.getMenoresDeEdadPermitidos() != null) evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
         if (dto.getRestricciones() != null) evento.setRestricciones(dto.getRestricciones());
         if (dto.getPoliticasDevolucion() != null) evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());

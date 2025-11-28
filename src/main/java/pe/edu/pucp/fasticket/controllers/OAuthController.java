@@ -7,14 +7,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Rol;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.security.JwtUtil;
+
 
 import java.util.Map;
 
@@ -39,7 +42,6 @@ public class OAuthController {
     public Map<String, Object> userInfo(@AuthenticationPrincipal OAuth2User principal) {
         return principal.getAttributes();
     }
-
     @GetMapping("/success")
     public ResponseEntity<?> handleOAuth2Success(OAuth2AuthenticationToken authentication) {
         // Obtener info del usuario de Google

@@ -24,7 +24,7 @@ public class PasswordResetCode {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(name = "persona_id", nullable = false)
+	@Column(name = "persona_id", nullable = true)
 	private Integer personaId;
 
 	@Column(name = "email", nullable = false, length = 255)

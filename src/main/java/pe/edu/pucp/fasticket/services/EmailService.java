@@ -41,9 +41,9 @@ public class EmailService {
 
     @Value("${brevo.enabled:false}")
     private boolean brevoEnabled;
-    @Value("${brevo.api-key}")
+    @Value("${brevo.api-key:}")
     private String brevoApiKey;
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:noreply@fasticket.com}")
     private String senderEmail;
     private final String BASE_URL = "http://localhost:8080";
     /**
@@ -217,33 +217,40 @@ public class EmailService {
 
     /**
      * Motor principal para enviar correos (soporta HTML).
+     * Intenta Brevo primero, si falla usa SMTP directo.
      */
     private void enviarEmail(String para, String asunto, String cuerpo, boolean esHtml) {
-		if (brevoEnabled) {
+		if (brevoEnabled && brevoApiKey != null && !brevoApiKey.isBlank()) {
 			String nombre = para; // si no tenemos nombre, usamos el email
 			String contenidoHtml = esHtml ? cuerpo : "<pre>" + escapeHtml(cuerpo) + "</pre>";
 			log.debug("Delegando envío a Brevo (legacy->Brevo) | to={} | asunto={} | html={}", para, asunto, esHtml);
 			boolean ok = notificacionesEmailService.enviarEmailHtml(para, nombre, asunto, contenidoHtml);
-			if (!ok) {
-				log.warn("Fallo el envío vía Brevo (delegado). to={} | asunto={}", para, asunto);
+			if (ok) {
+				log.info("✅ Correo enviado exitosamente vía Brevo a: {}", para);
+				return;
+			} else {
+				log.warn("⚠️ Fallo el envío vía Brevo (delegado), intentando SMTP directo. to={} | asunto={}", para, asunto);
+				// Continuar con SMTP directo como fallback
 			}
-			return;
 		}
+		
+		// Si Brevo no está habilitado o falló, usar SMTP directo
         try {
+            log.info("📧 Enviando correo vía SMTP directo a: {}", para);
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom("no-reply@fasticket.com"); // Puedes ponerlo en properties
+            helper.setFrom(senderEmail != null ? senderEmail : "no-reply@fasticket.com");
             helper.setTo(para);
             helper.setSubject(asunto);
             helper.setText(cuerpo, esHtml); // true para que interprete el HTML
 
             mailSender.send(message);
-            log.info("Correo enviado exitosamente a: {}", para);
+            log.info("✅ Correo enviado exitosamente vía SMTP directo a: {}", para);
 
         } catch (Exception e) {
-            log.error("Error al enviar correo a: {}. Causa: {}", para, e.getMessage());
-            // No lanzamos excepción para no detener el flujo principal
+            log.error("❌ Error crítico al enviar correo vía SMTP directo a {}: {}", para, e.getMessage(), e);
+            throw new RuntimeException("No se pudo enviar el correo: " + e.getMessage(), e);
         }
     }
 
@@ -282,13 +289,50 @@ public class EmailService {
 
     /**
      * Enviar correo para resetear contraseña
+     * Si Brevo está habilitado pero falla, intenta SMTP directamente
      */
-
     public void enviarCorreoResetContrasena(String email, String asunto, String cuerpo) {
+        log.info("📧 EmailService.enviarCorreoResetContrasena() llamado | brevoEnabled={} | email={}", 
+                brevoEnabled, email != null ? email : "null");
+        
+        // Si Brevo está habilitado, intentar primero con Brevo
+        if (brevoEnabled && brevoApiKey != null && !brevoApiKey.isBlank()) {
+            log.info("🔄 Intentando envío vía Brevo (fallback desde EmailService)");
+            boolean ok = notificacionesEmailService.enviarEmailHtml(email, email, asunto, cuerpo);
+            if (ok) {
+                log.info("✅ Email enviado exitosamente vía Brevo (fallback)");
+                return;
+            } else {
+                log.warn("⚠️ Brevo falló en fallback, intentando SMTP directo");
+            }
+        }
+        
+        // Si Brevo no está habilitado o falló, usar SMTP directamente
+        log.info("📧 Enviando correo vía SMTP directo (sin Brevo)");
+        enviarEmailDirecto(email, asunto, cuerpo, true);
+    }
+    
+    /**
+     * Envía email directamente vía SMTP, sin pasar por Brevo
+     */
+    private void enviarEmailDirecto(String para, String asunto, String cuerpo, boolean esHtml) {
+        try {
+            log.info("📤 Preparando envío SMTP directo a: {}", para);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-        // Función para acceder a la función private del servicio.
+            helper.setFrom(senderEmail != null ? senderEmail : "no-reply@fasticket.com");
+            helper.setTo(para);
+            helper.setSubject(asunto);
+            helper.setText(cuerpo, esHtml);
 
-        enviarEmail(email, asunto, cuerpo, true);
+            mailSender.send(message);
+            log.info("✅ Correo enviado exitosamente vía SMTP directo a: {}", para);
+
+        } catch (Exception e) {
+            log.error("❌ Error crítico al enviar correo vía SMTP directo a {}: {}", para, e.getMessage(), e);
+            throw new RuntimeException("No se pudo enviar el correo vía SMTP: " + e.getMessage(), e);
+        }
     }
 
 	private String escapeHtml(String text) {

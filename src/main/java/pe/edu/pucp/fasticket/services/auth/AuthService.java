@@ -340,28 +340,69 @@ public class AuthService {
         }
     }
 
+    /**
+     * Verifica si existe un usuario con el email dado.
+     * @param email Email a verificar
+     * @return true si el usuario existe, false en caso contrario
+     */
+    public boolean existeUsuarioPorEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return personasRepositorio.findByEmail(email.toLowerCase()).isPresent();
+    }
+
     @Transactional
     public void iniciarOlvidoContrasena(String email){
-        log.info("Iniciar olvido de contraseña para: {}", email);
-        Persona persona = personasRepositorio.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        log.info("🔐 Iniciar olvido de contraseña para: {}", email);
+        
+        // Buscar usuario (opcional - puede no existir)
+        Persona persona = personasRepositorio.findByEmail(email).orElse(null);
+        
+        Integer personaId = null;
+        String nombreUsuario = "Usuario";
+        
+        if (persona != null) {
+            personaId = persona.getIdPersona();
+            nombreUsuario = persona.getNombres() != null && !persona.getNombres().isBlank() 
+                ? persona.getNombres() 
+                : "Usuario";
+            log.info("✅ Usuario encontrado: {} (ID: {})", persona.getEmail(), personaId);
+        } else {
+            log.info("ℹ️ Usuario no encontrado para email: {}, se enviará correo de todas formas", email);
+        }
 
         // Generar código 6 dígitos
         String codigo = String.format("%06d", new Random().nextInt(1_000_000));
+        log.debug("📝 Código de recuperación generado para: {}", email);
 
+        // Guardar código de recuperación (incluso si el usuario no existe)
+        // Si el usuario no existe, personaId será null (registro temporal)
         PasswordResetCode prc = new PasswordResetCode();
-        prc.setPersonaId(persona.getIdPersona());
+        prc.setPersonaId(personaId); // Puede ser null si el usuario no existe (registro temporal)
         prc.setEmail(email.toLowerCase());
         prc.setCodigo(codigo);
         prc.setExpiraEn(Instant.now().plus(Duration.ofMinutes(10)));
         prc.setVerificado(false);
         prc.setUsado(false);
         prc.setIntentos(0);
-        passwordResetCodeRepository.save(prc);
+        
+        try {
+            passwordResetCodeRepository.save(prc);
+            log.debug("💾 Código de recuperación guardado en BD (personaId={})", personaId != null ? personaId : "null (temporal)");
+        } catch (Exception e) {
+            // Si falla por restricción NOT NULL en BD, informar al usuario
+            if (e.getMessage() != null && e.getMessage().contains("null value in column \"persona_id\"")) {
+                log.error("❌ Error: La columna persona_id en password_reset_codes tiene restricción NOT NULL en la BD.");
+                log.error("❌ Ejecuta el script: src/main/resources/sql/alter_password_reset_codes_persona_id_nullable.sql");
+                throw new BusinessException("Error de configuración de base de datos. Contacte al administrador.");
+            }
+            throw e;
+        }
 
         // Usar plantilla si existe (OLVIDO_CONTRASENA_CODIGO), con params
         Map<String, Object> params = new HashMap<>();
-        params.put("nombre", persona.getNombres());
+        params.put("nombre", nombreUsuario);
         params.put("codigo", codigo);
         params.put("email", email.toLowerCase());
 
@@ -371,19 +412,24 @@ public class AuthService {
         if (plantilla != null) {
             asunto = plantilla.getAsunto();
             html = plantillaService.render(plantilla.getHtml(), params);
+            log.debug("📄 Usando plantilla personalizada para email de recuperación");
         } else {
             html = "<h2>Tu código de verificación</h2>"
                  + "<p>Usa este código para continuar con el proceso de recuperación:</p>"
                  + "<p style='font-size:24px;letter-spacing:4px'><strong>" + codigo + "</strong></p>"
                  + "<p>El código expira en 10 minutos.</p>";
+            log.debug("📄 Usando plantilla por defecto para email de recuperación");
         }
 
-        // Enviar por email + notificación in-app
+        // Enviar por email (siempre se envía, incluso si el usuario no existe)
+        boolean emailEnviado = false;
         try {
+            log.info("📧 Intentando enviar correo de recuperación a: {}", email);
+            log.debug("📋 Configuración: Usuario existe={}, Nombre={}, Código generado", personaId != null, nombreUsuario);
             NotificationRequest req = NotificationRequest.builder()
-                .personaId(persona.getIdPersona())
+                .personaId(personaId) // Puede ser null si el usuario no existe
                 .email(email)
-                .nombre(persona.getNombres())
+                .nombre(nombreUsuario)
                 .notiTipo(TipoNotificacion.RECUPERACION_CONTRASENA)
                 .plantilla(TipoPlantilla.OLVIDO_CONTRASENA_CODIGO)
                 .params(params)
@@ -391,12 +437,32 @@ public class AuthService {
                 .html(html)
                 .titulo("Recuperación de contraseña")
                 .mensaje("Hemos enviado un código de verificación a tu correo.")
+                .sendInApp(false) // No enviar notificación in-app si el usuario no existe
                 .build();
             notificationManager.notifyAllChannels(req);
+            emailEnviado = true;
+            log.info("✅ Notificación enviada a través de NotificationManager");
         } catch (Exception ex) {
-            // fallback a SMTP si ocurre error en envío email
-            emailService.enviarCorreoResetContrasena(email, asunto, html);
+            log.warn("⚠️ Error al enviar notificación a través de NotificationManager: {}", ex.getMessage());
+            log.debug("Detalles del error:", ex);
+            // fallback a SMTP directo si ocurre error en envío email (Brevo falló o no está configurado)
+            try {
+                log.info("🔄 Intentando fallback a EmailService (SMTP directo, sin Brevo)");
+                emailService.enviarCorreoResetContrasena(email, asunto, html);
+                emailEnviado = true;
+                log.info("✅ Email enviado exitosamente mediante fallback a SMTP directo");
+            } catch (Exception fallbackEx) {
+                log.error("❌ Error crítico: No se pudo enviar el correo ni por NotificationManager (Brevo) ni por fallback (SMTP): {}", fallbackEx.getMessage(), fallbackEx);
+                throw new BusinessException("No se pudo enviar el correo de recuperación. Por favor, intente más tarde.");
+            }
         }
+        
+        if (!emailEnviado) {
+            log.error("❌ El correo no se pudo enviar para: {}", email);
+            throw new BusinessException("No se pudo enviar el correo de recuperación. Por favor, intente más tarde.");
+        }
+        
+        log.info("✅ Proceso de olvido de contraseña completado para: {} (correo enviado)", email);
     }
 
     @Transactional
@@ -414,6 +480,13 @@ public class AuthService {
             passwordResetCodeRepository.save(prc);
             throw new BusinessException("Código inválido");
         }
+        
+        // Si el código es de un usuario no registrado (personaId null), no se puede validar para resetear
+        if (prc.getPersonaId() == null) {
+            log.warn("⚠️ Intento de validar código para email no registrado: {}", email);
+            throw new BusinessException("Este código no está asociado a una cuenta registrada. Por favor, regístrese primero.");
+        }
+        
         prc.setVerificado(true);
         passwordResetCodeRepository.save(prc);
     }

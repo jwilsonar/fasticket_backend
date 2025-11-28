@@ -28,6 +28,7 @@ import pe.edu.pucp.fasticket.dto.auth.ForgotPasswordRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
 import pe.edu.pucp.fasticket.dto.auth.RegistroRequestDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -195,15 +196,30 @@ public class AuthController {
 
         log.info("PUT /api/v1/auth/olvido-contrasena - Correo: {}", request.getEmail());
 
-        try{
-            authService.iniciarOlvidoContrasena(request.getEmail());
-        } catch (Exception e) {
-            /**
-             * Por seguridad, no se indica si falló
-             */
+        // Validar que el email no esté vacío
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            log.warn("⚠️ Intento de olvido de contraseña con email vacío");
+            StandardResponse<String> response = StandardResponse.success("Se envió un código de verificación al correo proporcionado");
+            return ResponseEntity.ok(response);
         }
 
-        StandardResponse<String> response = StandardResponse.success("Si el correo existe, se envió un código de verificación");
+        try {
+            // Siempre intentar enviar el correo, sin importar si el usuario existe o no
+            log.info("📧 Procediendo con envío de correo de recuperación (sin validar existencia de usuario)");
+            authService.iniciarOlvidoContrasena(request.getEmail());
+            log.info("✅ Proceso de olvido de contraseña completado exitosamente");
+            
+        } catch (BusinessException e) {
+            log.error("❌ Error de negocio al procesar olvido de contraseña: {}", e.getMessage());
+            // Si hay un error de negocio (como fallo en envío), lo propagamos
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Error inesperado al procesar olvido de contraseña: {}", e.getMessage(), e);
+            // Para otros errores, también los propagamos para que se manejen apropiadamente
+            throw e;
+        }
+
+        StandardResponse<String> response = StandardResponse.success("Se envió un código de verificación al correo proporcionado");
         return ResponseEntity.ok(response);
     }
 

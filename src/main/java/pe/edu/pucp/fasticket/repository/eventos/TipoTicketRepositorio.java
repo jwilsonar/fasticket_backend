@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -27,4 +28,12 @@ public interface TipoTicketRepositorio extends JpaRepository<TipoTicket, Integer
     
     @Query("SELECT DISTINCT t.evento FROM Ticket t WHERE t.tipoTicket.idTipoTicket = :idTipoTicket")
     Optional<Evento> findEventoByTipoTicket(@Param("idTipoTicket") Integer idTipoTicket);
+
+    // Estadísticas por evento para el dashboard
+
+    @Query("SELECT t.evento.id, SUM(t.cantidadVendida) FROM TipoTicket t GROUP BY t.evento.id")
+    Map<Integer, Integer> findTotalVendidoPorEvento();
+
+    @Query("SELECT SUM(tt.precio * tt.cantidadVendida) FROM TipoTicket tt WHERE tt.evento.idEvento = :idEvento AND tt.activo = true GROUP BY tt.evento.idEvento")
+    Double sumIngresosByEventoId(@Param("idEvento") Integer idEvento);
 }

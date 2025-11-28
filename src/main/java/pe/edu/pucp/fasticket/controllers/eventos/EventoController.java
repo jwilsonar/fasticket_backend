@@ -259,6 +259,7 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
         StandardResponse<String> response = StandardResponse.success("Evento eliminado exitosamente");
         return ResponseEntity.ok(response);
     }
+
     @Operation(
             summary = "Obtener detalle de evento para proceso de compra",
             description = "Devuelve los datos del evento, su local y los tipos de ticket disponibles. Endpoint público."
@@ -300,7 +301,60 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
             );
         }
     }
+    
+    @Operation(
+            summary = "Listar top N eventos populares",
+            description = "Devuelve los top N eventos ordenados por cantidad de tickets vendidos. Endpoint público."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Top eventos obtenidos exitosamente")
+    })
+    @GetMapping("/populares/{topN}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarTopEventosPopulares(
+            @Parameter(description = "Cantidad de top eventos a devolver", example = "5")
+            @PathVariable("topN") Integer topN) {
+         log.info("GET /api/v1/eventos/populares?topN={}", topN);
+         List<EventoResponseDTO> top = eventoService.listarTopEventosPopulares(topN);
+         StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Top eventos populares obtenidos exitosamente", top);
+         return ResponseEntity.ok(response);
+     }
 
+    @Operation(
+            summary = "Obtener ventas totales por evento",
+            description = "Devuelve el total de ingresos asociados a un evento (suma de ventas de tickets). Endpoint público."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ventas calculadas exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/{id}/ventas")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Double>> obtenerVentasPorEvento(
+            @Parameter(description = "ID del evento", required = true, example = "1")
+            @PathVariable("id") Integer idEvento) {
+        log.info("GET /api/v1/eventos/{}/ventas", idEvento);
+        Double total = eventoService.ventasPorEvento(idEvento);
+        StandardResponse<Double> response = StandardResponse.success("Ventas totales obtenidas exitosamente", total);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Obtener ventas totales ",
+            description = "Devuelve el total de ingresos."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Ventas calculadas exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/{id}/ventas")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Double>> obtenerVentasTodosEventos() {
+        log.info("GET /api/v1/eventos/ventas");
+        Double total = eventoService.ventasPorTodosEventos();
+        StandardResponse<Double> response = StandardResponse.success("Ventas totales obtenidas exitosamente", total);
+        return ResponseEntity.ok(response);
+    }
 
     @Operation(
             summary = "Descargar Reporte de Ventas en PDF",
@@ -341,6 +395,6 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
             log.warn("Intento de generar reporte para evento no encontrado ID: {}", idEvento);
             return ResponseEntity.notFound().build();
         }
-    }
+    } 
 }
 

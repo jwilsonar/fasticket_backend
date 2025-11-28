@@ -73,6 +73,11 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
 
+        // Validar edad del cliente para eventos +18
+        if (tipoTicket.getEvento() != null) {
+            validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
+        }
+
         validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
 
         List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
@@ -236,6 +241,54 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                 throw new BusinessException("El límite de tickets por persona para '" + tipoTicket.getNombre() + "' es de " +
                     tipoTicket.getLimitePorPersona() + ". Ya has comprado " + ticketsComprados + " tickets de este tipo.");
             }
+        }
+    }
+
+    /**
+     * Valida que el cliente tenga la edad mínima requerida para eventos +18.
+     * Si el evento no permite menores de edad (menoresDeEdadPermitidos == false),
+     * el cliente debe tener al menos 18 años.
+     * 
+     * @param evento El evento para el cual se está validando
+     * @param cliente El cliente que intenta comprar
+     * @throws BusinessException Si el cliente no cumple con la edad mínima requerida
+     */
+    private void validarEdadClienteParaEvento(pe.edu.pucp.fasticket.model.eventos.Evento evento, Cliente cliente) {
+        if (evento == null) {
+            log.warn("Evento es null, no se puede validar edad");
+            return;
+        }
+
+        // Si el evento permite menores de edad, no hay restricción
+        if (Boolean.TRUE.equals(evento.getMenoresDeEdadPermitidos())) {
+            return;
+        }
+
+        // Si menoresDeEdadPermitidos es false, el evento es +18
+        if (Boolean.FALSE.equals(evento.getMenoresDeEdadPermitidos())) {
+            if (cliente.getFechaNacimiento() == null) {
+                throw new BusinessException("No se puede verificar la edad. Por favor, actualiza tu fecha de nacimiento en tu perfil.");
+            }
+
+            LocalDate fechaNacimiento = cliente.getFechaNacimiento();
+            LocalDate fechaActual = LocalDate.now();
+            
+            // Calcular edad comparando fecha de nacimiento con fecha actual
+            int edad = fechaActual.getYear() - fechaNacimiento.getYear();
+            
+            // Ajustar si aún no ha cumplido años este año
+            if (fechaActual.getMonthValue() < fechaNacimiento.getMonthValue() ||
+                (fechaActual.getMonthValue() == fechaNacimiento.getMonthValue() &&
+                 fechaActual.getDayOfMonth() < fechaNacimiento.getDayOfMonth())) {
+                edad--;
+            }
+
+            if (edad < 18) {
+                throw new BusinessException("Este evento es solo para mayores de 18 años. Tu edad actual es " + edad + " años.");
+            }
+
+            log.debug("Validación de edad exitosa: Cliente ID {} tiene {} años para evento +18 ID {}", 
+                    cliente.getIdPersona(), edad, evento.getIdEvento());
         }
     }
 

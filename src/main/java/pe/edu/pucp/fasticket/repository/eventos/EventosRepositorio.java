@@ -48,6 +48,8 @@ public interface EventosRepositorio extends JpaRepository<Evento, Integer> {
     
     @Query("SELECT e FROM Evento e WHERE e.fechaEvento >= :fecha AND e.activo = true ORDER BY e.fechaEvento ASC")
     List<Evento> findEventosProximos(@Param("fecha") LocalDate fecha);
+  
+    Long countByEstadoEventoAndActivoTrue(EstadoEvento estado);
 
     @Query(value = """
         SELECT COUNT(*) > 0 FROM evento e 

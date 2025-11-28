@@ -70,4 +70,6 @@ public interface OrdenCompraRepositorio extends JpaRepository<OrdenCompra, Integ
             "WHERE o.idOrdenCompra = :idOrden")
     Optional<OrdenCompra> findByIdWithAllDetailsForHistorial(@Param("idOrden") Integer idOrden);
     Optional<OrdenCompra> findByCodigoSeguimiento(String codigoSeguimiento);
+
+    
 }

@@ -749,5 +749,75 @@ public class EventoService {
         return administradorRepository.findByEmail(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin no encontrado para auditoría con username: " + username));
     }
-}
 
+
+    // PARA EL DASHBOARD //
+
+    /**
+     * Cuenta la cantidad de eventos por estado.
+     * 
+     * @param estado Estado del evento (POR_PUBLICAR, PUBLICADO, CANCELADO, FINALIZADO)
+     * @return Cantidad de eventos en el estado especificado
+     */
+    @Transactional(readOnly = true)
+    public long contarEventosPorEstado(EstadoEvento estado) {
+        long count = eventoRepository.countByEstadoEventoAndActivoTrue(estado);
+        if (count == 0) {
+            throw new ResourceNotFoundException("No se encontraron eventos con estado: " + estado);
+        }
+        return count;
+    }
+
+    /**
+     * Lista los eventos más populares basados en la cantidad de tickets vendidos.
+     * 
+     * @param topN Cantidad de eventos populares a listar
+     * @return Lista de eventos populares
+     */
+    @Transactional(readOnly = true)
+    public List<EventoResponseDTO> listarTopEventosPopulares(Integer topN) {
+        log.info("Listando los top {} eventos populares", topN);
+        
+        Map<Integer, Integer> ventasPorEvento = tipoTicketRepositorio.findTotalVendidoPorEvento();
+
+        // Obtenemos todos los eventos
+        List<EventoResponseDTO> listaEventos = listarTodos();
+
+        // Ordenamos y limitamos
+        return listaEventos.stream()
+                .sorted((e1, e2) -> {
+                    Integer ventas1 = ventasPorEvento.getOrDefault(e1.getIdEvento(), 0);
+                    Integer ventas2 = ventasPorEvento.getOrDefault(e2.getIdEvento(), 0);
+                    return ventas2.compareTo(ventas1);
+                })
+                .limit(topN)
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional(readOnly = true)
+    public Double ventasPorEvento(Integer idEvento) {
+        log.info("Total de ventas por el evento ID: {}", idEvento);
+
+        // Validar que el evento existe
+        if (!eventoRepository.existsById(idEvento)) {
+            throw new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento);
+        }
+
+        Double totalIngresos = tipoTicketRepositorio.sumIngresosByEventoId(idEvento);
+        return totalIngresos != null ? totalIngresos : 0.0;
+    }
+    
+    @Transactional(readOnly = true)
+    public Double ventasPorTodosEventos() {
+        log.info("Total de ventas por todos los eventos");
+
+        List<EventoResponseDTO> listaEventos = listarTodos();
+        Double totalIngresos = 0.0;
+        for (EventoResponseDTO evento : listaEventos) {
+            Integer idEvento = evento.getIdEvento();
+            totalIngresos += tipoTicketRepositorio.sumIngresosByEventoId(idEvento);  
+        } 
+        return totalIngresos != null ? totalIngresos : 0.0;
+    }  
+}

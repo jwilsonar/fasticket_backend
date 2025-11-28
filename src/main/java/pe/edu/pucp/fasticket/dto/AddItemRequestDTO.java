@@ -22,7 +22,7 @@ public class AddItemRequestDTO {
     
     @Schema(description = "ID del cliente que agrega el item", example = "1", required = true)
     private Integer idCliente;
-    
+
     @Schema(description = "Lista de datos de asistentes para cada ticket", required = true)
     @Valid
     @NotEmpty

@@ -22,6 +22,7 @@ import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.pago.ComprobanteDTO;
 import pe.edu.pucp.fasticket.dto.pago.RegistrarPagoDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.model.pago.Boleta;
 import pe.edu.pucp.fasticket.model.pago.ComprobantePago;
@@ -59,6 +60,15 @@ public class PagoServicio {
                 .orElseThrow(() -> new RuntimeException("Orden no encontrada o con pago inactivo"));
         if (dto.getNumeroTarjeta() == null || dto.getNumeroTarjeta().length() < 4) {
             throw new RuntimeException("Número de tarjeta inválido");
+        }
+        double totalOrden = orden.getTotal() != null ? orden.getTotal() : 0.0;
+        double montoRecibido = dto.getMonto() != null ? dto.getMonto() : 0.0;
+        if (Math.abs(totalOrden - montoRecibido) > 0.01) {
+            throw new BusinessException(
+                    "El monto de pago no coincide con el total de la orden. " +
+                            "Total requerido: S/ " + String.format("%.2f", totalOrden) +
+                            ", Monto pagado: S/ " + String.format("%.2f", montoRecibido)
+            );
         }
         var usuario = personaRepositorio.findById(orden.getCliente().getIdPersona())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));

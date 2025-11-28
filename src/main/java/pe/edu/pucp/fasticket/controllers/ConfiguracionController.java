@@ -28,10 +28,10 @@ public class ConfiguracionController {
      * OPCIÓN 1: Listar todo (Usando tu Servicio con DTOs)
      * Recomendado para cargar la pantalla de configuración inicial.
      */
-    @GetMapping
+    @GetMapping("/configs")
     @Operation(summary = "Listar configuraciones", description = "Obtiene todas las variables configurables del sistema.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> obtenerConfiguraciones() {
-        log.info("GET /api/v1/admin/configuracion");
+        log.info("GET /api/v1/admin/configuracion/configs");
         List<ConfiguracionDTO> configs = configuracionService.getAllConfiguraciones();
         return ResponseEntity.ok(StandardResponse.success("Configuraciones obtenidas", configs));
     }
@@ -40,11 +40,11 @@ public class ConfiguracionController {
      * OPCIÓN 2: Guardar todo en lote (Botón 'Guardar Cambios')
      * Recibe la lista completa y actualiza todo de golpe.
      */
-    @PutMapping
+    @PutMapping("/configs")
     @Operation(summary = "Actualizar lote", description = "Actualiza múltiples configuraciones simultáneamente.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> actualizarConfiguraciones(
             @Valid @RequestBody List<ConfiguracionDTO> dtos) {
-        log.info("PUT /api/v1/admin/configuracion - Lote de {} items", dtos.size());
+        log.info("PUT /api/v1/admin/configuracion/configs - Lote de {} items", dtos.size());
         List<ConfiguracionDTO> configsActualizadas = configuracionService.actualizarConfiguraciones(dtos);
         return ResponseEntity.ok(StandardResponse.success("Configuraciones actualizadas", configsActualizadas));
     }
@@ -52,16 +52,19 @@ public class ConfiguracionController {
     /**
      * OPCIÓN 3: Actualizar una sola clave (Edición rápida)
      * Útil si el front quiere guardar apenas cambias un input (auto-save).
-     * Recibe ConfiguracionDTO en body (usa only 'value' y opcional 'descripcion').
+     * Recibe sólo el valor (y opcionalmente descripción) en el body.
      */
-    @PutMapping("/{key}")
+    @PatchMapping("/configs/{key}")
     @Operation(summary = "Actualizar individual", description = "Actualiza una sola variable por su clave.")
     public ResponseEntity<StandardResponse<ConfiguracionDTO>> actualizarConfiguracionIndividual(
             @PathVariable String key,
-            @Valid @RequestBody ConfiguracionDTO dto) {
+            @Valid @RequestBody ConfiguracionValueRequest request) {
 
-        log.info("PUT /api/v1/admin/configuracion/{} - nuevo valor (masked) ", key);
-        ConfiguracionDTO updated = configuracionService.actualizarPorKey(key, dto.getValue());
+        log.info("PATCH /api/v1/admin/configuracion/{} - actualización individual (valor no logueado)", key);
+        ConfiguracionDTO updated = configuracionService.actualizarPorKey(key, request.value());
         return ResponseEntity.ok(StandardResponse.success("Configuración actualizada", updated));
     }
+
+    // DTO pequeño para la operación de actualización rápida
+    public static record ConfiguracionValueRequest(String value, String descripcion) {}
 }

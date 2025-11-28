@@ -347,7 +347,7 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
             @ApiResponse(responseCode = "200", description = "Ventas calculadas exitosamente"),
             @ApiResponse(responseCode = "404", description = "Evento no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    @GetMapping("/{id}/ventas")
+    @GetMapping("/ventas")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<Double>> obtenerVentasTodosEventos() {
         log.info("GET /api/v1/eventos/ventas");

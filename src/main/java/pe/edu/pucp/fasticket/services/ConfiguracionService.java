@@ -38,6 +38,15 @@ public class ConfiguracionService {
         List<ConfiguracionGlobal> configs = configuracionRepository.findAll();
         return configuracionMapper.toDTOList(configs);
     }
+    /**
+     * Obtiene una configuración específica por su clave.
+     */
+    public ConfiguracionDTO getConfiguracionPorClave(String key) {
+        log.info("Obteniendo configuración para la clave: {}", key);
+        ConfiguracionGlobal config = configuracionRepository.findById(key)
+                .orElseThrow(() -> new ResourceNotFoundException("Configuración no encontrada con key: " + key));
+        return configuracionMapper.toDTO(config);
+    }
 
     /**
      * Actualiza un conjunto de configuraciones.

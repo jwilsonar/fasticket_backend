@@ -8,5 +8,6 @@ import pe.edu.pucp.fasticket.model.fidelizacion.DescuentosRealizados;
 @Repository
 public interface DescuentosRealizadosRepository extends JpaRepository<DescuentosRealizados, Integer> {
     List<DescuentosRealizados> findByOrdenCompra_IdOrdenCompra(Integer idOrden);
+    long countByCodigoPromocional_IdCodigoPromocionalAndOrdenCompra_Cliente_IdPersona(Integer idCodigo, Integer idCliente);
 }
 

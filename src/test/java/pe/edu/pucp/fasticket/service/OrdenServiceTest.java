@@ -486,9 +486,6 @@ class OrdenServiceTest {
         // --- 2. Configurar DTO de entrada ---
         CrearOrdenDTO dto = new CrearOrdenDTO();
         dto.setIdCliente(idCliente);
-        dto.setRuc("12345678901");
-        dto.setRazonSocial("EMPRESA SAC");
-        dto.setDireccionFiscal("Av Test 123");
 
         DatosAsistenteDTO asistente = new DatosAsistenteDTO();
         asistente.setNombres("Juan");

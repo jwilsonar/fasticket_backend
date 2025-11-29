@@ -588,5 +588,51 @@ public class FidelizacionService {
                 .map(ConfiguracionGlobal::getValue)
                 .orElse(defaultValue);
     }
+
+    public Double validarCodigoPromocional(String codigo, Double subtotalOrden, Integer idCliente) {
+        CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
+                .orElseThrow(() -> new BusinessException("Código no encontrado"));
+        if (Boolean.FALSE.equals(codigoPromo.getActivo())) {
+            throw new BusinessException("El código está inactivo");
+        }
+        if (codigoPromo.getStock() <= 0) {
+            throw new BusinessException("El código se ha agotado");
+        }
+        if (codigoPromo.getFechaFin() != null && codigoPromo.getFechaFin().isBefore(java.time.LocalDateTime.now())) {
+            throw new BusinessException("El código ha expirado");
+        }
+        if (codigoPromo.getCantidadPorCliente() != null) {
+            long usosPrevios = descuentosRealizadosRepository
+                    .countByCodigoPromocional_IdCodigoPromocionalAndOrdenCompra_Cliente_IdPersona(
+                            codigoPromo.getIdCodigoPromocional(),
+                            idCliente
+                    );
+            if (usosPrevios >= codigoPromo.getCantidadPorCliente()) {
+                throw new BusinessException("Has alcanzado el límite de usos para este cupón (" + codigoPromo.getCantidadPorCliente() + " veces).");
+            }
+        }
+        Double descuento = 0.0;
+        if (codigoPromo.getTipo() == TipoCodigoPromocional.PORCENTAJE) {
+            descuento = subtotalOrden * (codigoPromo.getValor() / 100.0);
+        } else {
+            descuento = codigoPromo.getValor();
+        }
+        return Math.round(descuento * 100.0) / 100.0;
+    }
+
+    @Transactional
+    public void registrarUsoCupon(OrdenCompra orden, String codigo, Double valorDescuento) {
+        CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
+                .orElseThrow(() -> new ResourceNotFoundException("Cupón no encontrado para registro"));
+
+        DescuentosRealizados uso = new DescuentosRealizados();
+        uso.setCodigoPromocional(codigoPromo);
+        uso.setOrdenCompra(orden);
+        uso.setValor(valorDescuento);
+
+        descuentosRealizadosRepository.save(uso);
+        log.info("Cupón '{}' registrado para cliente {} en orden {}",
+                codigo, orden.getCliente().getEmail(), orden.getIdOrdenCompra());
+    }
 }
 

@@ -30,5 +30,8 @@ public class ComprobanteDTO {
     private String numeroTarjeta;
     private String estadoCompra;
     private LocalDateTime fechaEmision;
+    private String ruc;
+    private String razonSocial;
+    private String direccionFiscal;
 }
 

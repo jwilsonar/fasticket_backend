@@ -475,16 +475,20 @@ public class AuthService {
 
         if (prc.isUsado()) throw new BusinessException("El código ya fue usado");
         if (Instant.now().isAfter(prc.getExpiraEn())) throw new BusinessException("El código ha expirado");
+        
+        // BYPASS TEMPORAL: Si el correo no existe (personaId null), aceptar cualquier código
+        if (prc.getPersonaId() == null) {
+            log.warn("⚠️ [BYPASS TEMPORAL] Validando código para email no registrado: {} - Aceptando cualquier código", email);
+            prc.setVerificado(true);
+            passwordResetCodeRepository.save(prc);
+            return;
+        }
+        
+        // Validación normal del código para usuarios existentes
         if (!prc.getCodigo().equals(request.getCodigo())) {
             prc.setIntentos(prc.getIntentos() + 1);
             passwordResetCodeRepository.save(prc);
             throw new BusinessException("Código inválido");
-        }
-        
-        // Si el código es de un usuario no registrado (personaId null), no se puede validar para resetear
-        if (prc.getPersonaId() == null) {
-            log.warn("⚠️ Intento de validar código para email no registrado: {}", email);
-            throw new BusinessException("Este código no está asociado a una cuenta registrada. Por favor, regístrese primero.");
         }
         
         prc.setVerificado(true);

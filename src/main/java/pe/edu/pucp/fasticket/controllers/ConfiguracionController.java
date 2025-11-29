@@ -28,10 +28,10 @@ public class ConfiguracionController {
      * OPCIÓN 1: Listar todo (Usando tu Servicio con DTOs)
      * Recomendado para cargar la pantalla de configuración inicial.
      */
-    @GetMapping("/configs")
+    @GetMapping
     @Operation(summary = "Listar configuraciones", description = "Obtiene todas las variables configurables del sistema.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> obtenerConfiguraciones() {
-        log.info("GET /api/v1/admin/configuracion/configs");
+        log.info("GET /api/v1/admin/configuracion");
         List<ConfiguracionDTO> configs = configuracionService.getAllConfiguraciones();
         return ResponseEntity.ok(StandardResponse.success("Configuraciones obtenidas", configs));
     }
@@ -40,11 +40,11 @@ public class ConfiguracionController {
      * OPCIÓN 2: Guardar todo en lote (Botón 'Guardar Cambios')
      * Recibe la lista completa y actualiza todo de golpe.
      */
-    @PutMapping("/configs")
+    @PutMapping
     @Operation(summary = "Actualizar lote", description = "Actualiza múltiples configuraciones simultáneamente.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> actualizarConfiguraciones(
             @Valid @RequestBody List<ConfiguracionDTO> dtos) {
-        log.info("PUT /api/v1/admin/configuracion/configs - Lote de {} items", dtos.size());
+        log.info("PUT /api/v1/admin/configuracion - Lote de {} items", dtos.size());
         List<ConfiguracionDTO> configsActualizadas = configuracionService.actualizarConfiguraciones(dtos);
         return ResponseEntity.ok(StandardResponse.success("Configuraciones actualizadas", configsActualizadas));
     }

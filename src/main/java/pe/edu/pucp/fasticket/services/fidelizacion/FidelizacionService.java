@@ -502,47 +502,47 @@ public class FidelizacionService {
         }
         OrdenCompra orden = ordenCompraRepositorio.findById(idOrdenCompra)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + idOrdenCompra));
-
-        // Validar que la orden esté en estado PENDIENTE
         if (orden.getEstado() != pe.edu.pucp.fasticket.model.compra.EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden aplicar códigos promocionales en órdenes pendientes");
         }
-
-        // Validar que no haya canje aplicado (mutuamente excluyente)
         if (orden.getDescuentoPorCanje() != null && orden.getDescuentoPorCanje() > 0) {
             throw new BusinessException("No se pueden aplicar códigos promocionales cuando se ha canjeado puntos. Los descuentos son mutuamente excluyentes.");
         }
-
-        // Validar stock
         if (codigoPromo.getStock() <= 0) {
             throw new BusinessException("El código promocional no tiene stock disponible");
         }
-
-        // Validar vigencia
         if (codigoPromo.getFechaFin() != null && codigoPromo.getFechaFin().isBefore(java.time.LocalDateTime.now())) {
             throw new BusinessException("El código promocional ha expirado");
         }
-
-        // Aplicar descuento
         Double descuento = 0.0;
         if (codigoPromo.getTipo() == TipoCodigoPromocional.PORCENTAJE) {
             descuento = orden.getSubtotal() * (codigoPromo.getValor() / 100.0);
         } else {
             descuento = codigoPromo.getValor();
         }
-
-        // Registrar descuento
+        descuento = Math.round(descuento * 100.0) / 100.0;
+        orden.setCodigoPromocionalAplicado(codigo);
+        orden.setDescuentoPromocional(descuento);
+        double totalNuevo = orden.getSubtotal()
+                - (orden.getDescuentoPorMembrecia() != null ? orden.getDescuentoPorMembrecia() : 0.0)
+                - descuento;
+        totalNuevo = Math.max(0.0, totalNuevo);
+        totalNuevo = Math.round(totalNuevo * 100.0) / 100.0;
+        orden.setTotal(totalNuevo);
+        double valorVenta = totalNuevo / 1.18;
+        double igv = totalNuevo - valorVenta;
+        orden.setIgv(Math.round(igv * 100.0) / 100.0);
+        ordenCompraRepositorio.save(orden);
         DescuentosRealizados descuentoRealizado = new DescuentosRealizados();
         descuentoRealizado.setCodigoPromocional(codigoPromo);
         descuentoRealizado.setOrdenCompra(orden);
         descuentoRealizado.setValor(descuento);
         descuentosRealizadosRepository.save(descuentoRealizado);
 
-        // Actualizar stock
         codigoPromo.setStock(codigoPromo.getStock() - 1);
         codigoPromocionalRepository.save(codigoPromo);
 
-        log.info("Descuento aplicado: {} por código promocional: {}", descuento, codigo);
+        log.info("Descuento aplicado: {} por código promocional: {}. Nuevo Total Orden: {}", descuento, codigo, orden.getTotal());
     }
 
     // --- NUEVO MÉTODO HELPER PARA AUDITORÍA ---

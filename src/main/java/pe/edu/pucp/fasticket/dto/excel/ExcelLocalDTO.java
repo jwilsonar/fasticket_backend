@@ -17,9 +17,6 @@ public class ExcelLocalDTO {
     @ExcelCellName("URL Mapa")
     private String urlMapa;
 
-    @ExcelCellName("Imagen URL")
-    private String imagenUrl;
-
     @ExcelCellName("ID Distrito")
     private Integer idDistrito;
 }

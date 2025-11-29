@@ -119,9 +119,6 @@ public class OrdenServicio {
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         orden.setActivo(true);
-        orden.setRuc(datosOrden.getRuc());
-        orden.setRazonSocial(datosOrden.getRazonSocial());
-        orden.setDireccionFiscal(datosOrden.getDireccionFiscal());
         orden.setCodigoSeguimiento(java.util.UUID.randomUUID().toString());
         orden.setItems(new ArrayList<>());
         OrdenCompra ordenGuardada = ordenCompraRepositorio.saveAndFlush(orden);
@@ -193,6 +190,25 @@ public class OrdenServicio {
 
         double subtotalInicial = ordenGuardada.getSubtotal() != null ? ordenGuardada.getSubtotal() : 0.0;
         log.info("SUBTOTAL calculado: {} (suma de precioFinal de items)", subtotalInicial);
+        if (datosOrden.getCodigoPromocional() != null && !datosOrden.getCodigoPromocional().isEmpty()) {
+            try {
+                Double descuentoPromo = fidelizacionService.validarYCalcularDescuento(
+                        datosOrden.getCodigoPromocional(),
+                        ordenGuardada.getSubtotal()
+                );
+                ordenGuardada.setCodigoPromocionalAplicado(datosOrden.getCodigoPromocional());
+                ordenGuardada.setDescuentoPromocional(descuentoPromo);
+                fidelizacionService.registrarUsoCupon(
+                        ordenGuardada,
+                        datosOrden.getCodigoPromocional(),
+                        descuentoPromo
+                );
+                log.info("Cupón '{}' aplicado. Descuento: {}", datosOrden.getCodigoPromocional(), descuentoPromo);
+            } catch (Exception e) {
+                log.warn("Error aplicando cupón al crear orden: {}", e.getMessage());
+                throw new BusinessException("Error con el cupón: " + e.getMessage());
+            }
+        }
         String nivelCliente = cliente.getNivel() != null ? cliente.getNivel().toString() : "SIN_NIVEL";
         log.info("Cliente nivel: {}", nivelCliente);
 
@@ -606,6 +622,8 @@ public class OrdenServicio {
         if (orden.getEstado() != EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden confirmar órdenes en estado PENDIENTE");
         }
+
+        // 1. Gestión del Carrito
         CarroCompras carrito = orden.getCarroCompras();
         if (carrito != null) {
             List<OrdenCompra> otrasOrdenesActivas = ordenCompraRepositorio
@@ -623,6 +641,7 @@ public class OrdenServicio {
             carrito.setFechaActualizacion(LocalDateTime.now());
             carroComprasRepository.save(carrito);
             log.info("Carrito ID {} marcado como INACTIVO (histórico).", carrito.getIdCarro());
+
             CarroCompras nuevoCarro = new CarroCompras();
             nuevoCarro.setCliente(orden.getCliente());
             nuevoCarro.setActivo(true);
@@ -636,21 +655,47 @@ public class OrdenServicio {
         } else {
             log.info("Orden ID {} no tiene carrito asociado (compra directa).", idOrden);
         }
+
+        // 2. Actualizar Estado
         orden.setEstado(EstadoCompra.APROBADO);
         orden.setActivo(false);
         orden.setFechaActualizacion(LocalDate.now());
-        ordenCompraRepositorio.save(orden);
-        log.info("Orden ID {} confirmada exitosamente.", idOrden);
+
+        // 3. Cálculo de Prorrateo y Actualización de Tickets
+        double subtotalLista = orden.getSubtotal() != null && orden.getSubtotal() > 0 ? orden.getSubtotal() : 1.0;
+        double totalPagado = orden.getTotal() != null ? orden.getTotal() : 0.0;
+
+        // Factor para distribuir el descuento proporcionalmente
+        double factorAjuste = (subtotalLista > 0) ? (totalPagado / subtotalLista) : 1.0;
+
         Map<Evento, Integer> cantidadPorEvento = new HashMap<>();
+
         for (ItemCarrito item : orden.getItems()) {
             for (Ticket ticket : item.getTickets()) {
                 ticket.setEstado(EstadoTicket.VENDIDA);
+
+                // Calcular precio real pagado por este ticket específico
+                double precioOriginal = ticket.getPrecio() != null ? ticket.getPrecio() : 0.0;
+                double precioRealPagado = precioOriginal * factorAjuste;
+
+                // Redondear a 2 decimales
+                precioRealPagado = Math.round(precioRealPagado * 100.0) / 100.0;
+
+                ticket.setPrecio(precioRealPagado);
+
+                // [IMPORTANTE] Guardar el ticket individualmente para asegurar que el precio se persista
+                // antes de que el servicio de PDF lo lea.
+                ticketRepository.save(ticket);
             }
+
+            // Lógica de aforo
             Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(item.getTipoTicket().getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Evento no encontrado para el tipo de ticket " + item.getTipoTicket().getNombre()));
             cantidadPorEvento.merge(evento, item.getCantidad(), Integer::sum);
         }
+
+        // 4. Actualizar Aforos
         for (Map.Entry<Evento, Integer> entry : cantidadPorEvento.entrySet()) {
             Evento evento = entry.getKey();
             Integer cantidadVendida = entry.getValue();
@@ -658,14 +703,23 @@ public class OrdenServicio {
                 evento.setAforoDisponible(Math.max(evento.getAforoDisponible() - cantidadVendida, 0));
             }
         }
+
+        // 5. Guardar Orden y Sincronizar
+        ordenCompraRepositorio.save(orden);
+        ordenCompraRepositorio.flush();
+
+        log.info("Orden ID {} confirmada exitosamente.", idOrden);
+
+        // 6. Enviar Correo (Async)
         try {
             log.info("Enviando correo de confirmación de compra para orden ID: {}", idOrden);
             emailService.enviarCorreoConfirmacionCompra(orden);
         } catch (Exception e) {
             log.error("Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
         }
+
+        // 7. Generar Puntos
         try {
-            // Calculamos puntos basados en el total de la orden
             fidelizacionService.generarPuntosPorCompra(
                     orden.getCliente().getIdPersona(),
                     orden.getTotal(),

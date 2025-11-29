@@ -103,7 +103,7 @@ public class EmailService {
                             "<div style='margin: 35px 0; text-align: center;'>" +
                             "  <a href='%s' style='background-color: #28a745; color: white; padding: 14px 25px; text-decoration: none; border-radius: 50px; font-weight: bold; margin: 10px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>📥 Descargar Mis Tickets (ZIP)</a>" +
                             "  <br><br>" +
-                            "  <a href='%s' style='background-color: #007bff; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-size: 14px; margin: 10px; display: inline-block;'>📄 Descargar Boleta de Pago</a>" +
+                            "  <a href='%s' style='background-color: #007bff; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-size: 14px; margin: 10px; display: inline-block;'>📄 Descargar Comprobante de Pago</a>" +
                             "</div>" +
                             "<p style='color: #666; font-size: 13px; text-align: center; margin-top: 30px;'>Estos enlaces son seguros y únicos para tu compra.</p>" +
                             "<hr style='border:none;border-top:1px solid #eee;margin:20px 0;'>" +

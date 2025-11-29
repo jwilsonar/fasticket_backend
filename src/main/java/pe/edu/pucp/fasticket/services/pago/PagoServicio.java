@@ -70,6 +70,12 @@ public class PagoServicio {
                             ", Monto pagado: S/ " + String.format("%.2f", montoRecibido)
             );
         }
+        if (dto.getRuc() != null && !dto.getRuc().isBlank()) {
+            orden.setRuc(dto.getRuc());
+            orden.setRazonSocial(dto.getRazonSocial());
+            orden.setDireccionFiscal(dto.getDireccionFiscal());
+            ordenRepository.save(orden);
+        }
         var usuario = personaRepositorio.findById(orden.getCliente().getIdPersona())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         String ultimos4 = dto.getNumeroTarjeta().substring(dto.getNumeroTarjeta().length() - 4);
@@ -131,7 +137,10 @@ public class PagoServicio {
                 pago.getMetodo(),
                 "XXXX-XXXX-XXXX-" + ultimos4,
                 pago.getEstado().toString(),
-                comprobante.getFechaEmision()
+                comprobante.getFechaEmision(),
+                orden.getRuc(),
+                orden.getRazonSocial(),
+                orden.getDireccionFiscal()
         );
     }
 
@@ -143,29 +152,42 @@ public class PagoServicio {
      * @throws IOException Si ocurre un error al generar el PDF
      */
     public byte[] generarComprobantePdf(OrdenCompra orden) throws IOException {
-        log.info("Generando PDF Premium para orden ID: {}", orden.getIdOrdenCompra());
+        log.info("Generando PDF (Boleta/Factura) para orden ID: {}", orden.getIdOrdenCompra());
 
         if (orden.getPago() == null || orden.getPago().getComprobantePago() == null) {
             throw new RuntimeException("La orden no tiene un comprobante de pago asociado");
         }
+
         ComprobantePago comprobante = orden.getPago().getComprobantePago();
         Pago pago = orden.getPago();
         OrdenResumenDTO ordenDTO = new OrdenResumenDTO(orden, tipoTicketRepositorio);
+
+        // Detectar si es Factura
+        boolean esFactura = orden.getRuc() != null && !orden.getRuc().isBlank();
+
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage();
             document.addPage(page);
+
             PDPageContentStream contentStream = new PDPageContentStream(document, page);
+
+            // Fuentes
             PDType1Font fontBold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font fontRegular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
             PDType1Font fontItalic = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
+
             float y = 750;
             float margin = 50;
             float width = page.getMediaBox().getWidth() - 2 * margin;
+
+            // ==========================================
+            // 1. CABECERA EMPRESA (IZQUIERDA)
+            // ==========================================
             contentStream.beginText();
             contentStream.setFont(fontBold, 18);
             contentStream.newLineAtOffset(margin, y);
             contentStream.showText("FASTICKET S.A.C.");
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
@@ -175,8 +197,12 @@ public class PagoServicio {
             contentStream.showText("Av. Universitaria 1801, San Miguel");
             contentStream.newLineAtOffset(0, -12);
             contentStream.showText("Lima, Perú");
-            contentStream.endText();
-            float boxWidth = 180;
+            contentStream.endText(); // <--- CERRADO
+
+            // ==========================================
+            // 2. CUADRO RUC (DERECHA)
+            // ==========================================
+            float boxWidth = 200; // Un poco más ancho para "FACTURA ELECTRÓNICA"
             float boxHeight = 60;
             float boxX = 550 - boxWidth;
             float boxY = y - 20;
@@ -185,92 +211,142 @@ public class PagoServicio {
             contentStream.addRect(boxX, boxY, boxWidth, boxHeight);
             contentStream.stroke();
 
+            // Título Dinámico
+            String tituloDoc = esFactura ? "FACTURA ELECTRÓNICA" : "BOLETA DE VENTA";
+
             contentStream.beginText();
             contentStream.setFont(fontBold, 12);
-            contentStream.newLineAtOffset(boxX + 20, boxY + 40);
-            contentStream.showText("BOLETA DE VENTA");
-            contentStream.endText();
+            // Centrar texto aprox en el cuadro
+            float textWidth = fontBold.getStringWidth(tituloDoc) / 1000 * 12;
+            float textX = boxX + (boxWidth - textWidth) / 2;
+            contentStream.newLineAtOffset(textX, boxY + 35);
+            contentStream.showText(tituloDoc);
+            contentStream.endText(); // <--- CERRADO
 
             contentStream.beginText();
             contentStream.setFont(fontRegular, 12);
-            contentStream.newLineAtOffset(boxX + 20, boxY + 20);
+            float serieWidth = fontRegular.getStringWidth("N° " + comprobante.getNumeroSerie()) / 1000 * 12;
+            float serieX = boxX + (boxWidth - serieWidth) / 2;
+            contentStream.newLineAtOffset(serieX, boxY + 15);
             contentStream.showText("N° " + comprobante.getNumeroSerie());
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             y -= 80;
+
+            // ==========================================
+            // 3. DATOS DEL CLIENTE (DINÁMICO)
+            // ==========================================
+
+            // Etiqueta Nombre
             contentStream.beginText();
             contentStream.setFont(fontBold, 10);
             contentStream.newLineAtOffset(margin, y);
-            contentStream.showText("CLIENTE:");
-            contentStream.endText();
+            contentStream.showText(esFactura ? "RAZÓN SOCIAL:" : "CLIENTE:");
+            contentStream.endText(); // <--- CERRADO
 
+            // Valor Nombre
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
-            contentStream.newLineAtOffset(margin + 60, y);
-            String nombreCompleto = orden.getCliente().getNombres() + " " + orden.getCliente().getApellidos();
-            contentStream.showText(nombreCompleto.toUpperCase());
-            contentStream.endText();
+            contentStream.newLineAtOffset(margin + 90, y);
+            String nombreMostrado = esFactura ? orden.getRazonSocial() :
+                    (orden.getCliente().getNombres() + " " + orden.getCliente().getApellidos());
+            if (nombreMostrado == null) nombreMostrado = "---";
+            contentStream.showText(nombreMostrado.toUpperCase());
+            contentStream.endText(); // <--- CERRADO
 
             y -= 15;
+
+            // Etiqueta Documento
             contentStream.beginText();
             contentStream.setFont(fontBold, 10);
             contentStream.newLineAtOffset(margin, y);
-            contentStream.showText("DOC:");
-            contentStream.endText();
+            contentStream.showText(esFactura ? "RUC:" : "DOC:");
+            contentStream.endText(); // <--- CERRADO
 
+            // Valor Documento
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
-            contentStream.newLineAtOffset(margin + 60, y);
-            String docCliente = comprobante.getDni() != null ? comprobante.getDni() : orden.getCliente().getDocIdentidad();
-            contentStream.showText(docCliente);
-            contentStream.endText();
+            contentStream.newLineAtOffset(margin + 90, y);
+            String docMostrado = esFactura ? orden.getRuc() :
+                    (comprobante.getDni() != null ? comprobante.getDni() : orden.getCliente().getDocIdentidad());
+            if (docMostrado == null) docMostrado = "---";
+            contentStream.showText(docMostrado);
+            contentStream.endText(); // <--- CERRADO
+
+            // Dirección Fiscal (Solo si es factura y existe)
+            if (esFactura && orden.getDireccionFiscal() != null) {
+                y -= 15;
+                contentStream.beginText();
+                contentStream.setFont(fontBold, 10);
+                contentStream.newLineAtOffset(margin, y);
+                contentStream.showText("DIRECCIÓN:");
+                contentStream.endText(); // <--- CERRADO
+
+                contentStream.beginText();
+                contentStream.setFont(fontRegular, 10);
+                contentStream.newLineAtOffset(margin + 90, y);
+                contentStream.showText(orden.getDireccionFiscal());
+                contentStream.endText(); // <--- CERRADO
+            }
 
             y -= 15;
+
+            // Fecha Emisión
             contentStream.beginText();
             contentStream.setFont(fontBold, 10);
             contentStream.newLineAtOffset(margin, y);
             contentStream.showText("FECHA:");
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
-            contentStream.newLineAtOffset(margin + 60, y);
+            contentStream.newLineAtOffset(margin + 90, y);
             contentStream.showText(comprobante.getFechaEmision().toLocalDate().toString() + " " +
                     comprobante.getFechaEmision().toLocalTime().toString().substring(0,5));
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
+            // ==========================================
+            // 4. DATOS DEL EVENTO (COLUMNA DERECHA)
+            // ==========================================
             float col2X = 350;
-            float eventY = y + 30;
+            float eventY = y + (esFactura ? 45 : 30); // Ajustar altura si agregamos dirección
 
             contentStream.beginText();
             contentStream.setFont(fontBold, 10);
             contentStream.newLineAtOffset(col2X, eventY);
             contentStream.showText("EVENTO:");
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
             contentStream.newLineAtOffset(col2X + 50, eventY);
             contentStream.showText(ordenDTO.getNombreEvento());
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             contentStream.beginText();
             contentStream.setFont(fontRegular, 10);
             contentStream.newLineAtOffset(col2X + 50, eventY - 12);
             contentStream.showText(ordenDTO.getNombreLocal());
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
 
             y -= 30;
+
+            // ==========================================
+            // 5. TABLA DE ITEMS
+            // ==========================================
             contentStream.moveTo(margin, y);
             contentStream.lineTo(margin + width, y);
             contentStream.stroke();
+
             y -= 15;
-            contentStream.beginText();
-            contentStream.setFont(fontBold, 10);
+
             float colCant = margin;
             float colDesc = margin + 40;
             float colUnit = margin + 350;
             float colTotal = margin + 450;
+
+            contentStream.beginText();
+            contentStream.setFont(fontBold, 10);
             contentStream.newLineAtOffset(colCant, y);
             contentStream.showText("CANT");
             contentStream.newLineAtOffset(colDesc - colCant, 0);
@@ -279,116 +355,168 @@ public class PagoServicio {
             contentStream.showText("P. UNIT");
             contentStream.newLineAtOffset(colTotal - colUnit, 0);
             contentStream.showText("IMPORTE");
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
+
             y -= 5;
             contentStream.moveTo(margin, y);
             contentStream.lineTo(margin + width, y);
             contentStream.stroke();
+
             y -= 15;
+
             contentStream.setFont(fontRegular, 10);
+
             for (ItemResumenDTO item : ordenDTO.getItems()) {
+                // Cantidad
                 contentStream.beginText();
                 contentStream.newLineAtOffset(colCant, y);
                 contentStream.showText(String.valueOf(item.getCantidad()));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
+                // Descripción
                 contentStream.beginText();
                 contentStream.newLineAtOffset(colDesc, y);
                 contentStream.showText("Entrada " + item.getNombreTipoTicket());
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
+                // Unitario
                 contentStream.beginText();
                 contentStream.newLineAtOffset(colUnit, y);
                 contentStream.showText(String.format("%.2f", item.getPrecioUnitario()));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
+                // Total línea
                 contentStream.beginText();
                 contentStream.newLineAtOffset(colTotal, y);
                 double importe = item.getPrecioUnitario() * item.getCantidad();
                 contentStream.showText(String.format("%.2f", importe));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
                 y -= 15;
+
+                // Paginación simple
                 if (y < 100) {
-                    contentStream.close();
+                    contentStream.close(); // Cerrar stream de página actual
                     PDPage newPage = new PDPage();
                     document.addPage(newPage);
-                    contentStream = new PDPageContentStream(document, newPage);
+                    contentStream = new PDPageContentStream(document, newPage); // Abrir nuevo stream
                     y = 750;
                     contentStream.setFont(fontRegular, 10);
                 }
             }
+
             y -= 10;
             contentStream.moveTo(margin, y);
             contentStream.lineTo(margin + width, y);
             contentStream.stroke();
+
+            // ==========================================
+            // 6. TOTALES
+            // ==========================================
             y -= 20;
             float xLabels = 350;
             float xValues = 450;
+
+            // Subtotal
             if (orden.getSubtotal() != null) {
                 contentStream.beginText();
                 contentStream.setFont(fontBold, 10);
                 contentStream.newLineAtOffset(xLabels, y);
                 contentStream.showText("SUBTOTAL:");
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
                 contentStream.beginText();
                 contentStream.setFont(fontRegular, 10);
                 contentStream.newLineAtOffset(xValues, y);
                 contentStream.showText("S/ " + String.format("%.2f", orden.getSubtotal()));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
                 y -= 15;
             }
+
+            // Descuento Membresía
             if (orden.getDescuentoPorMembrecia() != null && orden.getDescuentoPorMembrecia() > 0) {
                 contentStream.beginText();
                 contentStream.setFont(fontBold, 10);
                 contentStream.newLineAtOffset(xLabels, y);
-                contentStream.showText("DESCUENTO:");
-                contentStream.endText();
+                contentStream.showText("DSCTO SOCIO:");
+                contentStream.endText(); // <--- CERRADO
+
                 contentStream.beginText();
                 contentStream.setFont(fontRegular, 10);
                 contentStream.newLineAtOffset(xValues, y);
                 contentStream.showText("- S/ " + String.format("%.2f", orden.getDescuentoPorMembrecia()));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
                 y -= 15;
             }
+
+            // Descuento Promocional (Cupón)
+            if (orden.getDescuentoPromocional() != null && orden.getDescuentoPromocional() > 0) {
+                contentStream.beginText();
+                contentStream.setFont(fontBold, 10);
+                contentStream.newLineAtOffset(xLabels, y);
+                contentStream.showText("CUPÓN (" + (orden.getCodigoPromocionalAplicado() != null ? orden.getCodigoPromocionalAplicado() : "") + "):");
+                contentStream.endText(); // <--- CERRADO
+
+                contentStream.beginText();
+                contentStream.setFont(fontRegular, 10);
+                contentStream.newLineAtOffset(xValues, y);
+                contentStream.showText("- S/ " + String.format("%.2f", orden.getDescuentoPromocional()));
+                contentStream.endText(); // <--- CERRADO
+                y -= 15;
+            }
+
+            // IGV
             if (orden.getIgv() != null) {
                 contentStream.beginText();
                 contentStream.setFont(fontBold, 10);
                 contentStream.newLineAtOffset(xLabels, y);
                 contentStream.showText("IGV (18%):");
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
+
                 contentStream.beginText();
                 contentStream.setFont(fontRegular, 10);
                 contentStream.newLineAtOffset(xValues, y);
                 contentStream.showText("S/ " + String.format("%.2f", orden.getIgv()));
-                contentStream.endText();
+                contentStream.endText(); // <--- CERRADO
                 y -= 15;
             }
+
+            // TOTAL FINAL
             y -= 5;
             contentStream.setStrokingColor(Color.BLACK);
             contentStream.setLineWidth(1.5f);
             contentStream.moveTo(xLabels - 10, y);
             contentStream.lineTo(margin + width, y);
             contentStream.stroke();
+
             y -= 20;
             contentStream.beginText();
             contentStream.setFont(fontBold, 14);
             contentStream.newLineAtOffset(xLabels, y);
             contentStream.showText("TOTAL:");
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
+
             contentStream.beginText();
             contentStream.setFont(fontBold, 14);
             contentStream.newLineAtOffset(xValues, y);
             contentStream.showText("S/ " + String.format("%.2f", orden.getTotal()));
-            contentStream.endText();
+            contentStream.endText(); // <--- CERRADO
+
+            // PIE DE PÁGINA
             y -= 50;
             contentStream.beginText();
             contentStream.setFont(fontItalic, 8);
             contentStream.newLineAtOffset(margin, y);
-            contentStream.showText("Gracias por tu compra. Este documento es un comprobante electrónico.");
+            contentStream.showText("Gracias por tu compra. Este documento es un comprobante electrónico generado automáticamente.");
             contentStream.newLineAtOffset(0, -10);
-            contentStream.showText("Método de pago: " + (pago.getMetodo() != null ? pago.getMetodo() : "N/A"));
-            contentStream.endText();
-            contentStream.close();
+            contentStream.showText("Método de pago: " + (pago.getMetodo() != null ? pago.getMetodo() : "Tarjeta"));
+            contentStream.endText(); // <--- CERRADO
+
+            contentStream.close(); // Cierre final del stream
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             document.save(baos);
-            log.info("PDF Premium generado exitosamente para orden ID: {}", orden.getIdOrdenCompra());
+            log.info("PDF generado exitosamente (FACTURA/BOLETA) para orden ID: {}", orden.getIdOrdenCompra());
             return baos.toByteArray();
         }
     }

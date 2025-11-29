@@ -343,26 +343,6 @@ public class OrdenController {
     }
 
     @Operation(
-            summary = "Aplicar código promocional",
-            description = "Aplica un cupón de descuento a una orden PENDIENTE y recalcula el total."
-    )
-    @PutMapping("/{idOrden}/aplicar-cupon")
-    @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenResumenDTO>> aplicarCupon(
-            @PathVariable Integer idOrden,
-            @RequestParam String codigo) {
-
-        log.info("Solicitud para aplicar cupón '{}' a la orden {}", codigo, idOrden);
-        fidelizacionService.aplicarDescuentoPorCodigoPromocional(idOrden, codigo);
-        OrdenCompra ordenActualizada = ordenCompraRepositorio.findByIdWithAllDetails(idOrden)
-                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada"));
-        return ResponseEntity.ok(StandardResponse.success(
-                "Cupón aplicado exitosamente.",
-                new OrdenResumenDTO(ordenActualizada, tipoTicketRepositorio)
-        ));
-    }
-
-    @Operation(
             summary = "Asignar Asistentes y Crear Orden desde Carrito",
             description = "Crea una orden desde un carrito existente asignando asistentes a cada ticket. Requiere rol CLIENTE.",
             security = @SecurityRequirement(name = "Bearer Authentication")
@@ -389,4 +369,29 @@ public class OrdenController {
                 .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden, tipoTicketRepositorio)));
     }
 
+    @Operation(
+            summary = "Validar cupón (Simulación)",
+            description = "Verifica si un código es válido y retorna el monto de descuento calculado, sin aplicarlo ni restar stock."
+    )
+    @GetMapping("/validar-cupon")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Double>> validarCupon(
+            @RequestParam String codigo,
+            @RequestParam Double montoTotal,
+            Authentication authentication) {
+
+        try {
+            Integer idCliente = obtenerIdUsuarioLogueado(authentication);
+            Double descuento = fidelizacionService.validarCodigoPromocional(codigo, montoTotal, idCliente);
+
+            return ResponseEntity.ok(StandardResponse.success(
+                    "Cupón válido. Descuento aplicable: S/ " + descuento,
+                    descuento
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    new StandardResponse<>(false, e.getMessage(), 0.0)
+            );
+        }
+    }
 }

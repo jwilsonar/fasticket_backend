@@ -315,10 +315,21 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
         try {
             List<EventoResponseDTO> topEventos = eventoService.listarTopEventosPopulares(topN);
             
-            StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success(
-                "Top " + topN + " eventos populares obtenidos exitosamente", 
-                topEventos
-            );
+            int topEventosLength = topEventos.size();
+            StandardResponse<List<EventoResponseDTO>> response;
+            if (topEventosLength < topN) {
+                log.warn("Se solicitaron {} eventos populares, pero solo se encontraron {}", topN, topEventosLength);
+                response = StandardResponse.success(
+                    "Solo se encontraron " + topEventosLength + " eventos populares", 
+                    topEventos
+                );
+            }else{
+                log.info("Se encontraron los {} eventos populares solicitados", topN);
+                response = StandardResponse.success(
+                    "Top " + topN + " eventos populares obtenidos exitosamente", 
+                    topEventos
+                );
+            }
             
             return ResponseEntity.ok(response);
             

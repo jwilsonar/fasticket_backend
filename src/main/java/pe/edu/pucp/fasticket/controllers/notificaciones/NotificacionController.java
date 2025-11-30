@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.controllers.notificaciones;
 
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,6 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 import lombok.RequiredArgsConstructor;
 import pe.edu.pucp.fasticket.services.notificaciones.EmailService;
 
+@Tag(
+        name = "Test de Notificaciones",
+        description = "API para testear el funcionamiento de las notificaciones"
+)
 @RestController
 @RequestMapping("/notificacion")
 @RequiredArgsConstructor

@@ -1,6 +1,7 @@
 package pe.edu.pucp.fasticket.repository.eventos;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -15,4 +16,6 @@ public interface LocalesRepositorio extends JpaRepository<Local, Integer> {
     boolean existsByNombreIgnoreCase(String nombre);
     
     List<Local> findByNombreContainingIgnoreCase(String nombre);
+
+    Optional<Local> findByNombreIgnoreCase(String nombre);
 }

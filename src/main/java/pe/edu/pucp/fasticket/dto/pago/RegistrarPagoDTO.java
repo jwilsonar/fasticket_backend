@@ -11,16 +11,15 @@ public class RegistrarPagoDTO {
     private String nombreTitular;
     private String correo;
 
-    /**Confirmar que tiene 16 dígitos, regex*/
     @Pattern(
             regexp = "^\\d{16}$",
             message = "El número de tarjeta debe tener exactamente 16 dígitos"
     )
     private String numeroTarjeta;
-    /**Validación de que la fecha sea futura*/
+
     @Future
     private LocalDate fechaCaducidad;
-    /**Valida que el CVV sea un número de 3 dígitos*/
+
     @Pattern(
             regexp = "^\\d{3}$",
             message = "El CVV debe tener exactamente 3 dígitos"
@@ -29,4 +28,7 @@ public class RegistrarPagoDTO {
     private Integer numeroCuotas;
     private Double monto;
     private Integer idUsuario;
+    private String ruc;
+    private String razonSocial;
+    private String direccionFiscal;
 }

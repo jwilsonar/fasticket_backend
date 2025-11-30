@@ -43,6 +43,7 @@ import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
 import pe.edu.pucp.fasticket.security.UserDetailsImpl;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
+import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
 @Tag(
         name = "Órdenes de Compra",
@@ -59,6 +60,7 @@ public class OrdenController {
     private final OrdenServicio ordenServicio;
     private final OrdenCompraRepositorio ordenCompraRepositorio;
     private final TipoTicketRepositorio tipoTicketRepositorio;
+    private final FidelizacionService fidelizacionService;
 
     @Operation(
             summary = "Crear nueva orden (Checkout directo)",
@@ -217,33 +219,6 @@ public class OrdenController {
     }
 
     @Operation(
-            summary = "Asignar Asistentes y Crear Orden desde Carrito",
-            description = "Crea una orden desde un carrito existente asignando asistentes a cada ticket. Requiere rol CLIENTE.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "201", description = "Orden creada exitosamente",
-                    content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
-            ),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos o carrito vacío", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Carrito no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "No autenticado"),
-            @ApiResponse(responseCode = "403", description = "Sin permisos")
-    })
-    @PostMapping("/checkout-carrito/{idCarrito}")
-    @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<OrdenResumenDTO>> checkoutDesdeCarrito(
-            @Parameter(description = "ID del carrito de compras", required = true, example = "1")
-            @PathVariable Integer idCarrito,
-            @Valid @RequestBody CheckoutCarritoRequestDTO request) {
-        OrdenCompra orden = ordenServicio.checkoutDesdeCarrito(idCarrito, request);
-        log.info("POST /api/v1/ordenes/checkout-carrito/{} - Orden ID: {}", idCarrito, orden.getIdOrdenCompra());
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden, tipoTicketRepositorio)));
-    }
-
-    @Operation(
             summary = "Listar órdenes de compra",
             description = "Lista órdenes según el rol del usuario. Clientes ven solo sus órdenes, administradores ven todas. Permite filtrar por estado.",
             security = @SecurityRequirement(name = "Bearer Authentication")
@@ -365,5 +340,58 @@ public class OrdenController {
         headers.setContentLength(pdfContent.length);
 
         return new ResponseEntity<>(pdfContent, headers, HttpStatus.OK);
+    }
+
+    @Operation(
+            summary = "Asignar Asistentes y Crear Orden desde Carrito",
+            description = "Crea una orden desde un carrito existente asignando asistentes a cada ticket. Requiere rol CLIENTE.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201", description = "Orden creada exitosamente",
+                    content = @Content(schema = @Schema(implementation = OrdenResumenDTO.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o carrito vacío", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Carrito no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    @PostMapping("/checkout-carrito/{idCarrito}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<OrdenResumenDTO>> checkoutDesdeCarrito(
+            @Parameter(description = "ID del carrito de compras", required = true, example = "1")
+            @PathVariable Integer idCarrito,
+            @Valid @RequestBody CheckoutCarritoRequestDTO request) {
+        OrdenCompra orden = ordenServicio.checkoutDesdeCarrito(idCarrito, request);
+        log.info("POST /api/v1/ordenes/checkout-carrito/{} - Orden ID: {}", idCarrito, orden.getIdOrdenCompra());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(StandardResponse.success("Orden creada, pendiente de pago.", new OrdenResumenDTO(orden, tipoTicketRepositorio)));
+    }
+
+    @Operation(
+            summary = "Validar cupón (Simulación)",
+            description = "Verifica si un código es válido y retorna el monto de descuento calculado, sin aplicarlo ni restar stock."
+    )
+    @GetMapping("/validar-cupon")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<Double>> validarCupon(
+            @RequestParam String codigo,
+            @RequestParam Double montoTotal,
+            Authentication authentication) {
+
+        try {
+            Integer idCliente = obtenerIdUsuarioLogueado(authentication);
+            Double descuento = fidelizacionService.validarCodigoPromocional(codigo, montoTotal, idCliente);
+
+            return ResponseEntity.ok(StandardResponse.success(
+                    "Cupón válido. Descuento aplicable: S/ " + descuento,
+                    descuento
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    new StandardResponse<>(false, e.getMessage(), 0.0)
+            );
+        }
     }
 }

@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -21,6 +23,7 @@ import pe.edu.pucp.fasticket.repository.eventos.TicketRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 import pe.edu.pucp.fasticket.mapper.TicketMapper;
 
+import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
@@ -82,66 +85,171 @@ public class TicketService {
 
     public byte[] generarPdfDeTicket(Ticket ticket) throws IOException {
         try (PDDocument document = new PDDocument()) {
-            PDPage page = new PDPage();
+            PDPage page = new PDPage(PDRectangle.A4);
             document.addPage(page);
 
             PDPageContentStream contentStream = new PDPageContentStream(document, page);
+
+            // Colores (Paleta Elegante)
+            Color colorOscuro = new Color(33, 33, 33);      // Casi negro
+            Color colorGris = new Color(100, 100, 100);     // Gris texto
+            Color colorAcento = new Color(220, 20, 60);
+            Color colorBarraSuperior = new Color(178, 34, 34);// Azul moderno (iOS style)
+            Color colorFondoClaro = new Color(245, 245, 245); // Gris muy suave para fondo
+
+            // Fuentes
             PDType1Font fontBold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
-            PDType1Font font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDType1Font fontRegular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
 
+            float pageWidth = page.getMediaBox().getWidth();
+            float pageHeight = page.getMediaBox().getHeight();
+            float margin = 40;
+            float width = pageWidth - 2 * margin;
+
+            // ==========================================
+            // 1. FONDO Y MARCO (Estilo Tarjeta)
+            // ==========================================
+
+            // Fondo de la tarjeta
+            float cardTopY = pageHeight - 100;
+            float cardHeight = 500;
+
+            contentStream.setNonStrokingColor(Color.WHITE);
+            contentStream.addRect(margin, cardTopY - cardHeight, width, cardHeight);
+            contentStream.fill();
+
+            // Borde elegante
+            contentStream.setStrokingColor(colorOscuro);
+            contentStream.setLineWidth(1.5f);
+            contentStream.addRect(margin, cardTopY - cardHeight, width, cardHeight);
+            contentStream.stroke();
+
+            // Barra Superior de Color
+            contentStream.setNonStrokingColor(colorBarraSuperior);
+            contentStream.addRect(margin, cardTopY - 60, width, 60);
+            contentStream.fill();
             contentStream.beginText();
-            contentStream.setFont(fontBold, 18);
-            contentStream.newLineAtOffset(150, 750);
-            contentStream.showText("Fasticket - Tu Entrada Digital");
+            contentStream.setNonStrokingColor(Color.WHITE);
+            contentStream.setFont(fontBold, 22);
+            contentStream.newLineAtOffset(margin + 20, cardTopY - 40);
+            contentStream.showText("FASTICKET");
             contentStream.endText();
 
             contentStream.beginText();
+            contentStream.setFont(fontRegular, 12);
+            String textoTicket = "TICKET DE ACCESO";
+            float anchoTexto = fontRegular.getStringWidth(textoTicket) / 1000 * 12;
+            contentStream.newLineAtOffset(pageWidth - margin - 20 - anchoTexto, cardTopY - 38);
+            contentStream.showText(textoTicket);
+            contentStream.endText();
+
+            // ==========================================
+            // 3. INFORMACIÓN DEL EVENTO (Destacada)
+            // ==========================================
+            float y = cardTopY - 100;
+            float leftCol = margin + 30;
+
+            // Nombre del Evento (Grande)
+            contentStream.beginText();
+            contentStream.setNonStrokingColor(colorAcento);
+            contentStream.setFont(fontBold, 24);
+            contentStream.newLineAtOffset(leftCol, y);
+            contentStream.showText(ticket.getEvento().getNombre().toUpperCase());
+            contentStream.endText();
+
+            y -= 35;
+
+            // Fecha y Hora
+            contentStream.beginText();
+            contentStream.setNonStrokingColor(colorOscuro);
             contentStream.setFont(fontBold, 14);
-            contentStream.newLineAtOffset(50, 680);
-            contentStream.showText(ticket.getEvento().getNombre());
-            contentStream.setFont(font, 12);
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText("Fecha: " + ticket.getEvento().getFechaEvento().toString());
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText("Lugar: " + ticket.getEvento().getLocal().getNombre());
+            contentStream.newLineAtOffset(leftCol, y);
+            contentStream.showText(ticket.getEvento().getFechaEvento().toString());
+            contentStream.setFont(fontRegular, 14);
+            contentStream.showText("  |  " + ticket.getEvento().getHoraInicio());
             contentStream.endText();
 
+            y -= 25;
+
+            // Lugar
             contentStream.beginText();
-            contentStream.setFont(fontBold, 14);
-            contentStream.newLineAtOffset(50, 600);
-            contentStream.showText("Entrada: " + ticket.getTipoTicket().getNombre());
-            contentStream.setFont(font, 12);
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText("Zona: " + ticket.getTipoTicket().getZona().getNombre());
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText("Precio Pagado: S/ " + String.format("%.2f", ticket.getPrecio()));
+            contentStream.setNonStrokingColor(colorGris);
+            contentStream.setFont(fontRegular, 12);
+            contentStream.newLineAtOffset(leftCol, y);
+            contentStream.showText(ticket.getEvento().getLocal().getNombre());
             contentStream.endText();
 
-            contentStream.beginText();
-            contentStream.setFont(fontBold, 14);
-            contentStream.newLineAtOffset(50, 520);
-            contentStream.showText("Asistente:");
-            contentStream.setFont(font, 12);
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText(ticket.getNombreAsistente() + " " + ticket.getApellidoAsistente());
-            contentStream.newLineAtOffset(0, -20);
-            contentStream.showText(ticket.getTipoDocumentoAsistente().toString() + ": " + ticket.getDocumentoAsistente());
-            contentStream.endText();
+            // Línea divisoria punteada (Simulada)
+            y -= 30;
+            contentStream.setStrokingColor(Color.LIGHT_GRAY);
+            contentStream.setLineWidth(1);
+            contentStream.moveTo(leftCol, y);
+            contentStream.lineTo(pageWidth - margin - 30, y);
+            contentStream.stroke();
+
+            // ==========================================
+            // 4. DETALLES DEL ASISTENTE (Grid)
+            // ==========================================
+            y -= 40;
+            float col2 = pageWidth / 2;
+
+            // Columna 1: Asistente
+            dibujarCampo(contentStream, fontBold, fontRegular, leftCol, y, "ASISTENTE",
+                    ticket.getNombreAsistente() + " " + ticket.getApellidoAsistente(), colorGris, colorOscuro);
+
+            // Columna 2: Documento
+            dibujarCampo(contentStream, fontBold, fontRegular, col2, y, "DOCUMENTO",
+                    ticket.getDocumentoAsistente(), colorGris, colorOscuro);
+
+            y -= 50;
+
+            // Columna 1: Tipo de Entrada
+            dibujarCampo(contentStream, fontBold, fontRegular, leftCol, y, "TIPO DE ENTRADA",
+                    ticket.getTipoTicket().getNombre(), colorGris, colorOscuro);
+
+            // Columna 2: Zona
+            dibujarCampo(contentStream, fontBold, fontRegular, col2, y, "ZONA / UBICACIÓN",
+                    ticket.getTipoTicket().getZona().getNombre(), colorGris, colorOscuro);
 
             if (ticket.getQrImage() != null) {
                 PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, ticket.getQrImage(), "QR");
-                contentStream.drawImage(pdImage, 200, 250, 200, 200);
-            } else {
+
+                float qrSize = 140;
+                float qrX = (pageWidth - qrSize) / 2;
+                float qrY = cardTopY - cardHeight + 40;
+                contentStream.drawImage(pdImage, qrX, qrY, qrSize, qrSize);
                 contentStream.beginText();
-                contentStream.setFont(font, 12);
-                contentStream.newLineAtOffset(200, 350);
-                contentStream.showText("Error: Imagen QR no generada.");
+                contentStream.setNonStrokingColor(colorGris);
+                contentStream.setFont(fontRegular, 8);
+                String codigoTexto = "ID: " + ticket.getCodigoQr();
+                float textWidth = fontRegular.getStringWidth(codigoTexto) / 1000 * 8;
+                contentStream.newLineAtOffset((pageWidth - textWidth) / 2, qrY - 15);
+                contentStream.showText(codigoTexto);
                 contentStream.endText();
             }
+
             contentStream.close();
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             document.save(baos);
             return baos.toByteArray();
         }
+    }
+
+    // Método auxiliar para dibujar pares "Título - Valor" limpios
+    private void dibujarCampo(PDPageContentStream stream, PDFont fontLabel, PDFont fontValue,
+                              float x, float y, String label, String value, Color cLabel, Color cValue) throws IOException {
+        stream.beginText();
+        stream.setNonStrokingColor(cLabel);
+        stream.setFont(fontLabel, 9);
+        stream.newLineAtOffset(x, y);
+        stream.showText(label);
+        stream.endText();
+
+        stream.beginText();
+        stream.setNonStrokingColor(cValue);
+        stream.setFont(fontValue, 12);
+        stream.newLineAtOffset(x, y - 15);
+        stream.showText(value.toUpperCase());
+        stream.endText();
     }
 }

@@ -14,12 +14,12 @@ public class ExcelLocalDTO {
     @ExcelCellName("Aforo Total")
     private Integer aforoTotal;
 
-    @ExcelCellName("URL Mapa")
-    private String urlMapa;
+    @ExcelCellName("Departamento")
+    private String departamento;
 
-    @ExcelCellName("Imagen URL")
-    private String imagenUrl;
+    @ExcelCellName("Provincia")
+    private String provincia;
 
-    @ExcelCellName("ID Distrito")
-    private Integer idDistrito;
+    @ExcelCellName("Distrito")
+    private String distrito;
 }

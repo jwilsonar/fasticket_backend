@@ -73,6 +73,11 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         Cliente cliente = clienteRepository.findById(request.getIdCliente())
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
 
+        // Validar edad del cliente para eventos +18
+        if (tipoTicket.getEvento() != null) {
+            validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
+        }
+
         validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
 
         List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
@@ -239,6 +244,54 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
     }
 
+    /**
+     * Valida que el cliente tenga la edad mínima requerida para eventos +18.
+     * Si el evento no permite menores de edad (menoresDeEdadPermitidos == false),
+     * el cliente debe tener al menos 18 años.
+     * 
+     * @param evento El evento para el cual se está validando
+     * @param cliente El cliente que intenta comprar
+     * @throws BusinessException Si el cliente no cumple con la edad mínima requerida
+     */
+    private void validarEdadClienteParaEvento(pe.edu.pucp.fasticket.model.eventos.Evento evento, Cliente cliente) {
+        if (evento == null) {
+            log.warn("Evento es null, no se puede validar edad");
+            return;
+        }
+
+        // Si el evento permite menores de edad, no hay restricción
+        if (Boolean.TRUE.equals(evento.getMenoresDeEdadPermitidos())) {
+            return;
+        }
+
+        // Si menoresDeEdadPermitidos es false, el evento es +18
+        if (Boolean.FALSE.equals(evento.getMenoresDeEdadPermitidos())) {
+            if (cliente.getFechaNacimiento() == null) {
+                throw new BusinessException("No se puede verificar la edad. Por favor, actualiza tu fecha de nacimiento en tu perfil.");
+            }
+
+            LocalDate fechaNacimiento = cliente.getFechaNacimiento();
+            LocalDate fechaActual = LocalDate.now();
+            
+            // Calcular edad comparando fecha de nacimiento con fecha actual
+            int edad = fechaActual.getYear() - fechaNacimiento.getYear();
+            
+            // Ajustar si aún no ha cumplido años este año
+            if (fechaActual.getMonthValue() < fechaNacimiento.getMonthValue() ||
+                (fechaActual.getMonthValue() == fechaNacimiento.getMonthValue() &&
+                 fechaActual.getDayOfMonth() < fechaNacimiento.getDayOfMonth())) {
+                edad--;
+            }
+
+            if (edad < 18) {
+                throw new BusinessException("Este evento es solo para mayores de 18 años. Tu edad actual es " + edad + " años.");
+            }
+
+            log.debug("Validación de edad exitosa: Cliente ID {} tiene {} años para evento +18 ID {}", 
+                    cliente.getIdPersona(), edad, evento.getIdEvento());
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public CarroComprasDTO verCarrito(Integer idCliente) {
@@ -250,22 +303,53 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private CarroComprasDTO convertirADTO(CarroCompras carro) {
         CarroComprasDTO dto = new CarroComprasDTO();
         dto.setIdCarro(carro.getIdCarro());
-        dto.setSubtotal(carro.getSubtotal());
-        dto.setTotal(carro.getTotal());
 
-        dto.setItems(carro.getItems().stream().map(item -> {
+        // Convertimos la lista de items y calculamos datos al vuelo
+        List<ItemCarritoDTO> itemsDTO = carro.getItems().stream().map(item -> {
             ItemCarritoDTO itemDTO = new ItemCarritoDTO();
             itemDTO.setIdItemCarrito(item.getIdItemCarrito());
             itemDTO.setCantidad(item.getCantidad());
 
             if (item.getTipoTicket() != null) {
-                itemDTO.setIdTipoTicket(item.getTipoTicket().getIdTipoTicket());
-                itemDTO.setNombreTicket(item.getTipoTicket().getNombre());
-                itemDTO.setPrecioUnitario(item.getPrecio());
-                itemDTO.setSubtotal(item.getPrecio() * item.getCantidad());
+                TipoTicket tipo = item.getTipoTicket();
+
+                // 1. Datos Básicos
+                itemDTO.setIdTipoTicket(tipo.getIdTipoTicket());
+                itemDTO.setNombreTicket(tipo.getNombre());
+
+                // 2. Precio BASE (Original de BD)
+                itemDTO.setPrecioBase(tipo.getPrecio());
+
+                // 3. Calcular Descuentos/Etiquetas según la fecha de HOY
+                TipoTicket.DetallePrecio detalle = tipo.getDetallePrecioActual();
+
+                itemDTO.setEtiquetaPrecio(detalle.getEtiqueta()); // "PREVENTA"
+                itemDTO.setTipoAjuste(detalle.getTipoAjuste());   // "DESCUENTO"
+
+                // Calcular porcentaje visual: Si factor es 0.8 -> |1 - 0.8| = 0.2 -> 20%
+                double pct = Math.abs(1.0 - detalle.getFactor()) * 100.0;
+                itemDTO.setPorcentaje(Math.round(pct * 100.0) / 100.0);
+
+                // 4. Precio Final Unitario
+                double precioFinalCalculado = tipo.getPrecio() * detalle.getFactor();
+                itemDTO.setPrecioUnitario(precioFinalCalculado);
+
+                // 5. Subtotal de la línea
+                itemDTO.setSubtotal(precioFinalCalculado * item.getCantidad());
             }
             return itemDTO;
-        }).collect(Collectors.toList()));
+        }).collect(Collectors.toList());
+
+        dto.setItems(itemsDTO);
+
+        // Recalcular Totales del Carrito basados en los items procesados
+        // (Es más seguro recalcular aquí para que coincida con lo que mostramos)
+        double sumaTotal = itemsDTO.stream()
+                .mapToDouble(ItemCarritoDTO::getSubtotal)
+                .sum();
+
+        dto.setSubtotal(sumaTotal);
+        dto.setTotal(sumaTotal); // (Aquí agregarías descuentos globales si tuvieras)
 
         return dto;
     }
@@ -299,3 +383,5 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         return convertirADTO(carroGuardado);
     }
 }
+
+

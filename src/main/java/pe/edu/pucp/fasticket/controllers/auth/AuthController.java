@@ -27,7 +27,11 @@ import pe.edu.pucp.fasticket.dto.auth.CambioContrasenaDTO;
 import pe.edu.pucp.fasticket.dto.auth.ForgotPasswordRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.LoginResponseDTO;
+import pe.edu.pucp.fasticket.dto.auth.ReenviarVerificacionRequestDTO;
 import pe.edu.pucp.fasticket.dto.auth.RegistroRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.ValidateCodeRequestDTO;
+import pe.edu.pucp.fasticket.dto.auth.VerificarCuentaRequestDTO;
+import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
@@ -45,13 +49,20 @@ public class AuthController {
 
     @Operation(
         summary = "Iniciar sesión",
-        description = "Autentica un usuario y devuelve un token JWT válido por 24 horas"
+        description = "Autentica un usuario y devuelve un token JWT válido por 24 horas. " +
+                     "Los clientes deben tener su cuenta verificada por correo electrónico antes de poder iniciar sesión. " +
+                     "Los administradores no requieren verificación de cuenta."
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
             description = "Login exitoso",
             content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Cuenta no verificada (solo clientes) o cuenta bloqueada/desactivada",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         ),
         @ApiResponse(
             responseCode = "401",
@@ -69,19 +80,19 @@ public class AuthController {
 
     @Operation(
         summary = "Registrar nuevo usuario",
-        description = "Crea una cuenta de usuario (cliente o administrador) basado en el dominio del email. " +
-                     "Los emails @pucp.edu.pe se registran como administradores, otros como clientes. " +
-                     "Devuelve un token JWT automáticamente."
+        description = "Crea una cuenta de cliente. Se envía un correo de verificación al email proporcionado. " +
+                     "El usuario debe verificar su correo haciendo clic en el enlace enviado. " +
+                     "Devuelve un token JWT automáticamente para poder usar la aplicación."
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "201",
-            description = "Usuario registrado exitosamente",
+            description = "Usuario registrado exitosamente. Se ha enviado un correo de verificación.",
             content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "Datos inválidos",
+            description = "Datos inválidos o incompletos",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         ),
         @ApiResponse(
@@ -95,9 +106,8 @@ public class AuthController {
         log.info("POST /api/v1/auth/registro - Email: {}", request.getEmail());
         LoginResponseDTO response = authService.registrarCliente(request);
         
-        String mensaje = response.getRol().equals("ADMINISTRADOR") 
-            ? "Administrador registrado exitosamente" 
-            : "Cliente registrado exitosamente";
+        String mensaje = "Registro exitoso. Se ha enviado un correo de verificación a " + request.getEmail() + 
+                        ". Por favor, verifica tu cuenta para disfrutar de todos los beneficios.";
             
         StandardResponse<LoginResponseDTO> standardResponse = StandardResponse.success(mensaje, response);
         return ResponseEntity.status(HttpStatus.CREATED).body(standardResponse);
@@ -180,57 +190,103 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "Olvido contraseña",
-            description = "Permite al usuario obtener un correo para recuperar su contraseña, si el correo existe."
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Correo enviado."
-                    //Creo en este caso no debería haber ApiResponses
-            )
-    })
-    @PutMapping("/olvido-contrasena")
-    public ResponseEntity<StandardResponse<String>> olvidoContrasena(@RequestBody ForgotPasswordRequestDTO request) {
-
-        log.info("PUT /api/v1/auth/olvido-contrasena - Correo: {}", request.getEmail());
-
-        try{
-            authService.iniciarOlvidoContrasena(request.getEmail());
-        } catch (Exception e) {
-            /**
-             * Por seguridad, no se indica si falló
-             */
-        }
-
-        StandardResponse<String> response = StandardResponse.success("Si el correo existe, se envió un código de verificación");
-        return ResponseEntity.ok(response);
-    }
-
-    @Operation(summary = "Validar código de olvido de contraseña")
-    @PostMapping("/olvido-contrasena/validar")
-    public ResponseEntity<StandardResponse<String>> validarCodigo(@RequestBody pe.edu.pucp.fasticket.dto.auth.ValidateCodeRequestDTO request) {
-        authService.validarCodigoOlvido(request);
-        return ResponseEntity.ok(StandardResponse.success("Código validado"));
-    }
-
-    @Operation(
-        summary = "Resetear contraseña por correo",
-        description = "Permite al usuario restablecer su contraseña usando su correo electrónico después de validar el código de verificación"
+        summary = "Solicitar recuperación de contraseña",
+        description = "Inicia el proceso de recuperación de contraseña enviando un código de 6 dígitos al correo electrónico. " +
+                     "Por seguridad, siempre responde con éxito independientemente de si el email existe. " +
+                     "El código expira en 10 minutos y debe ser validado antes de resetear la contraseña."
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Contraseña actualizada exitosamente"
+            description = "Solicitud procesada. Si el email existe, se envió un código de verificación."
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Error al enviar el correo de recuperación",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
+    @PutMapping("/olvido-contrasena")
+    public ResponseEntity<StandardResponse<String>> olvidoContrasena(@Valid @RequestBody ForgotPasswordRequestDTO request) {
+        log.info("PUT /api/v1/auth/olvido-contrasena - Correo: {}", request.getEmail());
+
+        // Validar que el email no esté vacío
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            log.warn("⚠️ Intento de olvido de contraseña con email vacío");
+            StandardResponse<String> response = StandardResponse.success(
+                "Si el correo existe en nuestro sistema, recibirás un código de verificación."
+            );
+            return ResponseEntity.ok(response);
+        }
+
+        try {
+            // Siempre intentar enviar el correo, sin importar si el usuario existe o no
+            log.info("📧 Procediendo con envío de correo de recuperación");
+            authService.iniciarOlvidoContrasena(request.getEmail());
+            log.info("✅ Proceso de olvido de contraseña completado exitosamente");
+            
+        } catch (BusinessException e) {
+            log.error("❌ Error de negocio al procesar olvido de contraseña: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Error inesperado al procesar olvido de contraseña: {}", e.getMessage(), e);
+            throw e;
+        }
+
+        StandardResponse<String> response = StandardResponse.success(
+            "Si el correo existe en nuestro sistema, recibirás un código de verificación. Por favor, revisa tu bandeja de entrada."
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+        summary = "Validar código de recuperación de contraseña",
+        description = "Valida el código de 6 dígitos enviado al correo electrónico. " +
+                     "El código debe ser validado antes de poder resetear la contraseña. " +
+                     "El código expira en 10 minutos desde su generación."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Código validado exitosamente. Ahora puede proceder a resetear la contraseña."
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "Datos inválidos o código no validado",
+            description = "Código inválido, expirado o ya usado",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
+            description = "No hay solicitud de recuperación vigente para este email",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
+    @PostMapping("/olvido-contrasena/validar")
+    public ResponseEntity<StandardResponse<String>> validarCodigo(@Valid @RequestBody ValidateCodeRequestDTO request) {
+        log.info("POST /api/v1/auth/olvido-contrasena/validar - Email: {}", request.getEmail());
+        authService.validarCodigoOlvido(request);
+        return ResponseEntity.ok(StandardResponse.success("Código validado exitosamente. Ahora puedes restablecer tu contraseña."));
+    }
+
+    @Operation(
+        summary = "Restablecer contraseña con código validado",
+        description = "Restablece la contraseña del usuario después de haber validado exitosamente el código de verificación. " +
+                     "El código debe estar validado y no haber sido usado previamente. " +
+                     "La nueva contraseña debe cumplir con los requisitos de seguridad y coincidir con su confirmación."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Contraseña actualizada exitosamente. Ya puedes iniciar sesión con tu nueva contraseña."
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Código no validado, ya usado, expirado, o las contraseñas no coinciden",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado o no hay código validado",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         )
     })
@@ -240,32 +296,69 @@ public class AuthController {
         
         log.info("PUT /api/v1/auth/olvido-contrasena/reset - Correo: {}", request.getEmail());
         authService.resetearContrasenaPorId(request);
-        return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada exitosamente"));
+        return ResponseEntity.ok(StandardResponse.success("Contraseña actualizada exitosamente. Ya puedes iniciar sesión con tu nueva contraseña."));
     }
 
     @Operation(
-            summary = "Verificar el token al crear una cuenta",
-            description = "Permite al usuario verificar el correo que uso al crear una cuenta"
+        summary = "Verificar cuenta de usuario",
+        description = "Verifica la cuenta de un usuario mediante el token JWT enviado por correo electrónico. " +
+                     "El token contiene el email del usuario y expira en 24 horas. " +
+                     "Una vez verificada la cuenta, el usuario puede acceder a funcionalidades exclusivas."
     )
     @ApiResponses({
-
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Token inválido o token caducado",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Token no encontrado",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            )
+        @ApiResponse(
+            responseCode = "200",
+            description = "Cuenta verificada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Token inválido, expirado o no es de verificación de cuenta",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
     })
     @PostMapping("/verificar/cuenta")
-    public ResponseEntity<StandardResponse<Void>> verificar(UserDetails userDetails, String token) {
+    public ResponseEntity<StandardResponse<Void>> verificarCuenta(@Valid @RequestBody VerificarCuentaRequestDTO request) {
+        log.info("POST /api/v1/auth/verificar/cuenta - Procesando verificación de cuenta");
+        authService.verificarCuenta(request.getToken());
+        return ResponseEntity.ok(StandardResponse.success("¡Cuenta verificada exitosamente! Ahora puedes disfrutar de todos los beneficios de Fasticket."));
+    }
 
-        log.info("POST /api/v1/auth/verificar/cuenta - token: {}", token);
-        authService.verificarCuenta(userDetails,token);
-        return ResponseEntity.ok(StandardResponse.success("Se verifico la cuenta del usuario"));
+    @Operation(
+        summary = "Reenviar correo de verificación",
+        description = "Reenvía el correo de verificación a un usuario registrado que aún no ha verificado su cuenta. " +
+                     "Solo funciona para clientes que no han verificado su correo electrónico. " +
+                     "Si el email está registrado y cumple las condiciones, se enviará un nuevo correo con el enlace de verificación."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Correo de verificación reenviado exitosamente (si el email existe y cumple las condiciones)"
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Email inválido, cuenta ya verificada, cuenta desactivada, o no es un cliente",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
+    @PostMapping("/verificar/reenviar")
+    public ResponseEntity<StandardResponse<String>> reenviarCorreoVerificacion(@Valid @RequestBody ReenviarVerificacionRequestDTO request) {
+        log.info("POST /api/v1/auth/verificar/reenviar - Email: {}", request.getEmail());
+        
+        try {
+            authService.reenviarCorreoVerificacion(request.getEmail());
+            return ResponseEntity.ok(StandardResponse.success(
+                "Si el email está registrado y no está verificado, se ha enviado un nuevo correo de verificación. " +
+                "Por favor, revisa tu bandeja de entrada y carpeta de spam."
+            ));
+        } catch (BusinessException e) {
+            // Si es una excepción de negocio (cuenta ya verificada, etc.), retornar el mensaje específico
+            return ResponseEntity.ok(StandardResponse.success(e.getMessage()));
+        }
     }
 
 }

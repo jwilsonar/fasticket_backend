@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.security;
 
+import org.junit.jupiter.api.Order;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,6 +37,35 @@ public class SecurityConfig {
     private boolean corsDevEnabled;
 
     @Bean
+    @Order(1)
+    public SecurityFilterChain oauth2SecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/oauth2/*", "/login/*", "/logout") // Solo aplica a estas rutas
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> {})
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/login/*", "/oauth2/*").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .loginPage("/login") // Tu página de login personalizada
+                        .defaultSuccessUrl("/api/v1/auth/oauth2/success", true)
+                        .failureUrl("/login?error=true")
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/")
+                        .deleteCookies("JSESSIONID")
+                )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) // Permite sesiones para OAuth2
+                );
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)

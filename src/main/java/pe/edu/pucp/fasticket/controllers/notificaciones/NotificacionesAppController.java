@@ -3,6 +3,7 @@ package pe.edu.pucp.fasticket.controllers.notificaciones;
 import java.util.List;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,6 +22,10 @@ import pe.edu.pucp.fasticket.model.notificaciones.NotificacionUsuario;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
 import pe.edu.pucp.fasticket.services.notificaciones.NotificacionAppService;
 
+@Tag(
+        name = "Notificaciones",
+        description = "API para controlar la App de notificaciones"
+)
 @RestController
 @RequestMapping("/api/v1/notificaciones")
 @RequiredArgsConstructor

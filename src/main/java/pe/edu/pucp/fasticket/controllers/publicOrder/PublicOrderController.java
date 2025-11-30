@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.controllers.publicOrder;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +18,11 @@ import pe.edu.pucp.fasticket.services.tickets.TicketService;
 import java.io.ByteArrayOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+@Tag(
+        name = "Ordenes (de compra)",
+        description = "API auxiliar para manejar órdenes de compra."
+)
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/public/ordenes") // Ruta pública

@@ -64,4 +64,11 @@ public class ConfiguracionController {
         ConfiguracionDTO updated = configuracionService.actualizarPorKey(key, dto.getValue());
         return ResponseEntity.ok(StandardResponse.success("Configuración actualizada", updated));
     }
+    @GetMapping("/{key}")
+    @Operation(summary = "Obtener configuración por clave", description = "Obtiene una configuración específica por su clave.")
+    public ResponseEntity<StandardResponse<ConfiguracionDTO>> obtenerConfiguracionPorClave(@PathVariable String key) {
+        log.info("GET /api/v1/admin/configuracion/{}", key);
+        ConfiguracionDTO config = configuracionService.getConfiguracionPorClave(key);
+        return ResponseEntity.ok(StandardResponse.success("Configuración obtenida", config));
+    }
 }

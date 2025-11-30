@@ -370,6 +370,11 @@ INSERT INTO plantillas_notificacion (tipo, asunto, html, habilitado, actualizado
                                 <p style="color: #333333; font-size: 16px; margin: 0 0 10px 0;"><strong>Orden #{{idOrden}}</strong></p>
                                 <p style="color: #666666; font-size: 18px; margin: 10px 0 0 0;"><strong>Total: S/ {{total}}</strong></p>
                             </div>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{{pdfUrl}}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 6px; font-size: 16px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    📄 Descargar Comprobante PDF
+                                </a>
+                            </div>
                             <p style="color: #666666; font-size: 16px; line-height: 1.6; margin: 20px 0 0 0;">
                                 Gracias por tu compra. Te enviaremos más detalles sobre tus tickets próximamente.
                             </p>
@@ -560,3 +565,48 @@ INSERT INTO plantillas_notificacion (tipo, asunto, html, habilitado, actualizado
 </html>',
  TRUE, NOW())
 ON CONFLICT (tipo) DO UPDATE SET asunto = EXCLUDED.asunto, html = EXCLUDED.html, habilitado = EXCLUDED.habilitado, actualizado_en = NOW();
+
+
+INSERT INTO persona (
+    id_persona, activo, apellidos, contrasenia, direccion,
+    doc_identidad, email, failed_attempts,
+    fecha_creacion, fecha_nacimiento,
+    nombres, rol, telefono, tipo_documento,
+    id_distrito
+) VALUES
+-- Cliente 14
+(14, true, 'Gómez Torres',
+ '$2a$10$/8Qpw6CGx81zvqcdr.QskO9xDmbqNc1t2Ehq3AF4hgc92syA.7ub2',
+ 'Av. Los Próceres 123',
+ '99887766', 'felipe.gomez@fasticket.com',
+ 0,
+ CURRENT_DATE, '1993-07-10',
+ 'Felipe', 'CLIENTE', '987654350', 'DNI',
+ 5),
+
+-- Cliente 15
+(15, true, 'Ramírez Soto',
+ '$2a$10$/8Qpw6CGx81zvqcdr.QskO9xDmbqNc1t2Ehq3AF4hgc92syA.7ub2',
+ 'Calle Los Eucaliptos 800',
+ '88776655', 'lucia.ramirez@fasticket.com',
+ 0,
+ CURRENT_DATE, '1998-12-01',
+ 'Lucía', 'CLIENTE', '987654351', 'DNI',
+ 6),
+
+-- Admin 16
+(16, true, 'Administrador',
+ '$2a$10$/8Qpw6CGx81zvqcdr.QskO9xDmbqNc1t2Ehq3AF4hgc92syA.7ub2',
+ 'Av. Universitaria 1801',
+ '77665544', 'superadmin@pucp.edu.pe',
+ 0,
+ CURRENT_DATE, '1980-01-01',
+ 'Super', 'ADMINISTRADOR', '987654352', 'DNI',
+ 5);
+
+INSERT INTO cliente (id_persona, nivel, puntos_acumulados) VALUES
+(14, 'BRONCE', 0),
+(15, 'ORO', 500);
+
+INSERT INTO administrador (id_persona, cargo) VALUES
+(16, 'Super Administrador General');

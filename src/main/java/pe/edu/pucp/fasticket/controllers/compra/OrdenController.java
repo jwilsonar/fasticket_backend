@@ -42,9 +42,11 @@ import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.pago.ComprobanteDePagoRepositorio;
 import pe.edu.pucp.fasticket.security.UserDetailsImpl;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
+import pe.edu.pucp.fasticket.services.S3Service;
 
 @Tag(
         name = "Órdenes de Compra",
@@ -62,6 +64,8 @@ public class OrdenController {
     private final OrdenCompraRepositorio ordenCompraRepositorio;
     private final TipoTicketRepositorio tipoTicketRepositorio;
     private final FidelizacionService fidelizacionService;
+    private final ComprobanteDePagoRepositorio comprobanteDePagoRepositorio;
+    private final S3Service s3Service;
 
     @Operation(
             summary = "Crear nueva orden (Checkout directo)",
@@ -327,20 +331,52 @@ public class OrdenController {
         if (!isAdmin && !orden.getCliente().getEmail().equals(userDetails.getUsername())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        // 3. Verificar existencia del PDF
-        if (orden.getPago() == null
-                || orden.getPago().getComprobantePago() == null
-                || orden.getPago().getComprobantePago().getPdfContenido() == null) {
+        // 3. Verificar que la orden tenga pago
+        if (orden.getPago() == null || orden.getPago().getComprobantePago() == null) {
             return ResponseEntity.notFound().build();
         }
-        // 4. Retornar bytes
-        byte[] pdfContent = orden.getPago().getComprobantePago().getPdfContenido();
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("attachment", "comprobante-ORD-" + idOrden + ".pdf");
-        headers.setContentLength(pdfContent.length);
+        
+        // 4. Cargar directamente el comprobante desde el repositorio para evitar problemas con relaciones lazy
+        pe.edu.pucp.fasticket.model.pago.ComprobantePago comprobante = comprobanteDePagoRepositorio
+                .findById(orden.getPago().getComprobantePago().getIdComprobante())
+                .orElse(null);
+        
+        // 5. Verificar que el comprobante tenga URL del PDF en S3
+        if (comprobante == null || comprobante.getPdfUrl() == null || comprobante.getPdfUrl().isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // 6. Descargar el PDF desde S3
+        try {
+            byte[] pdfContent = s3Service.downloadFile(comprobante.getPdfUrl());
+            
+            if (pdfContent == null || pdfContent.length == 0) {
+                log.error("PDF vacío descargado desde S3 para orden {}", idOrden);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+            
+            // Validar que el PDF sea válido (debe empezar con %PDF)
+            if (pdfContent.length < 4) {
+                log.error("PDF corrupto para orden {}: tamaño insuficiente ({} bytes)", idOrden, pdfContent.length);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+            String header = new String(pdfContent, 0, Math.min(4, pdfContent.length));
+            if (!header.equals("%PDF")) {
+                log.error("PDF corrupto para orden {}: no tiene header PDF válido (inicio: {})", idOrden, header);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+            
+            // 7. Retornar bytes del PDF
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "comprobante-ORD-" + idOrden + ".pdf");
+            headers.setContentLength(pdfContent.length);
 
-        return new ResponseEntity<>(pdfContent, headers, HttpStatus.OK);
+            return new ResponseEntity<>(pdfContent, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error al descargar PDF desde S3 para orden {}: {}", idOrden, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @Operation(

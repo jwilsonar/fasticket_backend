@@ -1,11 +1,13 @@
 package pe.edu.pucp.fasticket.services.pago;
 
-import java.awt.*;
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -15,6 +17,7 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
@@ -22,8 +25,9 @@ import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.pago.ComprobanteDTO;
 import pe.edu.pucp.fasticket.dto.pago.RegistrarPagoDTO;
-import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.model.compra.OrdenCompra;
+import pe.edu.pucp.fasticket.model.notificaciones.PlantillaNotificacion;
+import pe.edu.pucp.fasticket.model.notificaciones.TipoPlantilla;
 import pe.edu.pucp.fasticket.model.pago.Boleta;
 import pe.edu.pucp.fasticket.model.pago.ComprobantePago;
 import pe.edu.pucp.fasticket.model.pago.EstadoPago;
@@ -34,7 +38,10 @@ import pe.edu.pucp.fasticket.repository.pago.BoletaRepositorio;
 import pe.edu.pucp.fasticket.repository.pago.ComprobanteDePagoRepositorio;
 import pe.edu.pucp.fasticket.repository.pago.PagoRepositorio;
 import pe.edu.pucp.fasticket.repository.usuario.PersonasRepositorio;
+import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
+import pe.edu.pucp.fasticket.services.notificaciones.BrevoEmailService;
+import pe.edu.pucp.fasticket.services.notificaciones.PlantillaService;
 
 @Service
 @Slf4j
@@ -54,7 +61,14 @@ public class PagoServicio {
     private BoletaRepositorio boletaRepositorio;
     @Autowired
     private TipoTicketRepositorio tipoTicketRepositorio;
+    @Autowired
+    private BrevoEmailService brevoEmailService;
+    @Autowired
+    private PlantillaService plantillaService;
+    @Autowired
+    private S3Service s3Service;
 
+    @Transactional
     public ComprobanteDTO registrarPagoFinal(RegistrarPagoDTO dto) {
         var orden = ordenRepository.findByIdWithPagoActivo(dto.getIdOrden())
                 .orElseThrow(() -> new RuntimeException("Orden no encontrada o con pago inactivo"));
@@ -81,6 +95,8 @@ public class PagoServicio {
         pago.setOrdenCompra(orden);
         pagoRepository.save(pago);
         ordenServicio.confirmarPagoOrden(orden.getIdOrdenCompra());
+        
+        // Crear y establecer el comprobante
         ComprobantePago comprobante = new ComprobantePago();
         comprobante.setNumeroSerie(String.format("CP-%05d", pago.getIdPago()));
         comprobante.setFechaEmision(LocalDateTime.now());
@@ -92,13 +108,50 @@ public class PagoServicio {
         comprobante.setPago(pago);
         pago.setComprobantePago(comprobante);
         orden.setPago(pago);
+        
+        // Guardar el comprobante primero para tener el ID
+        comprobantePagoRepositorio.save(comprobante);
+        comprobantePagoRepositorio.flush();
+        
+        // Generar el PDF del comprobante y subirlo a S3
+        String pdfUrl = null;
         try {
             byte[] pdfBytes = generarComprobantePdf(orden);
-            comprobante.setPdfContenido(pdfBytes);
+            
+            // Validar que el PDF sea válido
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                throw new RuntimeException("El PDF generado está vacío");
+            }
+            if (pdfBytes.length < 4 || !new String(pdfBytes, 0, Math.min(4, pdfBytes.length)).equals("%PDF")) {
+                throw new RuntimeException("El PDF generado no es un archivo PDF válido");
+            }
+            
+            // Subir el PDF a S3
+            String nombreArchivo = "Comprobante_" + comprobante.getNumeroSerie() + ".pdf";
+            pdfUrl = s3Service.uploadFileFromBytes(
+                pdfBytes, 
+                nombreArchivo, 
+                "application/pdf", 
+                "comprobantes", 
+                comprobante.getIdComprobante()
+            );
+            
+            // Guardar la URL del PDF en el comprobante
+            comprobante.setPdfUrl(pdfUrl);
+            comprobantePagoRepositorio.save(comprobante);
+            comprobantePagoRepositorio.flush();
+            
+            log.info("PDF del comprobante generado y subido a S3 correctamente: {} ({} bytes)", pdfUrl, pdfBytes.length);
         } catch (IOException e) {
             log.error("Error generando PDF de comprobante para Orden {}", orden.getIdOrdenCompra(), e);
+            throw new RuntimeException("Error al generar el PDF del comprobante: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Error subiendo PDF a S3 para Orden {}", orden.getIdOrdenCompra(), e);
+            throw new RuntimeException("Error al subir el PDF a S3: " + e.getMessage(), e);
         }
-        comprobantePagoRepositorio.save(comprobante);
+        
+        // Guardar el pago con el comprobante actualizado
+        pagoRepository.save(pago);
         Boleta boleta = new Boleta();
         boleta.setDni(usuario.getDocIdentidad());
         boleta.setNombreCliente(usuario.getNombres() + " " + usuario.getApellidos());
@@ -112,6 +165,10 @@ public class PagoServicio {
                         e.getApellidoAsistente()
                 ))
                 .collect(Collectors.toList());
+        
+        // Enviar correo de confirmación de compra con link al PDF en S3
+        enviarCorreoConfirmacionCompra(orden, usuario, comprobante, pdfUrl);
+        
         return new ComprobanteDTO(
                 comprobante.getNumeroSerie(),
                 "ORD-" + orden.getIdOrdenCompra(),
@@ -425,10 +482,89 @@ public class PagoServicio {
             contentStream.showText("Método de pago: " + (pago.getMetodo() != null ? pago.getMetodo() : "Tarjeta"));
             contentStream.endText();
             contentStream.close();
+            
+            // Guardar el documento en un ByteArrayOutputStream
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             document.save(baos);
-            log.info("PDF generado exitosamente (FACTURA/BOLETA) para orden ID: {}", orden.getIdOrdenCompra());
-            return baos.toByteArray();
+            document.close();
+            
+            // Obtener los bytes y validar que sea un PDF válido
+            byte[] pdfBytes = baos.toByteArray();
+            baos.close();
+            
+            // Validar que el PDF sea válido (debe empezar con %PDF)
+            if (pdfBytes == null || pdfBytes.length == 0) {
+                throw new IOException("El PDF generado está vacío");
+            }
+            if (pdfBytes.length < 4 || !new String(pdfBytes, 0, Math.min(4, pdfBytes.length)).equals("%PDF")) {
+                throw new IOException("El PDF generado no es un archivo PDF válido");
+            }
+            
+            log.info("PDF generado exitosamente (FACTURA/BOLETA) para orden ID: {} - Tamaño: {} bytes", 
+                    orden.getIdOrdenCompra(), pdfBytes.length);
+            return pdfBytes;
+        }
+    }
+
+    /**
+     * Envía el correo de confirmación de compra usando BrevoEmailService con la plantilla CONFIRMACION_COMPRA
+     * incluyendo un botón para descargar el PDF del comprobante desde S3.
+     * 
+     * @param orden Orden de compra
+     * @param usuario Usuario que realizó la compra
+     * @param comprobante Comprobante de pago generado
+     * @param pdfUrl URL del PDF del comprobante en S3
+     */
+    private void enviarCorreoConfirmacionCompra(OrdenCompra orden, pe.edu.pucp.fasticket.model.usuario.Persona usuario, 
+                                                 ComprobantePago comprobante, String pdfUrl) {
+        try {
+            log.info("Iniciando envío de correo de confirmación de compra para orden ID: {}", orden.getIdOrdenCompra());
+            
+            // Obtener la plantilla de confirmación de compra
+            PlantillaNotificacion plantilla = plantillaService.obtenerActiva(TipoPlantilla.CONFIRMACION_COMPRA);
+            
+            if (plantilla == null || !plantilla.isHabilitado()) {
+                log.warn("⚠️ Plantilla CONFIRMACION_COMPRA no encontrada o no habilitada. No se enviará el correo.");
+                return;
+            }
+            
+            // Preparar parámetros para la plantilla (incluyendo la URL del PDF)
+            Map<String, Object> parametros = new HashMap<>();
+            parametros.put("nombre", usuario.getNombres());
+            parametros.put("idOrden", orden.getIdOrdenCompra());
+            parametros.put("total", String.format("%.2f", orden.getTotal()));
+            parametros.put("pdfUrl", pdfUrl != null ? pdfUrl : "");
+            
+            // Renderizar el contenido HTML con los parámetros
+            String asuntoRenderizado = plantillaService.render(plantilla.getAsunto(), parametros);
+            String contenidoHtml = plantillaService.render(plantilla.getHtml(), parametros);
+            
+            // Enviar el correo sin adjuntos (el PDF se descarga desde el botón en el HTML)
+            String destinatario = usuario.getEmail();
+            String nombreDestinatario = usuario.getNombres() + " " + usuario.getApellidos();
+            
+            log.info("📧 Enviando correo a: {} con link al PDF en S3 ({}) para orden ID: {}", 
+                     destinatario, pdfUrl, orden.getIdOrdenCompra());
+            
+            boolean enviado = brevoEmailService.enviarEmailHtml(
+                destinatario,
+                nombreDestinatario,
+                asuntoRenderizado,
+                contenidoHtml
+            );
+            
+            if (enviado) {
+                log.info("✅ Correo de confirmación de compra enviado exitosamente a: {} para orden ID: {} con link al PDF: {}", 
+                         destinatario, orden.getIdOrdenCompra(), pdfUrl);
+            } else {
+                log.error("❌ No se pudo enviar el correo de confirmación de compra a: {} para orden ID: {}", 
+                          destinatario, orden.getIdOrdenCompra());
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Error al enviar correo de confirmación de compra para orden ID: {}. Error: {}", 
+                      orden.getIdOrdenCompra(), e.getMessage(), e);
+            // No lanzamos la excepción para no afectar el flujo principal de la compra
         }
     }
 }

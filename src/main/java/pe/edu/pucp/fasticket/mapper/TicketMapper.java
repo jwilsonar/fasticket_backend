@@ -28,7 +28,7 @@ public interface TicketMapper {
     // --- Método toEntity (Corregido) ---
     @Mapping(target = "idTicket", ignore = true)
     @Mapping(target = "codigoQr", ignore = true)
-    @Mapping(target = "qrImage", ignore = true)
+    @Mapping(target = "qrImageUrl", ignore = true)
     @Mapping(target = "asiento", ignore = true)
     @Mapping(target = "fila", ignore = true)
     @Mapping(target = "estado", ignore = true)
@@ -47,6 +47,7 @@ public interface TicketMapper {
     @Mapping(target = "contadorTransferencias", ignore = true)
     @Mapping(target = "fechaUltimaTransferencia", ignore = true)
     @Mapping(target = "historialTransferencias", ignore = true)
+    @Mapping(target = "solicitudesTransferencia", ignore = true)
     // --- FIN CORRECCIÓN ERROR 2 ---
 
     // --- Ignorando campos de auditoría ---

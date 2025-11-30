@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.controllers.notificaciones;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,10 @@ import pe.edu.pucp.fasticket.model.notificaciones.PlantillaNotificacion;
 import pe.edu.pucp.fasticket.repository.notificaciones.PlantillaNotificacionRepositorio;
 import pe.edu.pucp.fasticket.services.notificaciones.PlantillaService;
 
+@Tag(
+        name = "Plantillas",
+        description = "API para manejar las plantillas"
+)
 @RestController
 @RequestMapping("/plantillas")
 @RequiredArgsConstructor

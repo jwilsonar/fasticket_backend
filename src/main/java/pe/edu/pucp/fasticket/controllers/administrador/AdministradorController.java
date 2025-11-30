@@ -2,6 +2,7 @@ package pe.edu.pucp.fasticket.controllers.administrador;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +25,7 @@ import pe.edu.pucp.fasticket.dto.auth.PromoverUsuarioDTO;
 import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
+import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 import pe.edu.pucp.fasticket.services.usuario.AdministradorService;
 
 /**
@@ -44,6 +46,7 @@ import pe.edu.pucp.fasticket.services.usuario.AdministradorService;
 public class AdministradorController {
 
     private final AdministradorService administradorService;
+    private final OrdenServicio ordenServicio;
 
     @Operation(
         summary = "Obtener perfil del administrador",
@@ -209,6 +212,33 @@ public class AdministradorController {
         log.warn("DELETE /api/v1/administrador/clientes/{} - petición de eliminación (anonimización) por administrador", idCliente);
         administradorService.eliminarCliente(idCliente);
         return ResponseEntity.ok(StandardResponse.success("Cliente anonimizado y desactivado exitosamente", null));
+    }
+
+    @Operation(
+            summary = "Anular una compra (Reembolso/Cancelación)",
+            description = "Permite al administrador anular una orden APROBADA. \n" +
+                    "- Cambia el estado a ANULADO.\n" +
+                    "- Libera el stock de las entradas (vuelven a estar disponibles).\n" +
+                    "- Revierte los puntos de fidelización ganados por el cliente.\n" +
+                    "- Registra el evento en auditoría."
+    )
+    @ApiResponse(responseCode = "200", description = "Orden anulada exitosamente")
+    @ApiResponse(responseCode = "400", description = "No se puede anular (ej: ya estaba anulada o no es aprobada)")
+    @PostMapping("/{idOrden}/anular")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> anularOrden(
+            @Parameter(description = "ID de la orden a anular", example = "22")
+            @PathVariable Integer idOrden) {
+
+        log.info("POST /api/v1/admin/ordenes/{}/anular - Solicitado por Admin", idOrden);
+
+        try {
+            ordenServicio.anularCompraAdmin(idOrden);
+            return ResponseEntity.ok(StandardResponse.success("La orden ha sido anulada y el stock revertido."));
+        } catch (Exception e) {
+            log.error("Error anulando orden {}: {}", idOrden, e.getMessage());
+            return ResponseEntity.badRequest().body(new StandardResponse<>(false, e.getMessage(), null));
+        }
     }
 
 }

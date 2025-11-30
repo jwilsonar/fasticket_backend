@@ -8,19 +8,27 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static pe.edu.pucp.fasticket.model.usuario.TipoDocumento.DNI;
-
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,16 +50,20 @@ import pe.edu.pucp.fasticket.model.eventos.Local;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Zona;
-import pe.edu.pucp.fasticket.model.usuario.Cliente;
-import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
+import pe.edu.pucp.fasticket.model.usuario.Cliente;
+import static pe.edu.pucp.fasticket.model.usuario.TipoDocumento.DNI;
 import pe.edu.pucp.fasticket.repository.ConfiguracionRepository;
 import pe.edu.pucp.fasticket.repository.compra.CarroComprasRepository;
 import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
+import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
+import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.services.S3Service;
+import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
 import pe.edu.pucp.fasticket.services.compra.OrdenServicio;
 import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
@@ -77,6 +89,18 @@ class OrdenServiceTest {
 
     @Mock
     private ConfiguracionRepository configuracionRepository;
+
+    @Mock
+    private AuditLogService auditLogService;
+
+    @Mock
+    private AdministradorRepository administradorRepository;
+
+    @Mock
+    private EmailService emailService;
+
+    @Mock
+    private S3Service s3Service;
 
     // --- Instancia del Servicio a probar ---
     @Spy
@@ -143,6 +167,17 @@ class OrdenServiceTest {
         crearOrdenDTO = new CrearOrdenDTO();
         crearOrdenDTO.setIdCliente(1);
         crearOrdenDTO.setItems(List.of(itemSeleccionadoDTO));
+        
+        // Configurar mock de S3Service para todos los tests (lenient para evitar errores si no se usa)
+        lenient().when(s3Service.uploadFileFromBytes(any(byte[].class), anyString(), anyString(), anyString(), anyInt()))
+                .thenAnswer(invocation -> {
+                    String fileName = invocation.getArgument(1);
+                    Integer ticketId = invocation.getArgument(4);
+                    return "https://test-bucket.s3.us-east-1.amazonaws.com/tickets/" + ticketId + "/" + fileName;
+                });
+        
+        // Mock para flush (lenient para evitar errores si no se usa)
+        lenient().doNothing().when(ticketRepository).flush();
 
         lenient().when(configuracionRepository.findById(eq("LIMITE_TICKETS_POR_COMPRA")))
                 .thenReturn(Optional.empty());
@@ -223,6 +258,17 @@ class OrdenServiceTest {
         // Mock para saveAll de tickets
         when(ticketRepository.saveAll(anyList()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        
+        // Mock para flush
+        doNothing().when(ticketRepository).flush();
+
+        // Mock para S3Service - subir QR a S3
+        when(s3Service.uploadFileFromBytes(any(byte[].class), anyString(), anyString(), anyString(), anyInt()))
+                .thenAnswer(invocation -> {
+                    String fileName = invocation.getArgument(1);
+                    Integer ticketId = invocation.getArgument(4);
+                    return "https://test-bucket.s3.us-east-1.amazonaws.com/tickets/" + ticketId + "/" + fileName;
+                });
 
         // Mock para ordenCompraRepositorio.findById que devuelve la orden actualizada
         when(ordenCompraRepositorio.findById(anyInt()))

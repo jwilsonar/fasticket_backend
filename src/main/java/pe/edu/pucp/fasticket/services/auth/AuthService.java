@@ -239,8 +239,8 @@ public class AuthService {
             
             // Construir URL completa: FRONTEND_URL + /verificar-cuenta/ + token
             String linkVerificacion = frontendUrl.endsWith("/") 
-                ? frontendUrl + "verificar-cuenta/" + tokenVerificacion
-                : frontendUrl + "/verificar-cuenta/" + tokenVerificacion;
+                ? frontendUrl + "#/verificar-cuenta/" + tokenVerificacion
+                : frontendUrl + "/#/verificar-cuenta/" + tokenVerificacion;
             
             log.info("🔗 Link de verificación generado para: {}", personaGuardada.getEmail());
             log.debug("Link de verificación (oculto en producción): {}***", linkVerificacion.substring(0, Math.min(50, linkVerificacion.length())));
@@ -791,8 +791,8 @@ public class AuthService {
             
             // Construir URL completa: FRONTEND_URL + /verificar-cuenta/ + token
             String linkVerificacion = frontendUrl.endsWith("/") 
-                ? frontendUrl + "verificar-cuenta/" + tokenVerificacion
-                : frontendUrl + "/verificar-cuenta/" + tokenVerificacion;
+                ? frontendUrl + "#/verificar-cuenta/" + tokenVerificacion
+                : frontendUrl + "/#/verificar-cuenta/" + tokenVerificacion;
             
             log.info("🔗 Nuevo link de verificación generado para: {}", email);
             log.debug("Link de verificación (oculto en producción): {}***", 

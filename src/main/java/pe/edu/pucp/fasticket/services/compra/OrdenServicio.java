@@ -52,6 +52,7 @@ import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
 import pe.edu.pucp.fasticket.services.EmailService;
+import pe.edu.pucp.fasticket.services.S3Service;
 import pe.edu.pucp.fasticket.services.auditoria.AuditLogService;
 import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
 
@@ -72,6 +73,7 @@ public class OrdenServicio {
     private final AdministradorRepository administradorRepository;
     private final ConfiguracionRepository configuracionRepository;
     private final EmailService emailService;
+    private final S3Service s3Service;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -88,7 +90,8 @@ public class OrdenServicio {
             AuditLogService auditLogService,
             AdministradorRepository administradorRepository,
             ConfiguracionRepository configuracionRepository,
-            EmailService emailService
+            EmailService emailService,
+            S3Service s3Service
     ) {
         this.ordenCompraRepositorio = ordenCompraRepositorio;
         this.tipoTicketRepositorio = tipoTicketRepositorio;
@@ -102,6 +105,7 @@ public class OrdenServicio {
         this.administradorRepository = administradorRepository;
         this.configuracionRepository = configuracionRepository;
         this.emailService = emailService;
+        this.s3Service = s3Service;
     }
 
     @Transactional
@@ -274,10 +278,17 @@ public class OrdenServicio {
                         );
                     }
                 }
-                if (ticket.getCodigoQr() == null || ticket.getQrImage() == null) {
+                // Generar y subir QR a S3 si no existe
+                if (ticket.getCodigoQr() == null || ticket.getQrImageUrl() == null) {
+                    // Guardar primero el ticket para obtener ID
+                    ticketRepository.save(ticket);
+                    ticketRepository.flush();
+                    
+                    // Generar QR y subir a S3
                     String codigoQr = generarCodigoQrUnico();
                     ticket.setCodigoQr(codigoQr);
-                    ticket.setQrImage(generarQrComoBytes(codigoQr));
+                    String qrUrl = generarYSubirQrAS3(codigoQr, ticket.getIdTicket());
+                    ticket.setQrImageUrl(qrUrl);
                 }
             }
 
@@ -549,13 +560,22 @@ public class OrdenServicio {
                     ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
                 }
 
-                String codigoQr = generarCodigoQrUnico();
-                ticket.setCodigoQr(codigoQr);
-                ticket.setQrImage(generarQrComoBytes(codigoQr));
-
                 ticketsReservados.add(ticket);
             }
 
+            // Guardar tickets primero para obtener IDs
+            ticketRepository.saveAll(ticketsReservados);
+            ticketRepository.flush();
+            
+            // Generar QR y subir a S3 para cada ticket
+            for (Ticket ticket : ticketsReservados) {
+                String codigoQr = generarCodigoQrUnico();
+                ticket.setCodigoQr(codigoQr);
+                String qrUrl = generarYSubirQrAS3(codigoQr, ticket.getIdTicket());
+                ticket.setQrImageUrl(qrUrl);
+            }
+            
+            // Guardar de nuevo con las URLs del QR
             ticketRepository.saveAll(ticketsReservados);
             itemGuardado.setTickets(ticketsReservados);
 
@@ -694,12 +714,18 @@ public class OrdenServicio {
         ordenCompraRepositorio.save(orden);
         ordenCompraRepositorio.flush();
         log.info("Orden ID {} confirmada exitosamente.", idOrden);
+        
+        // NOTA: El envío del correo de confirmación se realiza ahora desde PagoServicio.registrarPagoFinal()
+        // con la plantilla CONFIRMACION_COMPRA y el PDF adjunto del comprobante.
+        // Se comenta para evitar duplicados y usar la nueva implementación con BrevoEmailService.
+        /*
         try {
             log.info("Enviando correo de confirmación de compra para orden ID: {}", idOrden);
             emailService.enviarCorreoConfirmacionCompra(orden);
         } catch (Exception e) {
             log.error("Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
         }
+        */
 
         // 7. Generar Puntos
         try {
@@ -761,6 +787,37 @@ public class OrdenServicio {
             return baos.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException("Error generando QR", e);
+        }
+    }
+
+    /**
+     * Genera el QR, lo sube a S3 y retorna la URL
+     */
+    private String generarYSubirQrAS3(String codigoQr, Integer ticketId) {
+        try {
+            // Generar el QR como bytes
+            byte[] qrBytes = generarQrComoBytes(codigoQr);
+            
+            // Validar que se generó correctamente
+            if (qrBytes == null || qrBytes.length == 0) {
+                throw new RuntimeException("El QR generado está vacío");
+            }
+            
+            // Subir a S3
+            String nombreArchivo = "QR_" + codigoQr + ".png";
+            String qrUrl = s3Service.uploadFileFromBytes(
+                qrBytes,
+                nombreArchivo,
+                "image/png",
+                "tickets",
+                ticketId
+            );
+            
+            log.info("QR generado y subido a S3 correctamente: {} para ticket ID: {}", qrUrl, ticketId);
+            return qrUrl;
+        } catch (Exception e) {
+            log.error("Error generando o subiendo QR a S3 para ticket ID: {}", ticketId, e);
+            throw new RuntimeException("Error al generar o subir el QR a S3: " + e.getMessage(), e);
         }
     }
 
@@ -874,12 +931,22 @@ public class OrdenServicio {
                 ticket.setApellidoAsistente(asistente.getApellidos());
                 ticket.setTipoDocumentoAsistente(asistente.getTipoDocumento());
                 ticket.setDocumentoAsistente(asistente.getNumeroDocumento());
-
-                String codigoQr = generarCodigoQrUnico();
-                ticket.setCodigoQr(codigoQr);
-                ticket.setQrImage(generarQrComoBytes(codigoQr));
                 ticket.setOrdenCompra(orden);
             }
+            
+            // Guardar primero para obtener IDs
+            ticketRepository.saveAll(item.getTickets());
+            ticketRepository.flush();
+            
+            // Generar QR y subir a S3 para cada ticket
+            for (Ticket ticket : item.getTickets()) {
+                String codigoQr = generarCodigoQrUnico();
+                ticket.setCodigoQr(codigoQr);
+                String qrUrl = generarYSubirQrAS3(codigoQr, ticket.getIdTicket());
+                ticket.setQrImageUrl(qrUrl);
+            }
+            
+            // Guardar de nuevo con las URLs del QR
             ticketRepository.saveAll(item.getTickets());
         }
     }
@@ -900,26 +967,15 @@ public class OrdenServicio {
             throw new BusinessException("Solo se pueden anular compras que ya están APROBADAS. " +
                     "El estado actual es: " + orden.getEstado());
         }
-
-        // 1. Cambiar estado de la orden
         orden.setEstado(EstadoCompra.ANULADO);
         orden.setActivo(false);
-
-        // 2. Revertir Tickets (Stock y Limpieza)
         revertirStockDeOrden(orden);
-
-        // 3. Revertir Puntos
         try {
             fidelizacionService.revertirPuntosPorAnulacion(orden);
         } catch (Exception e) {
             log.error("Error al revertir puntos de la orden {}: {}", idOrden, e.getMessage());
-            // No detenemos la anulación, pero queda el log
         }
-
-        // 4. Guardar la orden anulada
         ordenCompraRepositorio.save(orden);
-
-        // --- INICIO AUDITORÍA ---
         try {
             Administrador admin = getAdminActual();
             String detalle = "Se ANULÓ la orden ID: " + idOrden +
@@ -928,11 +984,7 @@ public class OrdenServicio {
         } catch (Exception e) {
             log.error("Fallo al registrar auditoría (ANULAR_COMPRA): {}", e.getMessage());
         }
-        // --- FIN AUDITORÍA ---
-
         log.info("Orden ID: {} ANULADA exitosamente por un administrador.", idOrden);
-
-        // TODO: Enviar correo de notificación al cliente sobre la anulación (RF-045)
     }
 
     private void revertirStockDeOrden(OrdenCompra orden) {
@@ -954,7 +1006,7 @@ public class OrdenServicio {
 
                 // Resetear QR y transferencias
                 ticket.setCodigoQr(null);
-                ticket.setQrImage(null);
+                ticket.setQrImageUrl(null);
                 ticket.setContadorTransferencias(0);
                 ticket.setFechaUltimaTransferencia(null);
             }

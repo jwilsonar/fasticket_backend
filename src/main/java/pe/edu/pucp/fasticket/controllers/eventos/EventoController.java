@@ -31,6 +31,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
@@ -302,23 +304,45 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
         }
     }
     
-    @Operation(
-            summary = "Listar top N eventos populares",
-            description = "Devuelve los top N eventos ordenados por cantidad de tickets vendidos. Endpoint público."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Top eventos obtenidos exitosamente")
-    })
     @GetMapping("/populares/{topN}")
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<StandardResponse<List<EventoResponseDTO>>> listarTopEventosPopulares(
             @Parameter(description = "Cantidad de top eventos a devolver", example = "5")
-            @PathVariable("topN") Integer topN) {
-         log.info("GET /api/v1/eventos/populares?topN={}", topN);
-         List<EventoResponseDTO> top = eventoService.listarTopEventosPopulares(topN);
-         StandardResponse<List<EventoResponseDTO>> response = StandardResponse.success("Top eventos populares obtenidos exitosamente", top);
-         return ResponseEntity.ok(response);
-     }
+            @PathVariable("topN") @Min(1) @Max(50) Integer topN) {
+        
+        log.info("GET /api/v1/eventos/populares/{}", topN);
+        
+        try {
+            List<EventoResponseDTO> topEventos = eventoService.listarTopEventosPopulares(topN);
+            
+            int topEventosLength = topEventos.size();
+            StandardResponse<List<EventoResponseDTO>> response;
+            if (topEventosLength < topN) {
+                log.warn("Se solicitaron {} eventos populares, pero solo se encontraron {}", topN, topEventosLength);
+                response = StandardResponse.success(
+                    "Solo se encontraron " + topEventosLength + " eventos populares", 
+                    topEventos
+                );
+            }else{
+                log.info("Se encontraron los {} eventos populares solicitados", topN);
+                response = StandardResponse.success(
+                    "Top " + topN + " eventos populares obtenidos exitosamente", 
+                    topEventos
+                );
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error al obtener eventos populares: {}", e.getMessage(), e);
+            
+            StandardResponse<List<EventoResponseDTO>> response = StandardResponse.error(
+                "Error interno del servidor al obtener eventos populares"
+            );
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 
     @Operation(
             summary = "Obtener ventas totales por evento",

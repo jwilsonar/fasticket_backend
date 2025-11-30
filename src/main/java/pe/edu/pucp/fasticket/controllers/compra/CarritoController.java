@@ -12,11 +12,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
+import pe.edu.pucp.fasticket.model.compra.CarroCompras;
+import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Tag(
     name = "Carrito de Compras",
@@ -145,6 +152,43 @@ public class CarritoController {
         log.info("PUT /api/v1/carrito/{}/aplicar-cupon?codigo={}", idCarrito, codigo);
         CarroComprasDTO carritoActualizado = carroComprasService.aplicarCodigoPromocional(idCarrito, codigo);
         return ResponseEntity.ok(StandardResponse.success("Cupón aplicado.", carritoActualizado));
+    }
+
+    @Operation(
+            summary = "Eliminar item del carrito",
+            description = "Remueve un item del carrito de compras",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponse(responseCode = "200", description = "Item eliminado")
+    @DeleteMapping("/items/{idItemCarrito}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<CarroComprasDTO> eliminarItem(
+            @Parameter(description = "ID del item a eliminar")
+            @PathVariable Integer idItemCarrito,
+            @Parameter(description = "ID del cliente")
+            @RequestParam Integer idCliente) {
+
+        log.info("DELETE /api/v1/carrito/items/{} - Cliente: {}", idItemCarrito, idCliente);
+        CarroComprasDTO carritoActualizado = carroComprasService.eliminarItemDelCarrito(idItemCarrito, idCliente);
+        return ResponseEntity.ok(carritoActualizado);
+    }
+
+    @Operation(
+            summary = "Obtener información del evento del carrito",
+            description = "Devuelve los detalles del evento (nombre, fecha, lugar) asociado a los tickets guardados en el carrito.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @GetMapping("/{idCarrito}/evento-info")
+    @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<EventoResumenDTO>>> obtenerInfoEventoCarrito(
+            @PathVariable Integer idCarrito) {
+
+        List<EventoResumenDTO> eventos = carroComprasService.obtenerEventosDelCarrito(idCarrito);
+
+        return ResponseEntity.ok(StandardResponse.success(
+                "Información del evento recuperada",
+                eventos
+        ));
     }
 }
 

@@ -9,13 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.fidelizacion.CanjeDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.CanjeRequestDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.CodigoPromocionalDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.CodigoPromocionalRequestDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.PuntosDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.ReglaPuntosDTO;
-import pe.edu.pucp.fasticket.dto.fidelizacion.ReglaPuntosRequestDTO;
+import pe.edu.pucp.fasticket.dto.fidelizacion.*;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.ConfiguracionGlobal;
@@ -589,7 +583,7 @@ public class FidelizacionService {
                 .orElse(defaultValue);
     }
 
-    public Double validarCodigoPromocional(String codigo, Double subtotalOrden, Integer idCliente) {
+    public ValidacionCuponResponseDTO validarCodigoPromocional(String codigo, Integer idCliente) {
         CodigoPromocional codigoPromo = codigoPromocionalRepository.findByCodigo(codigo)
                 .orElseThrow(() -> new BusinessException("Código no encontrado"));
         if (Boolean.FALSE.equals(codigoPromo.getActivo())) {
@@ -611,13 +605,12 @@ public class FidelizacionService {
                 throw new BusinessException("Has alcanzado el límite de usos para este cupón (" + codigoPromo.getCantidadPorCliente() + " veces).");
             }
         }
-        Double descuento = 0.0;
-        if (codigoPromo.getTipo() == TipoCodigoPromocional.PORCENTAJE) {
-            descuento = subtotalOrden * (codigoPromo.getValor() / 100.0);
-        } else {
-            descuento = codigoPromo.getValor();
-        }
-        return Math.round(descuento * 100.0) / 100.0;
+
+        return new ValidacionCuponResponseDTO(
+                codigoPromo.getCodigo(),
+                codigoPromo.getTipo().toString(),
+                codigoPromo.getValor()
+        );
     }
 
     @Transactional

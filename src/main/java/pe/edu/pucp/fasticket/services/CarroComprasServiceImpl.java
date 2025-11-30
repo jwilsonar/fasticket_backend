@@ -17,6 +17,7 @@ import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.ItemCarritoDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -207,7 +208,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         ticket.setTipoDocumentoAsistente(null);
         ticket.setDocumentoAsistente(null);
         ticket.setCodigoQr(null);
-        ticket.setQrImage(null);
+        ticket.setQrImageUrl(null);
         ticketRepository.save(ticket); // Guarda el ticket liberado
 
         // 2. Actualizar el stock
@@ -381,6 +382,62 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
+    }
+
+    @Override
+    @Transactional
+    public CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente) {
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("El item con ID " + idItemCarrito + " no existe."));
+
+        if (!item.getCarroCompra().getCliente().getIdPersona().equals(idCliente)) {
+            throw new SecurityException("Acción no permitida.");
+        }
+
+        CarroCompras carro = item.getCarroCompra();
+        TipoTicket tipoTicket = item.getTipoTicket();
+        int cantidadLiberada = 0;
+
+        for (Ticket ticket : item.getTickets()) {
+            if (ticket.getEstado() == EstadoTicket.RESERVADA) {
+                ticket.setEstado(EstadoTicket.DISPONIBLE);
+                ticket.setItemCarrito(null);
+                ticket.setCliente(null);
+                ticket.setNombreAsistente(null);
+                ticket.setApellidoAsistente(null);
+                ticket.setTipoDocumentoAsistente(null);
+                ticket.setDocumentoAsistente(null);
+                cantidadLiberada++;
+            }
+        }
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + cantidadLiberada);
+        log.info("Liberados {} tickets del tipo {}", cantidadLiberada, tipoTicket.getNombre());
+        carro.removeItem(item); // Elimina del carrito
+        carro.setFechaActualizacion(LocalDateTime.now());
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+        return convertirADTO(carroGuardado);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventoResumenDTO> obtenerEventosDelCarrito(Integer idCarrito) {
+        CarroCompras carrito = carroComprasRepository.findById(idCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado"));
+
+        if (carrito.getItems().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return carrito.getItems().stream()
+                .map(item -> item.getTipoTicket().getEvento())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .map(evento -> new EventoResumenDTO(
+                        evento.getNombre(),
+                        evento.getFechaEvento(),
+                        evento.getHoraInicio(),
+                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar"
+                ))
+                .collect(Collectors.toList());
     }
 }
 

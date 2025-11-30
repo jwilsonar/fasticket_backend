@@ -776,22 +776,36 @@ public class EventoService {
      */
     @Transactional(readOnly = true)
     public List<EventoResponseDTO> listarTopEventosPopulares(Integer topN) {
-        log.info("Listando los top {} eventos populares", topN);
+        log.info("Buscando los {} eventos más populares", topN);
         
-        Map<Integer, Integer> ventasPorEvento = tipoTicketRepositorio.findTotalVendidoPorEvento();
-
-        // Obtenemos todos los eventos
-        List<EventoResponseDTO> listaEventos = listarTodos();
-
-        // Ordenamos y limitamos
-        return listaEventos.stream()
-                .sorted((e1, e2) -> {
-                    Integer ventas1 = ventasPorEvento.getOrDefault(e1.getIdEvento(), 0);
-                    Integer ventas2 = ventasPorEvento.getOrDefault(e2.getIdEvento(), 0);
-                    return ventas2.compareTo(ventas1);
-                })
-                .limit(topN)
-                .collect(Collectors.toList());
+        // Obtener el total vendido por evento
+        List<Object[]> resultados = tipoTicketRepositorio.findTotalVendidoPorEvento();
+        
+        // Convertir a Map manualmente
+        Map<Integer, Integer> ventasPorEvento = resultados.stream()
+            .collect(Collectors.toMap(
+                result -> (Integer) result[0],
+                result -> ((Long) result[1]).intValue()
+            ));
+        
+        // Obtener todos los eventos
+        List<Evento> eventos = eventoRepository.findAll();
+        
+        // Ordenar eventos por cantidad vendida (descendente) y tomar topN
+        List<Evento> eventosOrdenados = eventos.stream()
+            .filter(evento -> ventasPorEvento.containsKey(evento.getIdEvento()))
+            .sorted((e1, e2) -> {
+                Integer ventas1 = ventasPorEvento.get(e1.getIdEvento());
+                Integer ventas2 = ventasPorEvento.get(e2.getIdEvento());
+                return ventas2.compareTo(ventas1); // Descendente
+            })
+            .limit(topN)
+            .collect(Collectors.toList());
+        
+        log.info("Encontrados {} eventos populares", eventosOrdenados.size());
+        return eventosOrdenados.stream()
+            .map(eventoMapper::toResponseDTO)
+            .collect(Collectors.toList());
     }
 
 

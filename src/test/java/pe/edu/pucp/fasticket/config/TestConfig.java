@@ -59,6 +59,20 @@ public class TestConfig {
                 // Mock: genera un nombre único simulado
                 return String.format("mock-file-%d-%s", entityId, originalFilename);
             }
+
+            @Override
+            public String uploadFileFromBytes(byte[] fileBytes, String fileName, String contentType, String folder, Integer entityId) {
+                // Mock: retorna una URL simulada
+                return String.format("https://test-bucket.s3.us-east-1.amazonaws.com/%s/%d/%s", 
+                        folder, entityId, fileName);
+            }
+
+            @Override
+            public byte[] downloadFile(String fileUrl) {
+                // Mock: retorna bytes simulados de un PDF válido
+                // Cabecera PDF válida: %PDF-1.4 seguido de contenido mínimo
+                return "%PDF-1.4\n%%EOF".getBytes();
+            }
         };
     }
 

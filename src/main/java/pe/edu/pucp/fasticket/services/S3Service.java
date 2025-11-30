@@ -1,8 +1,8 @@
 package pe.edu.pucp.fasticket.services;
 
-import org.springframework.web.multipart.MultipartFile;
-
 import java.util.List;
+
+import org.springframework.web.multipart.MultipartFile;
 
 public interface S3Service {
     
@@ -23,6 +23,24 @@ public interface S3Service {
      * @return Lista de URLs públicas de los archivos subidos
      */
     List<String> uploadFiles(List<MultipartFile> files, String folder, Integer entityId);
+    
+    /**
+     * Sube un archivo desde bytes a S3 y retorna la URL pública
+     * @param fileBytes Bytes del archivo a subir
+     * @param fileName Nombre del archivo
+     * @param contentType Tipo de contenido (ej: "application/pdf")
+     * @param folder Carpeta donde guardar el archivo
+     * @param entityId ID de la entidad asociada
+     * @return URL pública del archivo subido
+     */
+    String uploadFileFromBytes(byte[] fileBytes, String fileName, String contentType, String folder, Integer entityId);
+    
+    /**
+     * Descarga un archivo desde S3 usando su URL
+     * @param fileUrl URL del archivo en S3
+     * @return Bytes del archivo descargado
+     */
+    byte[] downloadFile(String fileUrl);
     
     /**
      * Elimina un archivo de S3

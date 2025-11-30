@@ -17,5 +17,5 @@ public interface LocalesRepositorio extends JpaRepository<Local, Integer> {
     
     List<Local> findByNombreContainingIgnoreCase(String nombre);
 
-    Optional<Local> findByNombreIgnoreCase(String nombre);
+    Optional<Local> findByNombreIgnoreCaseAndActivoTrue(String nombre);
 }

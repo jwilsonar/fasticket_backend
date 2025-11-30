@@ -796,17 +796,17 @@ public class EventoService {
 
 
     @Transactional(readOnly = true)
-    public Double ventasPorEvento(Integer idEvento) {
-        log.info("Total de ventas por el evento ID: {}", idEvento);
+public Double ventasPorEvento(Integer idEvento) {
+    log.info("Total de ventas por el evento ID: {}", idEvento);
 
-        // Validar que el evento existe
-        if (!eventoRepository.existsById(idEvento)) {
-            throw new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento);
-        }
-
-        Double totalIngresos = tipoTicketRepositorio.sumIngresosByEventoId(idEvento);
-        return totalIngresos != null ? totalIngresos : 0.0;
+    // Validar que el evento existe
+    if (!eventoRepository.existsById(idEvento)) {
+        throw new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento);
     }
+
+    // Ya no necesitas verificar null porque el COALESCE en la query retorna 0
+    return tipoTicketRepositorio.sumIngresosByEventoId(idEvento);
+}
     
     @Transactional(readOnly = true)
     public Double ventasPorTodosEventos() {

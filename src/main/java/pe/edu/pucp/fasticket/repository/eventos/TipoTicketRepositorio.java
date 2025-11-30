@@ -34,6 +34,6 @@ public interface TipoTicketRepositorio extends JpaRepository<TipoTicket, Integer
     @Query("SELECT t.evento.id, SUM(t.cantidadVendida) FROM TipoTicket t GROUP BY t.evento.id")
     Map<Integer, Integer> findTotalVendidoPorEvento();
 
-    @Query("SELECT SUM(tt.precio * tt.cantidadVendida) FROM TipoTicket tt WHERE tt.evento.idEvento = :idEvento AND tt.activo = true GROUP BY tt.evento.idEvento")
+    @Query("SELECT COALESCE((SELECT SUM(tt.precio * tt.cantidadVendida) FROM TipoTicket tt WHERE tt.evento.idEvento = :idEvento AND tt.activo = true), 0)")
     Double sumIngresosByEventoId(@Param("idEvento") Integer idEvento);
 }

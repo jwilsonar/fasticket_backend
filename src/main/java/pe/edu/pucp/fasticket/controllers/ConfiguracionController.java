@@ -15,10 +15,9 @@ import pe.edu.pucp.fasticket.services.ConfiguracionService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/admin/configuracion")
+@RequestMapping("/api/v1/configuracion")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMINISTRADOR')")
 @Tag(name = "Configuración General", description = "Gestión de parámetros globales (Puntos, Límites, etc.)")
 public class ConfiguracionController {
 
@@ -31,7 +30,7 @@ public class ConfiguracionController {
     @GetMapping
     @Operation(summary = "Listar configuraciones", description = "Obtiene todas las variables configurables del sistema.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> obtenerConfiguraciones() {
-        log.info("GET /api/v1/admin/configuracion");
+        log.info("GET /api/v1/configuracion");
         List<ConfiguracionDTO> configs = configuracionService.getAllConfiguraciones();
         return ResponseEntity.ok(StandardResponse.success("Configuraciones obtenidas", configs));
     }
@@ -41,10 +40,11 @@ public class ConfiguracionController {
      * Recibe la lista completa y actualiza todo de golpe.
      */
     @PutMapping
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Operation(summary = "Actualizar lote", description = "Actualiza múltiples configuraciones simultáneamente.")
     public ResponseEntity<StandardResponse<List<ConfiguracionDTO>>> actualizarConfiguraciones(
             @Valid @RequestBody List<ConfiguracionDTO> dtos) {
-        log.info("PUT /api/v1/admin/configuracion - Lote de {} items", dtos.size());
+        log.info("PUT /api/v1/configuracion - Lote de {} items", dtos.size());
         List<ConfiguracionDTO> configsActualizadas = configuracionService.actualizarConfiguraciones(dtos);
         return ResponseEntity.ok(StandardResponse.success("Configuraciones actualizadas", configsActualizadas));
     }
@@ -55,19 +55,20 @@ public class ConfiguracionController {
      * Recibe ConfiguracionDTO en body (usa only 'value' y opcional 'descripcion').
      */
     @PutMapping("/{key}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @Operation(summary = "Actualizar individual", description = "Actualiza una sola variable por su clave.")
     public ResponseEntity<StandardResponse<ConfiguracionDTO>> actualizarConfiguracionIndividual(
             @PathVariable String key,
             @Valid @RequestBody ConfiguracionDTO dto) {
 
-        log.info("PUT /api/v1/admin/configuracion/{} - nuevo valor (masked) ", key);
+        log.info("PUT /api/v1/configuracion/{} - nuevo valor (masked) ", key);
         ConfiguracionDTO updated = configuracionService.actualizarPorKey(key, dto.getValue());
         return ResponseEntity.ok(StandardResponse.success("Configuración actualizada", updated));
     }
     @GetMapping("/{key}")
     @Operation(summary = "Obtener configuración por clave", description = "Obtiene una configuración específica por su clave.")
     public ResponseEntity<StandardResponse<ConfiguracionDTO>> obtenerConfiguracionPorClave(@PathVariable String key) {
-        log.info("GET /api/v1/admin/configuracion/{}", key);
+        log.info("GET /api/v1/configuracion/{}", key);
         ConfiguracionDTO config = configuracionService.getConfiguracionPorClave(key);
         return ResponseEntity.ok(StandardResponse.success("Configuración obtenida", config));
     }

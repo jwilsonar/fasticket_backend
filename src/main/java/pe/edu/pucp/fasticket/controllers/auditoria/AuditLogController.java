@@ -1,5 +1,6 @@
 package pe.edu.pucp.fasticket.controllers.auditoria;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -16,6 +17,10 @@ import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
+@Tag(
+        name = "Auditoria",
+        description = "API para gestionar las auditorias"
+)
 @RestController
 @RequestMapping("/api/v1/admin/audit") // Endpoint para auditoría
 @RequiredArgsConstructor

@@ -22,6 +22,7 @@ import pe.edu.pucp.fasticket.repository.eventos.EventosRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.ZonaRepository;
 import pe.edu.pucp.fasticket.mapper.TicketMapper;
+import pe.edu.pucp.fasticket.services.S3Service;
 
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
@@ -37,6 +38,7 @@ public class TicketService {
     private final EventosRepositorio eventoRepository;
     private final ZonaRepository zonaRepository;
     private final TicketMapper ticketMapper;
+    private final S3Service s3Service;
 
     @Transactional
     public TicketDTO agregarEntradaAEvento(Integer idEvento, TicketCreateDTO ticketDTO) {
@@ -214,21 +216,34 @@ public class TicketService {
             dibujarCampo(contentStream, fontBold, fontRegular, col2, y, "ZONA / UBICACIÓN",
                     ticket.getTipoTicket().getZona().getNombre(), colorGris, colorOscuro);
 
-            if (ticket.getQrImage() != null) {
-                PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, ticket.getQrImage(), "QR");
+            // Descargar QR desde S3 si existe la URL
+            if (ticket.getQrImageUrl() != null && !ticket.getQrImageUrl().isEmpty()) {
+                try {
+                    byte[] qrBytes = s3Service.downloadFile(ticket.getQrImageUrl());
+                    if (qrBytes != null && qrBytes.length > 0) {
+                        PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, qrBytes, "QR");
 
-                float qrSize = 140;
-                float qrX = (pageWidth - qrSize) / 2;
-                float qrY = cardTopY - cardHeight + 40;
-                contentStream.drawImage(pdImage, qrX, qrY, qrSize, qrSize);
-                contentStream.beginText();
-                contentStream.setNonStrokingColor(colorGris);
-                contentStream.setFont(fontRegular, 8);
-                String codigoTexto = "ID: " + ticket.getCodigoQr();
-                float textWidth = fontRegular.getStringWidth(codigoTexto) / 1000 * 8;
-                contentStream.newLineAtOffset((pageWidth - textWidth) / 2, qrY - 15);
-                contentStream.showText(codigoTexto);
-                contentStream.endText();
+                        float qrSize = 140;
+                        float qrX = (pageWidth - qrSize) / 2;
+                        float qrY = cardTopY - cardHeight + 40;
+                        contentStream.drawImage(pdImage, qrX, qrY, qrSize, qrSize);
+                        contentStream.beginText();
+                        contentStream.setNonStrokingColor(colorGris);
+                        contentStream.setFont(fontRegular, 8);
+                        String codigoTexto = "ID: " + ticket.getCodigoQr();
+                        float textWidth = fontRegular.getStringWidth(codigoTexto) / 1000 * 8;
+                        contentStream.newLineAtOffset((pageWidth - textWidth) / 2, qrY - 15);
+                        contentStream.showText(codigoTexto);
+                        contentStream.endText();
+                        log.info("QR descargado desde S3 y agregado al PDF del ticket ID: {}", ticket.getIdTicket());
+                    } else {
+                        log.warn("⚠️ QR descargado desde S3 está vacío para ticket ID: {}", ticket.getIdTicket());
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Error al descargar QR desde S3 para ticket ID: {}: {}", ticket.getIdTicket(), e.getMessage(), e);
+                }
+            } else {
+                log.warn("⚠️ No se encontró URL del QR para ticket ID: {}", ticket.getIdTicket());
             }
 
             contentStream.close();

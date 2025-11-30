@@ -44,8 +44,8 @@ public class Ticket {
     @Column(name = "codigoQr", unique = true, length = 255)
     private String codigoQr;
 
-    @Column(name = "qrImage", columnDefinition = "BYTEA")
-    private byte[] qrImage;
+    @Column(name = "qr_image_url", length = 512)
+    private String qrImageUrl;
 
     @Column(name = "asiento", length = 50)
     private String asiento;

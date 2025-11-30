@@ -2,11 +2,12 @@ package pe.edu.pucp.fasticket.services.compra;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
@@ -14,7 +15,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.mail.FetchProfile.Item;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
 import pe.edu.pucp.fasticket.dto.compra.BeneficiosDTO;
@@ -36,6 +38,7 @@ import pe.edu.pucp.fasticket.model.eventos.EstadoTicket;
 import pe.edu.pucp.fasticket.model.eventos.Evento;
 import pe.edu.pucp.fasticket.model.eventos.Ticket;
 import pe.edu.pucp.fasticket.model.eventos.TipoTicket;
+import pe.edu.pucp.fasticket.model.fidelizacion.CodigoPromocional;
 import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
@@ -45,16 +48,6 @@ import pe.edu.pucp.fasticket.repository.compra.ItemCarritoRepository;
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.TicketRepository;
 import pe.edu.pucp.fasticket.repository.eventos.TipoTicketRepositorio;
-import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
-import pe.edu.pucp.fasticket.services.fidelizacion.FidelizacionService;
-import pe.edu.pucp.fasticket.model.fidelizacion.CodigoPromocional;
-import pe.edu.pucp.fasticket.model.fidelizacion.TipoMembresia;
-
-import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
-
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.repository.usuario.AdministradorRepository;
 import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import static pe.edu.pucp.fasticket.services.CarroComprasServiceImpl.TIEMPO_RESERVA_MINUTOS;
@@ -126,9 +119,6 @@ public class OrdenServicio {
         orden.setEstado(EstadoCompra.PENDIENTE);
         orden.setFechaExpiracion(LocalDateTime.now().plusMinutes(15));
         orden.setActivo(true);
-        orden.setRuc(datosOrden.getRuc());
-        orden.setRazonSocial(datosOrden.getRazonSocial());
-        orden.setDireccionFiscal(datosOrden.getDireccionFiscal());
         orden.setCodigoSeguimiento(java.util.UUID.randomUUID().toString());
         orden.setItems(new ArrayList<>());
         OrdenCompra ordenGuardada = ordenCompraRepositorio.saveAndFlush(orden);
@@ -142,7 +132,7 @@ public class OrdenServicio {
             for (Integer itemId : itemIds) {
                 ItemCarrito item = itemCarritoRepositorio.findById(itemId)
                         .orElseThrow(() -> new ResourceNotFoundException("Item no encontrado: " + itemId));
-                validarStockItem(item);
+                validarStockItem(item, cliente);
             }
             for (Integer itemId : itemIds) {
                 ItemCarrito item = itemCarritoRepositorio.findById(itemId)
@@ -163,7 +153,7 @@ public class OrdenServicio {
 
             validarLimitePorCompra(datosOrden.getItems());
             validarLimitesPorPersona(datosOrden.getItems(), cliente);
-            validarStockDisponible(datosOrden.getItems());
+            validarStockDisponible(datosOrden.getItems(), cliente);
 
             List<ItemCarrito> itemsNuevos = construirYGuardarItems(datosOrden.getItems(), cliente, ordenGuardada);
             ordenGuardada.getItems().addAll(itemsNuevos);
@@ -200,6 +190,25 @@ public class OrdenServicio {
 
         double subtotalInicial = ordenGuardada.getSubtotal() != null ? ordenGuardada.getSubtotal() : 0.0;
         log.info("SUBTOTAL calculado: {} (suma de precioFinal de items)", subtotalInicial);
+        if (datosOrden.getCodigoPromocional() != null && !datosOrden.getCodigoPromocional().isEmpty()) {
+            try {
+                Double descuentoPromo = fidelizacionService.validarYCalcularDescuento(
+                        datosOrden.getCodigoPromocional(),
+                        ordenGuardada.getSubtotal()
+                );
+                ordenGuardada.setCodigoPromocionalAplicado(datosOrden.getCodigoPromocional());
+                ordenGuardada.setDescuentoPromocional(descuentoPromo);
+                fidelizacionService.registrarUsoCupon(
+                        ordenGuardada,
+                        datosOrden.getCodigoPromocional(),
+                        descuentoPromo
+                );
+                log.info("Cupón '{}' aplicado. Descuento: {}", datosOrden.getCodigoPromocional(), descuentoPromo);
+            } catch (Exception e) {
+                log.warn("Error aplicando cupón al crear orden: {}", e.getMessage());
+                throw new BusinessException("Error con el cupón: " + e.getMessage());
+            }
+        }
         String nivelCliente = cliente.getNivel() != null ? cliente.getNivel().toString() : "SIN_NIVEL";
         log.info("Cliente nivel: {}", nivelCliente);
 
@@ -279,7 +288,7 @@ public class OrdenServicio {
     /**
      * Validar que el item tenga stock suficiente antes de procesarlo.
      */
-    private void validarStockItem(ItemCarrito item) {
+    private void validarStockItem(ItemCarrito item, Cliente cliente) {
         TipoTicket tipoTicket = item.getTipoTicket();
 
         if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
@@ -291,6 +300,59 @@ public class OrdenServicio {
             throw new BusinessException("Stock insuficiente para '" + tipoTicket.getNombre() +
                     "'. Disponible: " + (cantidadDisponible != null ? cantidadDisponible : 0) +
                     ", Solicitado: " + item.getCantidad());
+        }
+
+        // Validar edad del cliente para eventos +18
+        if (tipoTicket.getEvento() != null) {
+            validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
+        }
+    }
+
+    /**
+     * Valida que el cliente tenga la edad mínima requerida para eventos +18.
+     * Si el evento no permite menores de edad (menoresDeEdadPermitidos == false),
+     * el cliente debe tener al menos 18 años.
+     * 
+     * @param evento El evento para el cual se está validando
+     * @param cliente El cliente que intenta comprar
+     * @throws BusinessException Si el cliente no cumple con la edad mínima requerida
+     */
+    private void validarEdadClienteParaEvento(Evento evento, Cliente cliente) {
+        if (evento == null) {
+            log.warn("Evento es null, no se puede validar edad");
+            return;
+        }
+
+        // Si el evento permite menores de edad, no hay restricción
+        if (Boolean.TRUE.equals(evento.getMenoresDeEdadPermitidos())) {
+            return;
+        }
+
+        // Si menoresDeEdadPermitidos es false, el evento es +18
+        if (Boolean.FALSE.equals(evento.getMenoresDeEdadPermitidos())) {
+            if (cliente.getFechaNacimiento() == null) {
+                throw new BusinessException("No se puede verificar la edad. Por favor, actualiza tu fecha de nacimiento en tu perfil.");
+            }
+
+            LocalDate fechaNacimiento = cliente.getFechaNacimiento();
+            LocalDate fechaActual = LocalDate.now();
+            
+            // Calcular edad comparando fecha de nacimiento con fecha actual
+            int edad = fechaActual.getYear() - fechaNacimiento.getYear();
+            
+            // Ajustar si aún no ha cumplido años este año
+            if (fechaActual.getMonthValue() < fechaNacimiento.getMonthValue() ||
+                (fechaActual.getMonthValue() == fechaNacimiento.getMonthValue() &&
+                 fechaActual.getDayOfMonth() < fechaNacimiento.getDayOfMonth())) {
+                edad--;
+            }
+
+            if (edad < 18) {
+                throw new BusinessException("Este evento es solo para mayores de 18 años. Tu edad actual es " + edad + " años.");
+            }
+
+            log.debug("Validación de edad exitosa: Cliente ID {} tiene {} años para evento +18 ID {}", 
+                    cliente.getIdPersona(), edad, evento.getIdEvento());
         }
     }
 
@@ -338,7 +400,7 @@ public class OrdenServicio {
 
 
 
-    public void validarStockDisponible(List<ItemSeleccionadoDTO> itemsDTO) {
+    public void validarStockDisponible(List<ItemSeleccionadoDTO> itemsDTO, Cliente cliente) {
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
@@ -362,6 +424,11 @@ public class OrdenServicio {
 
             if (ticketsDisponibles.size() < itemDTO.getCantidad()) {
                 throw new BusinessException("No hay suficientes tickets disponibles");
+            }
+
+            // Validar edad del cliente para eventos +18
+            if (tipoTicket.getEvento() != null && cliente != null) {
+                validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
             }
         }
     }
@@ -420,6 +487,11 @@ public class OrdenServicio {
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
             
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
+
+            // Validar edad del cliente para eventos +18
+            if (tipoTicket.getEvento() != null) {
+                validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
+            }
 
             // Validar stock justo antes de reservar (evitar condiciones de carrera)
             if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
@@ -550,6 +622,8 @@ public class OrdenServicio {
         if (orden.getEstado() != EstadoCompra.PENDIENTE) {
             throw new BusinessException("Solo se pueden confirmar órdenes en estado PENDIENTE");
         }
+
+        // 1. Gestión del Carrito
         CarroCompras carrito = orden.getCarroCompras();
         if (carrito != null) {
             List<OrdenCompra> otrasOrdenesActivas = ordenCompraRepositorio
@@ -567,6 +641,7 @@ public class OrdenServicio {
             carrito.setFechaActualizacion(LocalDateTime.now());
             carroComprasRepository.save(carrito);
             log.info("Carrito ID {} marcado como INACTIVO (histórico).", carrito.getIdCarro());
+
             CarroCompras nuevoCarro = new CarroCompras();
             nuevoCarro.setCliente(orden.getCliente());
             nuevoCarro.setActivo(true);
@@ -580,15 +655,29 @@ public class OrdenServicio {
         } else {
             log.info("Orden ID {} no tiene carrito asociado (compra directa).", idOrden);
         }
+
+        // 2. Actualizar Estado
         orden.setEstado(EstadoCompra.APROBADO);
         orden.setActivo(false);
         orden.setFechaActualizacion(LocalDate.now());
-        ordenCompraRepositorio.save(orden);
-        log.info("Orden ID {} confirmada exitosamente.", idOrden);
+
+        // 3. Cálculo de Prorrateo y Actualización de Tickets
+        double subtotalLista = orden.getSubtotal() != null && orden.getSubtotal() > 0 ? orden.getSubtotal() : 1.0;
+        double totalPagado = orden.getTotal() != null ? orden.getTotal() : 0.0;
+
+        // Factor para distribuir el descuento proporcionalmente
+        double factorAjuste = (subtotalLista > 0) ? (totalPagado / subtotalLista) : 1.0;
+
         Map<Evento, Integer> cantidadPorEvento = new HashMap<>();
+
         for (ItemCarrito item : orden.getItems()) {
             for (Ticket ticket : item.getTickets()) {
                 ticket.setEstado(EstadoTicket.VENDIDA);
+                double precioOriginal = ticket.getPrecio() != null ? ticket.getPrecio() : 0.0;
+                double precioRealPagado = precioOriginal * factorAjuste;
+                precioRealPagado = Math.round(precioRealPagado * 100.0) / 100.0;
+                ticket.setPrecio(precioRealPagado);
+                ticketRepository.save(ticket);
             }
             Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(item.getTipoTicket().getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -602,14 +691,18 @@ public class OrdenServicio {
                 evento.setAforoDisponible(Math.max(evento.getAforoDisponible() - cantidadVendida, 0));
             }
         }
+        ordenCompraRepositorio.save(orden);
+        ordenCompraRepositorio.flush();
+        log.info("Orden ID {} confirmada exitosamente.", idOrden);
         try {
             log.info("Enviando correo de confirmación de compra para orden ID: {}", idOrden);
             emailService.enviarCorreoConfirmacionCompra(orden);
         } catch (Exception e) {
             log.error("Error al enviar correo de confirmación (no crítico): {}", e.getMessage());
         }
+
+        // 7. Generar Puntos
         try {
-            // Calculamos puntos basados en el total de la orden
             fidelizacionService.generarPuntosPorCompra(
                     orden.getCliente().getIdPersona(),
                     orden.getTotal(),
@@ -712,6 +805,19 @@ public class OrdenServicio {
         if (!carrito.getActivo() || carrito.getItems().isEmpty()) {
             throw new BusinessException("El carrito está inactivo o vacío.");
         }
+
+        Cliente cliente = carrito.getCliente();
+        if (cliente == null) {
+            throw new ResourceNotFoundException("Cliente no encontrado en el carrito");
+        }
+
+        // Validar edad del cliente para eventos +18 en todos los items del carrito
+        for (ItemCarrito item : carrito.getItems()) {
+            if (item.getTipoTicket() != null && item.getTipoTicket().getEvento() != null) {
+                validarEdadClienteParaEvento(item.getTipoTicket().getEvento(), cliente);
+            }
+        }
+
         List<AsistenteParaItemDTO> itemsConAsistentes = requestDTO.getItemsConAsistentes();
 
         OrdenCompra orden = new OrdenCompra();

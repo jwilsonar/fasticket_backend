@@ -486,9 +486,6 @@ class OrdenServiceTest {
         // --- 2. Configurar DTO de entrada ---
         CrearOrdenDTO dto = new CrearOrdenDTO();
         dto.setIdCliente(idCliente);
-        dto.setRuc("12345678901");
-        dto.setRazonSocial("EMPRESA SAC");
-        dto.setDireccionFiscal("Av Test 123");
 
         DatosAsistenteDTO asistente = new DatosAsistenteDTO();
         asistente.setNombres("Juan");
@@ -514,7 +511,7 @@ class OrdenServiceTest {
         // --- 4. Configurar Mocks de Validación ---
         doNothing().when(ordenServicio).validarLimitePorCompra(any());
         doNothing().when(ordenServicio).validarLimitesPorPersona(any(), any());
-        doNothing().when(ordenServicio).validarStockDisponible(any());
+        doNothing().when(ordenServicio).validarStockDisponible(any(), any());
 
         // --- 5. Configurar Items y Tickets (Simulación de creación) ---
         Ticket ticket = new Ticket();
@@ -602,7 +599,7 @@ class OrdenServiceTest {
         // Verificaciones finales
         verify(ordenServicio, times(1)).validarLimitePorCompra(any());
         verify(ordenServicio, times(1)).validarLimitesPorPersona(any(), any());
-        verify(ordenServicio, times(1)).validarStockDisponible(any());
+        verify(ordenServicio, times(1)).validarStockDisponible(any(), any());
         verify(ordenServicio, times(1)).construirYGuardarItems(any(), any(), any());
     }
 

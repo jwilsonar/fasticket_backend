@@ -17,6 +17,7 @@ import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilResponseDTO;
 import pe.edu.pucp.fasticket.dto.usuario.AdministradorPerfilUpdateDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
+import pe.edu.pucp.fasticket.model.geografia.Distrito;
 import pe.edu.pucp.fasticket.model.usuario.Administrador;
 import pe.edu.pucp.fasticket.model.usuario.Cliente;
 import pe.edu.pucp.fasticket.model.usuario.Persona;
@@ -317,5 +318,52 @@ public class AdministradorService {
         }
 
         log.info("Cliente ID {} verificado manualmente por Admin ID {}", idCliente, adminActual.getIdPersona());
+    }
+
+
+    @Transactional
+    public void eliminarCliente(Integer idCliente) {
+        Administrador adminActual = getAdminActual();
+
+        Cliente cliente = clienteRepository.findById(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + idCliente));
+
+        // en lugar de eliminar físicamente, podríamos considerar anonimizar al cliente para mantener integridad referencial
+
+        cliente.setNombres("Anonimo");
+        cliente.setApellidos("Anonimo");
+        cliente.setTelefono("Anonimo");
+        cliente.setDireccion("Anonimo");
+        cliente.setDocIdentidad("Anonimo"); 
+        cliente.setEmail("anonimo+" + cliente.getIdPersona() + "@fasticket.com"); // Email único simulado
+        cliente.setContrasena("********"); // Contraseña en blanco o fija
+        cliente.setVerificado(false);
+        cliente.setActivo(false);
+        cliente.setFechaNacimiento(null);
+
+        cliente.getOrdenesCompra().forEach(orden -> {
+            orden.setRuc("00000000000");
+            orden.setRazonSocial("Anonimo");
+            orden.setDireccionFiscal("Anonimo");
+        });
+
+        cliente.getTickets().forEach(ticket -> {
+            ticket.setApellidoAsistente("Anonimo");
+            ticket.setNombreAsistente("Anonimo");
+            ticket.setDocumentoAsistente("Anonimo");
+        });
+        cliente.setFechaActualizacion(java.time.LocalDate.now());
+        Cliente clienteActualizado = clienteRepository.save(cliente);
+
+        // Auditoría
+        try {
+            String detalle = "Admin (ID: " + adminActual.getIdPersona() + ") hard-eliminó al cliente: " + cliente.getIdPersona();
+            auditLogService.registrarAuditoria(adminActual, "HARD_ELIMINAR_CLIENTE", "AdministradorService", detalle);
+        } catch (Exception e) {
+            log.error("Error auditoría", e);
+        }
+
+        log.info("Cliente ID {} hard-eliminado por Admin ID {}", idCliente, adminActual.getIdPersona());
+
     }
 }

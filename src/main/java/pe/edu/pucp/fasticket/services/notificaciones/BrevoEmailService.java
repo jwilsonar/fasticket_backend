@@ -47,6 +47,12 @@ public class BrevoEmailService implements EmailService {
     public BrevoEmailService(TransactionalEmailsApi transactionalEmailsApi) {
         this.transactionalEmailsApi = transactionalEmailsApi;
     }
+    
+    @jakarta.annotation.PostConstruct
+    public void logConfiguracion() {
+        log.info("🔧 BrevoEmailService configurado | enabled={} | apiKey configurada={} | senderEmail={}", 
+                enabled, apiKey != null && !apiKey.isBlank(), senderEmail);
+    }
 
     @Override
     public boolean enviarEmail(String destinatario, String nombreDestinatario, String asunto,
@@ -101,10 +107,15 @@ public class BrevoEmailService implements EmailService {
     @Override
     public boolean enviarEmailHtml(String destinatario, String nombreDestinatario,
                                    String asunto, String contenidoHtml) {
+        log.info("📧 BrevoEmailService.enviarEmailHtml() llamado | enabled={} | apiKey configurada={} | destinatario={}", 
+                enabled, apiKey != null && !apiKey.isBlank(), destinatario != null ? maskEmail(destinatario) : "null");
+        
         if (!enabled || apiKey == null || apiKey.isBlank()) {
-            log.warn("⚠️ Brevo no está habilitado. Email HTML simulado enviado a: {}", destinatario);
-            log.info("📧 [SIMULADO] Asunto: {} | Destinatario: {}", asunto, destinatario);
-            return true;
+            log.warn("⚠️ Brevo no está habilitado o API key no configurada. Email HTML simulado enviado a: {}", 
+                    destinatario != null ? maskEmail(destinatario) : "null");
+            log.info("📧 [SIMULADO] Asunto: {} | Destinatario: {}", asunto, destinatario != null ? maskEmail(destinatario) : "null");
+            // IMPORTANTE: Retornamos false para que el caller sepa que no se envió realmente
+            return false;
         }
 
         try {
@@ -131,14 +142,17 @@ public class BrevoEmailService implements EmailService {
 			var response = transactionalEmailsApi.sendTransacEmail(email);
 
 			long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
-			log.info("✅ BREVO [{}] Email HTML enviado | to={} | asunto={} | htmlSize={} | elapsedMs={} | messageId={}",
+			String messageId = response != null ? response.getMessageId() : "n/a";
+			log.info("✅ BREVO [{}] Email HTML enviado EXITOSAMENTE | to={} | asunto={} | htmlSize={} | elapsedMs={} | messageId={}",
 				cid, maskEmail(destinatario), safe(asunto),
-				contenidoHtml != null ? contenidoHtml.length() : 0, elapsedMs,
-				response != null ? response.getMessageId() : "n/a");
+				contenidoHtml != null ? contenidoHtml.length() : 0, elapsedMs, messageId);
+			log.info("✅ Confirmación de envío: El correo fue aceptado por Brevo con messageId: {}", messageId);
             return true;
 
         } catch (Exception e) {
-			log.error("❌ BREVO Error enviando email HTML a {}: {}", maskEmail(destinatario), e.getMessage(), e);
+			log.error("❌ BREVO Error CRÍTICO enviando email HTML a {}: {}", 
+					destinatario != null ? maskEmail(destinatario) : "null", e.getMessage(), e);
+			log.error("❌ Stack trace completo del error:", e);
             return false;
         }
     }

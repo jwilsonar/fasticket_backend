@@ -13,8 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,7 +65,6 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService; // SMTP legacy (fallback)
-    private final pe.edu.pucp.fasticket.services.notificaciones.EmailService emailNotificacionesService; // Brevo
     private final PlantillaService plantillaService;
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordResetCodeRepository passwordResetCodeRepository;
@@ -106,8 +103,19 @@ public class AuthService {
             throw new BusinessException("La cuenta está desactivada");
         }
 
+        // 3. Validar si la cuenta está verificada (solo para Clientes)
+        if (persona.getRol() == Rol.CLIENTE) {
+            Cliente cliente = clienteRepository.findByEmail(persona.getEmail())
+                    .orElseThrow(() -> new BusinessException("Error al cargar información del cliente"));
+            
+            if (!Boolean.TRUE.equals(cliente.getVerificado())) {
+                log.warn("Intento de login con cuenta no verificada: {}", persona.getEmail());
+                throw new BusinessException("Tu cuenta no ha sido verificada. Por favor, verifica tu correo electrónico haciendo clic en el enlace que te enviamos al registrarte. Si no recibiste el correo, puedes solicitar uno nuevo.");
+            }
+        }
+
         try {
-            Authentication authentication = authenticationManager.authenticate(
+            authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getContrasena())
             );
 
@@ -151,7 +159,7 @@ public class AuthService {
                     .build();
 
         } catch (BadCredentialsException ex) {
-            int attempts = (persona.getFailedAttempts() == null ? 0 : persona.getFailedAttempts()) + 1;
+            int attempts = persona.getFailedAttempts() != null ? persona.getFailedAttempts() + 1 : 1;
             persona.setFailedAttempts(attempts);
 
             if (attempts >= 1 && attempts <= N_MAX_ATTEMPTS) {
@@ -220,19 +228,27 @@ public class AuthService {
         cliente.setActivo(true);
         cliente.setRol(Rol.CLIENTE); // Forzamos rol Cliente
         cliente.setFechaCreacion(LocalDate.now());
-        // cliente.setVerificado(false); // Recomendado: iniciar como no verificado
+        cliente.setVerificado(false); // Iniciar como no verificado
 
         Persona personaGuardada = clienteRepository.save(cliente);
 
-        // 4. Lógica de Notificación / Token (Se mantiene igual)
+        // 4. Enviar correo de verificación
         try {
+            log.info("📧 Generando token de verificación para: {}", personaGuardada.getEmail());
             String tokenVerificacion = jwtUtil.generateVerificationToken(personaGuardada.getEmail());
-            String linkVerificacion = frontendUrl + "/verificar-cuenta?token=" + tokenVerificacion;
+            
+            // Construir URL completa: FRONTEND_URL + /verificar-cuenta/ + token
+            String linkVerificacion = frontendUrl.endsWith("/") 
+                ? frontendUrl + "verificar-cuenta/" + tokenVerificacion
+                : frontendUrl + "/verificar-cuenta/" + tokenVerificacion;
+            
+            log.info("🔗 Link de verificación generado para: {}", personaGuardada.getEmail());
+            log.debug("Link de verificación (oculto en producción): {}***", linkVerificacion.substring(0, Math.min(50, linkVerificacion.length())));
 
-            // ... (Tu código de NotificationManager se mantiene igual) ...
-            Map<String,Object> params = new java.util.HashMap<>();
+            Map<String, Object> params = new HashMap<>();
             params.put("nombre", personaGuardada.getNombres());
             params.put("linkVerificacion", linkVerificacion);
+            params.put("email", personaGuardada.getEmail());
 
             NotificationRequest req = NotificationRequest.builder()
                     .personaId(personaGuardada.getIdPersona())
@@ -242,12 +258,18 @@ public class AuthService {
                     .plantilla(TipoPlantilla.VERIFICAR_CUENTA)
                     .params(params)
                     .titulo("Verifica tu cuenta")
-                    .mensaje("Hemos enviado un correo con el enlace de verificación.")
+                    .mensaje("Por favor, verifica tu correo electrónico para activar tu cuenta.")
+                    .sendEmail(true)
+                    .sendInApp(false) // No enviar notificación in-app para nuevos registros
                     .build();
+                    
             notificationManager.notifyAllChannels(req);
+            log.info("✅ Correo de verificación enviado exitosamente a: {}", personaGuardada.getEmail());
 
         } catch (Exception e) {
-            log.warn("Error enviando verificación: {}", e.getMessage());
+            log.error("❌ Error enviando correo de verificación a {}: {}", personaGuardada.getEmail(), e.getMessage(), e);
+            // No fallar el registro si el correo no se envía
+            log.warn("⚠️ El usuario fue registrado pero no se pudo enviar el correo de verificación");
         }
 
         log.info("Cliente registrado exitosamente: {}", personaGuardada.getEmail());
@@ -340,28 +362,69 @@ public class AuthService {
         }
     }
 
+    /**
+     * Verifica si existe un usuario con el email dado.
+     * @param email Email a verificar
+     * @return true si el usuario existe, false en caso contrario
+     */
+    public boolean existeUsuarioPorEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return personasRepositorio.findByEmail(email.toLowerCase()).isPresent();
+    }
+
     @Transactional
     public void iniciarOlvidoContrasena(String email){
-        log.info("Iniciar olvido de contraseña para: {}", email);
-        Persona persona = personasRepositorio.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        log.info("🔐 Iniciar olvido de contraseña para: {}", email);
+        
+        // Buscar usuario (opcional - puede no existir)
+        Persona persona = personasRepositorio.findByEmail(email).orElse(null);
+        
+        Integer personaId = null;
+        String nombreUsuario = "Usuario";
+        
+        if (persona != null) {
+            personaId = persona.getIdPersona();
+            nombreUsuario = persona.getNombres() != null && !persona.getNombres().isBlank() 
+                ? persona.getNombres() 
+                : "Usuario";
+            log.info("✅ Usuario encontrado: {} (ID: {})", persona.getEmail(), personaId);
+        } else {
+            log.info("ℹ️ Usuario no encontrado para email: {}, se enviará correo de todas formas", email);
+        }
 
         // Generar código 6 dígitos
         String codigo = String.format("%06d", new Random().nextInt(1_000_000));
+        log.debug("📝 Código de recuperación generado para: {}", email);
 
+        // Guardar código de recuperación (incluso si el usuario no existe)
+        // Si el usuario no existe, personaId será null (registro temporal)
         PasswordResetCode prc = new PasswordResetCode();
-        prc.setPersonaId(persona.getIdPersona());
+        prc.setPersonaId(personaId); // Puede ser null si el usuario no existe (registro temporal)
         prc.setEmail(email.toLowerCase());
         prc.setCodigo(codigo);
         prc.setExpiraEn(Instant.now().plus(Duration.ofMinutes(10)));
         prc.setVerificado(false);
         prc.setUsado(false);
         prc.setIntentos(0);
-        passwordResetCodeRepository.save(prc);
+        
+        try {
+            passwordResetCodeRepository.save(prc);
+            log.debug("💾 Código de recuperación guardado en BD (personaId={})", personaId != null ? personaId : "null (temporal)");
+        } catch (Exception e) {
+            // Si falla por restricción NOT NULL en BD, informar al usuario
+            if (e.getMessage() != null && e.getMessage().contains("null value in column \"persona_id\"")) {
+                log.error("❌ Error: La columna persona_id en password_reset_codes tiene restricción NOT NULL en la BD.");
+                log.error("❌ Ejecuta el script: src/main/resources/sql/alter_password_reset_codes_persona_id_nullable.sql");
+                throw new BusinessException("Error de configuración de base de datos. Contacte al administrador.");
+            }
+            throw e;
+        }
 
         // Usar plantilla si existe (OLVIDO_CONTRASENA_CODIGO), con params
         Map<String, Object> params = new HashMap<>();
-        params.put("nombre", persona.getNombres());
+        params.put("nombre", nombreUsuario);
         params.put("codigo", codigo);
         params.put("email", email.toLowerCase());
 
@@ -371,19 +434,24 @@ public class AuthService {
         if (plantilla != null) {
             asunto = plantilla.getAsunto();
             html = plantillaService.render(plantilla.getHtml(), params);
+            log.debug("📄 Usando plantilla personalizada para email de recuperación");
         } else {
             html = "<h2>Tu código de verificación</h2>"
                  + "<p>Usa este código para continuar con el proceso de recuperación:</p>"
                  + "<p style='font-size:24px;letter-spacing:4px'><strong>" + codigo + "</strong></p>"
                  + "<p>El código expira en 10 minutos.</p>";
+            log.debug("📄 Usando plantilla por defecto para email de recuperación");
         }
 
-        // Enviar por email + notificación in-app
+        // Enviar por email (siempre se envía, incluso si el usuario no existe)
+        boolean emailEnviado = false;
         try {
+            log.info("📧 Intentando enviar correo de recuperación a: {}", email);
+            log.debug("📋 Configuración: Usuario existe={}, Nombre={}, Código generado", personaId != null, nombreUsuario);
             NotificationRequest req = NotificationRequest.builder()
-                .personaId(persona.getIdPersona())
+                .personaId(personaId) // Puede ser null si el usuario no existe
                 .email(email)
-                .nombre(persona.getNombres())
+                .nombre(nombreUsuario)
                 .notiTipo(TipoNotificacion.RECUPERACION_CONTRASENA)
                 .plantilla(TipoPlantilla.OLVIDO_CONTRASENA_CODIGO)
                 .params(params)
@@ -391,80 +459,372 @@ public class AuthService {
                 .html(html)
                 .titulo("Recuperación de contraseña")
                 .mensaje("Hemos enviado un código de verificación a tu correo.")
+                .sendInApp(false) // No enviar notificación in-app si el usuario no existe
                 .build();
             notificationManager.notifyAllChannels(req);
+            emailEnviado = true;
+            log.info("✅ Notificación enviada a través de NotificationManager");
         } catch (Exception ex) {
-            // fallback a SMTP si ocurre error en envío email
-            emailService.enviarCorreoResetContrasena(email, asunto, html);
+            log.warn("⚠️ Error al enviar notificación a través de NotificationManager: {}", ex.getMessage());
+            log.debug("Detalles del error:", ex);
+            // fallback a SMTP directo si ocurre error en envío email (Brevo falló o no está configurado)
+            try {
+                log.info("🔄 Intentando fallback a EmailService (SMTP directo, sin Brevo)");
+                emailService.enviarCorreoResetContrasena(email, asunto, html);
+                emailEnviado = true;
+                log.info("✅ Email enviado exitosamente mediante fallback a SMTP directo");
+            } catch (Exception fallbackEx) {
+                log.error("❌ Error crítico: No se pudo enviar el correo ni por NotificationManager (Brevo) ni por fallback (SMTP): {}", fallbackEx.getMessage(), fallbackEx);
+                throw new BusinessException("No se pudo enviar el correo de recuperación. Por favor, intente más tarde.");
+            }
         }
+        
+        if (!emailEnviado) {
+            log.error("❌ El correo no se pudo enviar para: {}", email);
+            throw new BusinessException("No se pudo enviar el correo de recuperación. Por favor, intente más tarde.");
+        }
+        
+        log.info("✅ Proceso de olvido de contraseña completado para: {} (correo enviado)", email);
     }
 
+    /**
+     * Valida el código de recuperación de contraseña.
+     * Verifica que el código sea correcto, no haya sido usado, no haya expirado
+     * y no se hayan excedido los intentos máximos.
+     * 
+     * @param request Contiene email y código a validar
+     * @throws BusinessException si el código es inválido, expirado, usado o se excedieron los intentos
+     */
     @Transactional
     public void validarCodigoOlvido(ValidateCodeRequestDTO request) {
         String email = request.getEmail().toLowerCase();
-        log.info("Validando código de olvido de contraseña para: {}", email);
+        log.info("🔐 Validando código de recuperación para: {}", email);
 
+        // Buscar el código más reciente para este email
         var opt = passwordResetCodeRepository.findTopByEmailOrderByIdDesc(email);
-        PasswordResetCode prc = opt.orElseThrow(() -> new BusinessException("No hay solicitud vigente"));
+        PasswordResetCode prc = opt.orElseThrow(() -> {
+            log.warn("⚠️ No hay solicitud de recuperación vigente para: {}", email);
+            return new BusinessException("No hay una solicitud de recuperación vigente para este correo");
+        });
 
-        if (prc.isUsado()) throw new BusinessException("El código ya fue usado");
-        if (Instant.now().isAfter(prc.getExpiraEn())) throw new BusinessException("El código ha expirado");
+        // Validar que no haya sido usado
+        if (prc.isUsado()) {
+            log.warn("⚠️ Intento de usar código ya utilizado para: {}", email);
+            throw new BusinessException("Este código ya fue utilizado. Por favor, solicita uno nuevo.");
+        }
+
+        // Validar que no haya expirado
+        if (Instant.now().isAfter(prc.getExpiraEn())) {
+            log.warn("⚠️ Código expirado para: {}", email);
+            throw new BusinessException("El código ha expirado. Por favor, solicita uno nuevo.");
+        }
+
+        // Validar intentos máximos
+        final int MAX_INTENTOS = 5;
+        if (prc.getIntentos() >= MAX_INTENTOS) {
+            log.warn("⚠️ Se excedieron los intentos máximos para: {}", email);
+            throw new BusinessException("Se excedieron los intentos máximos. Por favor, solicita un nuevo código.");
+        }
+
+        // Validar el código
         if (!prc.getCodigo().equals(request.getCodigo())) {
             prc.setIntentos(prc.getIntentos() + 1);
             passwordResetCodeRepository.save(prc);
-            throw new BusinessException("Código inválido");
+            
+            int intentosRestantes = MAX_INTENTOS - prc.getIntentos();
+            log.warn("⚠️ Código inválido para: {} - Intentos restantes: {}", email, intentosRestantes);
+            
+            if (intentosRestantes > 0) {
+                throw new BusinessException("Código inválido. Te quedan " + intentosRestantes + " intento(s).");
+            } else {
+                throw new BusinessException("Código inválido. Se excedieron los intentos máximos. Solicita un nuevo código.");
+            }
         }
+        
+        // Código válido - marcar como verificado
         prc.setVerificado(true);
         passwordResetCodeRepository.save(prc);
+        
+        log.info("✅ Código validado exitosamente para: {}", email);
     }
 
+    /**
+     * Restablece la contraseña del usuario con un código previamente validado.
+     * Verifica que el código esté validado, no haya sido usado y no haya expirado.
+     * 
+     * @param request Contiene email, nueva contraseña y confirmación
+     * @throws BusinessException si el código no está validado, fue usado o expiró
+     * @throws ResourceNotFoundException si el usuario no existe
+     */
     @Transactional
     public void resetearContrasenaPorId(ResetPasswordByIdRequestDTO request) {
         String email = request.getEmail().toLowerCase();
-        log.info("Resetear contraseña por correo para usuario: {}", email);
+        log.info("🔐 Restableciendo contraseña para: {}", email);
 
+        // Validar que las contraseñas coincidan
         if (!request.getContrasena().equals(request.getContrasenaConfirmacion())) {
+            log.warn("⚠️ Las contraseñas no coinciden para: {}", email);
             throw new BusinessException("La contraseña y su confirmación no coinciden");
         }
 
+        // Buscar usuario
         Persona persona = personasRepositorio.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> {
+                    log.warn("⚠️ Usuario no encontrado: {}", email);
+                    return new ResourceNotFoundException("Usuario no encontrado");
+                });
 
+        // Buscar código de recuperación
         var opt = passwordResetCodeRepository.findTopByEmailOrderByIdDesc(email);
-        PasswordResetCode prc = opt.orElseThrow(() -> new BusinessException("No hay código validado para este usuario"));
-        if (!prc.isVerificado()) throw new BusinessException("Debe validar el código primero");
-        if (prc.isUsado()) throw new BusinessException("El código ya fue usado");
-        if (Instant.now().isAfter(prc.getExpiraEn())) throw new BusinessException("El código ha expirado");
+        PasswordResetCode prc = opt.orElseThrow(() -> {
+            log.warn("⚠️ No hay código de recuperación para: {}", email);
+            return new BusinessException("No hay una solicitud de recuperación para este correo");
+        });
 
+        // Validaciones del código
+        if (!prc.isVerificado()) {
+            log.warn("⚠️ Código no verificado para: {}", email);
+            throw new BusinessException("Debes validar el código antes de restablecer la contraseña");
+        }
+        
+        if (prc.isUsado()) {
+            log.warn("⚠️ Código ya usado para: {}", email);
+            throw new BusinessException("Este código ya fue utilizado. Por favor, solicita uno nuevo.");
+        }
+        
+        if (Instant.now().isAfter(prc.getExpiraEn())) {
+            log.warn("⚠️ Código expirado para: {}", email);
+            throw new BusinessException("El código ha expirado. Por favor, solicita uno nuevo.");
+        }
+
+        // Validar que la nueva contraseña sea diferente a la actual
+        if (passwordEncoder.matches(request.getContrasena(), persona.getContrasena())) {
+            log.warn("⚠️ Nueva contraseña igual a la actual para: {}", email);
+            throw new BusinessException("La nueva contraseña debe ser diferente a la actual");
+        }
+
+        // Actualizar contraseña
         persona.setContrasena(passwordEncoder.encode(request.getContrasena()));
+        persona.setFechaActualizacion(LocalDate.now());
+        
+        // Resetear intentos fallidos de login si existieran
+        persona.setFailedAttempts(0);
+        persona.setLockedUntil(null);
+        
         personasRepositorio.save(persona);
 
+        // Marcar código como usado
         prc.setUsado(true);
         passwordResetCodeRepository.save(prc);
 
-        log.info("Contraseña reseteada correctamente para {}", persona.getEmail());
+        log.info("✅ Contraseña restablecida exitosamente para: {}", persona.getEmail());
+        
+        // Opcional: Enviar notificación de confirmación
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", persona.getNombres());
+            
+            NotificationRequest req = NotificationRequest.builder()
+                    .personaId(persona.getIdPersona())
+                    .email(persona.getEmail())
+                    .nombre(persona.getNombres())
+                    .notiTipo(TipoNotificacion.CAMBIO_CONTRASENA)
+                    .plantilla(TipoPlantilla.CONFIRMACION_RECUPERACION_CONTRASENA)
+                    .params(params)
+                    .titulo("Contraseña actualizada")
+                    .mensaje("Tu contraseña ha sido restablecida exitosamente.")
+                    .sendEmail(true)
+                    .sendInApp(true)
+                    .build();
+                    
+            notificationManager.notifyAllChannels(req);
+            log.info("📧 Notificación de confirmación enviada a: {}", email);
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enviar notificación de confirmación: {}", e.getMessage());
+            // No fallar el proceso por esto
+        }
     }
 
+    /**
+     * Verifica la cuenta de un usuario mediante token JWT.
+     * El token debe ser del tipo 'email_verification' y contener el email del usuario.
+     * Al verificar exitosamente, marca el campo 'verificado' como true.
+     * 
+     * @param token Token JWT de verificación
+     * @throws BusinessException si el token es inválido, expirado o no es de verificación
+     * @throws ResourceNotFoundException si el usuario no existe
+     */
     @Transactional
-    public void verificarCuenta(UserDetails userDetails, String token) {
-        // 1. Validar token y firma
-        if (!jwtUtil.validateToken(token,userDetails)) {
-            throw new RuntimeException("Token inválido");
+    public void verificarCuenta(String token) {
+        log.info("Iniciando verificación de cuenta con token");
+        
+        try {
+            // 1. Validar token (firma y expiración)
+            if (!jwtUtil.validateToken(token)) {
+                log.warn("Token de verificación inválido o expirado");
+                throw new BusinessException("El token de verificación es inválido o ha expirado");
+            }
+            
+            // 2. Verificar que el claim "type" sea email_verification
+            String type = jwtUtil.extractType(token);
+            if (!"email_verification".equals(type)) {
+                log.warn("Token no es de tipo verificación de email: {}", type);
+                throw new BusinessException("El token no es válido para verificación de cuenta");
+            }
+            
+            // 3. Extraer email del token
+            String email = jwtUtil.extractUsername(token);
+            log.info("Verificando cuenta para email: {}", email);
+            
+            // 4. Buscar usuario (puede ser Cliente o eventualmente Administrador)
+            Persona persona = personasRepositorio.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+            
+            // 5. Verificar que sea un Cliente
+            if (!(persona instanceof Cliente)) {
+                log.warn("Intento de verificar cuenta para un usuario que no es Cliente: {}", email);
+                throw new BusinessException("Solo los clientes pueden verificar su cuenta mediante este método");
+            }
+            
+            Cliente cliente = (Cliente) persona;
+            
+            // 6. Verificar si ya está verificado
+            if (Boolean.TRUE.equals(cliente.getVerificado())) {
+                log.info("La cuenta ya estaba verificada: {}", email);
+                // No lanzar error, simplemente retornar exitosamente
+                return;
+            }
+            
+            // 7. Marcar como verificado
+            cliente.setVerificado(true);
+            cliente.setFechaActualizacion(LocalDate.now());
+            clienteRepository.save(cliente);
+            
+            log.info("✅ Cuenta verificada exitosamente para: {}", email);
+            
+            // 8. Opcional: Enviar notificación de bienvenida
+            try {
+                Map<String, Object> params = new HashMap<>();
+                params.put("nombre", cliente.getNombres());
+                
+                NotificationRequest req = NotificationRequest.builder()
+                        .personaId(cliente.getIdPersona())
+                        .email(cliente.getEmail())
+                        .nombre(cliente.getNombres())
+                        .notiTipo(TipoNotificacion.SISTEMA)
+                        .titulo("Cuenta verificada")
+                        .mensaje("¡Tu cuenta ha sido verificada exitosamente! Ahora puedes disfrutar de todos los beneficios de Fasticket.")
+                        .sendEmail(false) // Solo notificación in-app
+                        .sendInApp(true)
+                        .build();
+                        
+                notificationManager.notifyAllChannels(req);
+            } catch (Exception e) {
+                log.warn("No se pudo enviar notificación de bienvenida: {}", e.getMessage());
+                // No fallar el proceso por esto
+            }
+            
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            log.warn("Token de verificación expirado");
+            throw new BusinessException("El token de verificación ha expirado. Por favor, solicita un nuevo enlace de verificación");
+        } catch (io.jsonwebtoken.JwtException e) {
+            log.error("Error al procesar token JWT: {}", e.getMessage());
+            throw new BusinessException("Token de verificación inválido");
+        } catch (BusinessException | ResourceNotFoundException e) {
+            // Re-lanzar excepciones de negocio
+            throw e;
+        } catch (Exception e) {
+            log.error("Error inesperado al verificar cuenta: {}", e.getMessage(), e);
+            throw new BusinessException("Error al verificar la cuenta. Por favor, intenta nuevamente");
         }
-        // 2. Extraer email del token
-        String userAVerificar = jwtUtil.extractUsername(token);
-        // 3. Verificar que el claim "type" sea email_verification
-        String type = jwtUtil.extractClaim(token, claims -> claims.get("type", String.class));
-        if (!"email_verification".equals(type)) {
-            throw new RuntimeException("Token no es de verificación de email");
-        }
-        // 4. Buscar usuario
-        Cliente cliente = clienteRepository.findByEmail(userAVerificar)
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+    }
 
-        // 5. Activar cuenta
-        cliente.setVerificado(true);
-        clienteRepository.save(cliente);
+    /**
+     * Reenvía el correo de verificación a un usuario registrado.
+     * Valida que el usuario exista, sea un Cliente y no esté ya verificado.
+     * 
+     * @param email Email del usuario que solicita el reenvío
+     * @throws BusinessException si el usuario no existe, no es Cliente, ya está verificado o no se puede enviar el correo
+     */
+    @Transactional
+    public void reenviarCorreoVerificacion(String email) {
+        log.info("Solicitud de reenvío de correo de verificación para: {}", email);
+        
+        // 1. Buscar usuario por email
+        Persona persona = personasRepositorio.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> {
+                    log.warn("Intento de reenvío de verificación para email no registrado: {}", email);
+                    // Por seguridad, no revelamos si el email existe o no
+                    throw new BusinessException("Si el email está registrado y no está verificado, se enviará un correo de verificación.");
+                });
+        
+        // 2. Validar que sea un Cliente (los Administradores no requieren verificación)
+        if (persona.getRol() != Rol.CLIENTE) {
+            log.warn("Intento de reenvío de verificación para usuario que no es Cliente: {} (rol: {})", email, persona.getRol());
+            throw new BusinessException("Este tipo de cuenta no requiere verificación por correo electrónico.");
+        }
+        
+        // 3. Cargar el Cliente completo
+        Cliente cliente = clienteRepository.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> {
+                    log.error("Error: Cliente no encontrado aunque Persona existe: {}", email);
+                    throw new BusinessException("Error al cargar información del cliente");
+                });
+        
+        // 4. Validar que no esté ya verificado
+        if (Boolean.TRUE.equals(cliente.getVerificado())) {
+            log.info("Intento de reenvío de verificación para cuenta ya verificada: {}", email);
+            // No lanzar error, simplemente informar que ya está verificado
+            throw new BusinessException("Tu cuenta ya está verificada. Puedes iniciar sesión normalmente.");
+        }
+        
+        // 5. Validar que la cuenta esté activa
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            log.warn("Intento de reenvío de verificación para cuenta desactivada: {}", email);
+            throw new BusinessException("Tu cuenta está desactivada. Contacta con soporte para más información.");
+        }
+        
+        // 6. Generar nuevo token de verificación
+        try {
+            log.info("📧 Generando nuevo token de verificación para: {}", email);
+            String tokenVerificacion = jwtUtil.generateVerificationToken(cliente.getEmail());
+            
+            // Construir URL completa: FRONTEND_URL + /verificar-cuenta/ + token
+            String linkVerificacion = frontendUrl.endsWith("/") 
+                ? frontendUrl + "verificar-cuenta/" + tokenVerificacion
+                : frontendUrl + "/verificar-cuenta/" + tokenVerificacion;
+            
+            log.info("🔗 Nuevo link de verificación generado para: {}", email);
+            log.debug("Link de verificación (oculto en producción): {}***", 
+                    linkVerificacion.substring(0, Math.min(50, linkVerificacion.length())));
+
+            // 7. Preparar parámetros para la plantilla
+            Map<String, Object> params = new HashMap<>();
+            params.put("nombre", cliente.getNombres());
+            params.put("linkVerificacion", linkVerificacion);
+            params.put("email", cliente.getEmail());
+
+            // 8. Enviar correo de verificación
+            NotificationRequest req = NotificationRequest.builder()
+                    .personaId(cliente.getIdPersona())
+                    .email(cliente.getEmail())
+                    .nombre(cliente.getNombres())
+                    .notiTipo(TipoNotificacion.VERIFICACION_CUENTA)
+                    .plantilla(TipoPlantilla.VERIFICAR_CUENTA)
+                    .params(params)
+                    .titulo("Verifica tu cuenta")
+                    .mensaje("Hemos enviado un nuevo correo con el enlace de verificación.")
+                    .sendEmail(true)
+                    .sendInApp(false) // No enviar notificación in-app para reenvíos
+                    .build();
+                    
+            notificationManager.notifyAllChannels(req);
+            log.info("✅ Correo de verificación reenviado exitosamente a: {}", email);
+            
+        } catch (Exception e) {
+            log.error("❌ Error reenviando correo de verificación a {}: {}", email, e.getMessage(), e);
+            throw new BusinessException("No se pudo enviar el correo de verificación. Por favor, intenta nuevamente más tarde.");
+        }
     }
 
 }

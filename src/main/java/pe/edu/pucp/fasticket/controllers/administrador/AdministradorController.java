@@ -189,4 +189,26 @@ public class AdministradorController {
         return ResponseEntity.ok(StandardResponse.success("Cliente verificado exitosamente.", null));
     }
 
+    @Operation(
+        summary = "Eliminar Hard (anonimizar) cliente",
+        description = "Anonimiza y desactiva un cliente para mantener integridad referencial. Solo administradores.",
+        security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Cliente anonimizado/desactivado exitosamente"),
+        @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
+        @ApiResponse(responseCode = "401", description = "No autenticado"),
+        @ApiResponse(responseCode = "403", description = "No autorizado"),
+        @ApiResponse(responseCode = "404", description = "Cliente no encontrado", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @DeleteMapping("/clientes/{idCliente}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<Void>> eliminarCliente(
+            @PathVariable("idCliente") Integer idCliente) {
+
+        log.warn("DELETE /api/v1/administrador/clientes/{} - petición de eliminación (anonimización) por administrador", idCliente);
+        administradorService.eliminarCliente(idCliente);
+        return ResponseEntity.ok(StandardResponse.success("Cliente anonimizado y desactivado exitosamente", null));
+    }
+
 }

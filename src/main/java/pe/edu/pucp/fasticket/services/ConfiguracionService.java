@@ -38,6 +38,15 @@ public class ConfiguracionService {
         List<ConfiguracionGlobal> configs = configuracionRepository.findAll();
         return configuracionMapper.toDTOList(configs);
     }
+    /**
+     * Obtiene una configuración específica por su clave.
+     */
+    public ConfiguracionDTO getConfiguracionPorClave(String key) {
+        log.info("Obteniendo configuración para la clave: {}", key);
+        ConfiguracionGlobal config = configuracionRepository.findById(key)
+                .orElseThrow(() -> new ResourceNotFoundException("Configuración no encontrada con key: " + key));
+        return configuracionMapper.toDTO(config);
+    }
 
     /**
      * Actualiza un conjunto de configuraciones.
@@ -57,7 +66,9 @@ public class ConfiguracionService {
             // Guardar el valor anterior para la auditoría
             String valorAnterior = config.getValue();
 
-            config.setValue(dto.getValue());
+            // Asignar el nuevo valor intentando mantener el tipo (INTEGER, DOUBLE, STRING)
+            setTypedValue(config, dto.getValue());
+
             configuracionRepository.save(config);
 
             // Añadir al detalle de auditoría
@@ -74,6 +85,69 @@ public class ConfiguracionService {
         // --- FIN AUDITORÍA ---
 
         return getAllConfiguraciones();
+    }
+
+    /**
+     * Actualiza una configuración por su clave y retorna el DTO actualizado.
+     * Realiza auditoría de la acción.
+     */
+    @Transactional
+    public ConfiguracionDTO actualizarPorKey(String key, String nuevoValor) {
+        log.info("Actualizando configuración '{}' -> '{}'", key, nuevoValor);
+        Administrador adminActual = getAdminActual();
+
+        ConfiguracionGlobal config = configuracionRepository.findById(key)
+                .orElseThrow(() -> new ResourceNotFoundException("Configuración no encontrada con key: " + key));
+
+        String valorAnterior = config.getValue();
+
+        // Asignar el nuevo valor intentando mantener el tipo (INTEGER, DOUBLE, STRING)
+        setTypedValue(config, nuevoValor);
+
+        ConfiguracionGlobal guardada = configuracionRepository.save(config);
+
+        // Auditoría
+        try {
+            String detalle = String.format("Admin (ID: %d) actualizó configuración [%s: '%s' -> '%s']",
+                    adminActual.getIdPersona(), key, valorAnterior, nuevoValor);
+            auditLogService.registrarAuditoria(adminActual, "ACTUALIZAR_CONFIG_GLOBAL_POR_KEY", "ConfiguracionService", detalle);
+        } catch (Exception e) {
+            log.error("Fallo al registrar auditoría (ACTUALIZAR_CONFIG_GLOBAL_POR_KEY): {}", e.getMessage());
+        }
+
+        return configuracionMapper.toDTO(guardada);
+    }
+
+    /**
+     * Intenta inferir el tipo del nuevo valor y asignarlo correctamente en la entidad.
+     * Prioridad: INTEGER -> DOUBLE -> STRING.
+     */
+    private void setTypedValue(ConfiguracionGlobal config, String nuevoValor) {
+        if (nuevoValor == null) {
+            config.setValue((String) null);
+            config.setValueType("STRING");
+            return;
+        }
+        String trimmed = nuevoValor.trim();
+        // intentar integer
+        try {
+            Integer intVal = Integer.valueOf(trimmed);
+            config.setValue(String.valueOf(intVal));
+            config.setValueType("INTEGER");
+            return;
+        } catch (Exception ignored) {}
+
+        // intentar double
+        try {
+            Double dblVal = Double.valueOf(trimmed);
+            config.setValue(String.valueOf(dblVal));
+            config.setValueType("DOUBLE");
+            return;
+        } catch (Exception ignored) {}
+
+        // por defecto guardar como string
+        config.setValue(trimmed); // Lombok-generated setter for String field
+        config.setValueType("STRING");
     }
 
     // --- Helper para obtener Admin (copiado de otros servicios) ---

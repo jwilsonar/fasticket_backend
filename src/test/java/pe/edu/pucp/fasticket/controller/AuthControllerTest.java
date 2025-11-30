@@ -49,8 +49,8 @@ public class AuthControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    private String emailTest = "test@fasticket.com";
-    private String passwordTest = "password123";
+    private final String emailTest = "test@fasticket.com";
+    private final String passwordTest = "password123";
 
     @BeforeEach
     void setUp() {
@@ -64,6 +64,7 @@ public class AuthControllerTest {
         cliente.setContrasena(passwordEncoder.encode(passwordTest));
         cliente.setRol(Rol.CLIENTE);
         cliente.setActivo(true);
+        cliente.setVerificado(true); // Marcar como verificado para permitir login
         cliente.setFechaCreacion(LocalDate.now());
         clienteRepository.save(cliente);
     }

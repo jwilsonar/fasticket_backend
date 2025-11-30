@@ -17,11 +17,13 @@ import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Tag(
     name = "Carrito de Compras",
@@ -171,6 +173,22 @@ public class CarritoController {
         return ResponseEntity.ok(carritoActualizado);
     }
 
+    @Operation(
+            summary = "Obtener información del evento del carrito",
+            description = "Devuelve los detalles del evento (nombre, fecha, lugar) asociado a los tickets guardados en el carrito.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @GetMapping("/{idCarrito}/evento-info")
+    @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<EventoResumenDTO>>> obtenerInfoEventoCarrito(
+            @PathVariable Integer idCarrito) {
 
+        List<EventoResumenDTO> eventos = carroComprasService.obtenerEventosDelCarrito(idCarrito);
+
+        return ResponseEntity.ok(StandardResponse.success(
+                "Información del evento recuperada",
+                eventos
+        ));
+    }
 }
 

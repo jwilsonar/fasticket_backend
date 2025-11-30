@@ -207,7 +207,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         ticket.setTipoDocumentoAsistente(null);
         ticket.setDocumentoAsistente(null);
         ticket.setCodigoQr(null);
-        ticket.setQrImage(null);
+        ticket.setQrImageUrl(null);
         ticketRepository.save(ticket); // Guarda el ticket liberado
 
         // 2. Actualizar el stock

@@ -17,6 +17,7 @@ import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.ItemCarritoDTO;
 import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -417,6 +418,27 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         return convertirADTO(carroGuardado);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventoResumenDTO> obtenerEventosDelCarrito(Integer idCarrito) {
+        CarroCompras carrito = carroComprasRepository.findById(idCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Carrito no encontrado"));
+
+        if (carrito.getItems().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return carrito.getItems().stream()
+                .map(item -> item.getTipoTicket().getEvento())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .map(evento -> new EventoResumenDTO(
+                        evento.getNombre(),
+                        evento.getFechaEvento(),
+                        evento.getHoraInicio(),
+                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar"
+                ))
+                .collect(Collectors.toList());
+    }
 }
 
 

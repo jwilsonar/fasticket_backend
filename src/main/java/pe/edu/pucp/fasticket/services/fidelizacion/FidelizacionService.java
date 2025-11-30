@@ -441,7 +441,7 @@ public class FidelizacionService {
      */
     @Transactional
     public void revertirPuntosPorAnulacion(OrdenCompra orden) {
-        int puntosPorSol = Integer.parseInt(getConfig("PUNTOS_POR_MONEDA", "1"));
+        double puntosPorSol = Double.parseDouble(getConfig("PUNTOS_POR_MONEDA", "1"));
         int puntosARestar = (int) (orden.getTotal() * puntosPorSol);
 
         if (puntosARestar <= 0) return;

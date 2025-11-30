@@ -900,26 +900,15 @@ public class OrdenServicio {
             throw new BusinessException("Solo se pueden anular compras que ya están APROBADAS. " +
                     "El estado actual es: " + orden.getEstado());
         }
-
-        // 1. Cambiar estado de la orden
         orden.setEstado(EstadoCompra.ANULADO);
         orden.setActivo(false);
-
-        // 2. Revertir Tickets (Stock y Limpieza)
         revertirStockDeOrden(orden);
-
-        // 3. Revertir Puntos
         try {
             fidelizacionService.revertirPuntosPorAnulacion(orden);
         } catch (Exception e) {
             log.error("Error al revertir puntos de la orden {}: {}", idOrden, e.getMessage());
-            // No detenemos la anulación, pero queda el log
         }
-
-        // 4. Guardar la orden anulada
         ordenCompraRepositorio.save(orden);
-
-        // --- INICIO AUDITORÍA ---
         try {
             Administrador admin = getAdminActual();
             String detalle = "Se ANULÓ la orden ID: " + idOrden +
@@ -928,11 +917,7 @@ public class OrdenServicio {
         } catch (Exception e) {
             log.error("Fallo al registrar auditoría (ANULAR_COMPRA): {}", e.getMessage());
         }
-        // --- FIN AUDITORÍA ---
-
         log.info("Orden ID: {} ANULADA exitosamente por un administrador.", idOrden);
-
-        // TODO: Enviar correo de notificación al cliente sobre la anulación (RF-045)
     }
 
     private void revertirStockDeOrden(OrdenCompra orden) {

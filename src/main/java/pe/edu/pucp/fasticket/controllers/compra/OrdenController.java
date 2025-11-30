@@ -407,14 +407,14 @@ public class OrdenController {
     }
 
     @Operation(
-            summary = "Validar cupón (Simulación)",
+            summary = "Validar cupón ",
             description = "Verifica si un código es válido y retorna el monto de descuento calculado, sin aplicarlo ni restar stock."
     )
     @GetMapping("/validar-cupon")
     @PreAuthorize("hasRole('CLIENTE')")
     public ResponseEntity<StandardResponse<ValidacionCuponResponseDTO>> validarCupon(
             @RequestParam String codigo,
-            Authentication authentication) {
+            @Parameter(hidden = true) Authentication authentication) {
 
         try {
             Integer idCliente = obtenerIdUsuarioLogueado(authentication);

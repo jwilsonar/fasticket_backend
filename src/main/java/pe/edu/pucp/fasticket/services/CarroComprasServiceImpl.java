@@ -303,22 +303,53 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     private CarroComprasDTO convertirADTO(CarroCompras carro) {
         CarroComprasDTO dto = new CarroComprasDTO();
         dto.setIdCarro(carro.getIdCarro());
-        dto.setSubtotal(carro.getSubtotal());
-        dto.setTotal(carro.getTotal());
 
-        dto.setItems(carro.getItems().stream().map(item -> {
+        // Convertimos la lista de items y calculamos datos al vuelo
+        List<ItemCarritoDTO> itemsDTO = carro.getItems().stream().map(item -> {
             ItemCarritoDTO itemDTO = new ItemCarritoDTO();
             itemDTO.setIdItemCarrito(item.getIdItemCarrito());
             itemDTO.setCantidad(item.getCantidad());
 
             if (item.getTipoTicket() != null) {
-                itemDTO.setIdTipoTicket(item.getTipoTicket().getIdTipoTicket());
-                itemDTO.setNombreTicket(item.getTipoTicket().getNombre());
-                itemDTO.setPrecioUnitario(item.getPrecio());
-                itemDTO.setSubtotal(item.getPrecio() * item.getCantidad());
+                TipoTicket tipo = item.getTipoTicket();
+
+                // 1. Datos Básicos
+                itemDTO.setIdTipoTicket(tipo.getIdTipoTicket());
+                itemDTO.setNombreTicket(tipo.getNombre());
+
+                // 2. Precio BASE (Original de BD)
+                itemDTO.setPrecioBase(tipo.getPrecio());
+
+                // 3. Calcular Descuentos/Etiquetas según la fecha de HOY
+                TipoTicket.DetallePrecio detalle = tipo.getDetallePrecioActual();
+
+                itemDTO.setEtiquetaPrecio(detalle.getEtiqueta()); // "PREVENTA"
+                itemDTO.setTipoAjuste(detalle.getTipoAjuste());   // "DESCUENTO"
+
+                // Calcular porcentaje visual: Si factor es 0.8 -> |1 - 0.8| = 0.2 -> 20%
+                double pct = Math.abs(1.0 - detalle.getFactor()) * 100.0;
+                itemDTO.setPorcentaje(Math.round(pct * 100.0) / 100.0);
+
+                // 4. Precio Final Unitario
+                double precioFinalCalculado = tipo.getPrecio() * detalle.getFactor();
+                itemDTO.setPrecioUnitario(precioFinalCalculado);
+
+                // 5. Subtotal de la línea
+                itemDTO.setSubtotal(precioFinalCalculado * item.getCantidad());
             }
             return itemDTO;
-        }).collect(Collectors.toList()));
+        }).collect(Collectors.toList());
+
+        dto.setItems(itemsDTO);
+
+        // Recalcular Totales del Carrito basados en los items procesados
+        // (Es más seguro recalcular aquí para que coincida con lo que mostramos)
+        double sumaTotal = itemsDTO.stream()
+                .mapToDouble(ItemCarritoDTO::getSubtotal)
+                .sum();
+
+        dto.setSubtotal(sumaTotal);
+        dto.setTotal(sumaTotal); // (Aquí agregarías descuentos globales si tuvieras)
 
         return dto;
     }
@@ -352,3 +383,5 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         return convertirADTO(carroGuardado);
     }
 }
+
+

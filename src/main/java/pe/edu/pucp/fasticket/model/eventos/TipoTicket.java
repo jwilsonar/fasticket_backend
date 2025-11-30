@@ -105,4 +105,33 @@ public class TipoTicket {
         // 4. LATE (3 días antes o menos, hasta el día del evento)
         return this.precio * 1.15; // 15% Recargo
     }
+    public DetallePrecio getDetallePrecioActual() {
+        if (this.evento == null || this.evento.getFechaEvento() == null) {
+            return new DetallePrecio(1.0, "REGULAR", "NINGUNO");
+        }
+
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaEvento = this.evento.getFechaEvento();
+
+        // Lógica de fechas (Preventa, Early Bird, etc.)
+        if (hoy.isBefore(fechaEvento.minusDays(14))) {
+            return new DetallePrecio(0.80, "PREVENTA", "DESCUENTO"); // 20% OFF
+        }
+        if (hoy.isBefore(fechaEvento.minusDays(7))) {
+            return new DetallePrecio(0.90, "EARLY BIRD", "DESCUENTO"); // 10% OFF
+        }
+        if (hoy.isBefore(fechaEvento.minusDays(3))) {
+            return new DetallePrecio(1.0, "REGULAR", "NINGUNO");
+        }
+        // Últimos 3 días
+        return new DetallePrecio(1.15, "LATE BIRD", "SOBRECARGO"); // +15%
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class DetallePrecio {
+        private Double factor;
+        private String etiqueta;
+        private String tipoAjuste;
+    }
 }

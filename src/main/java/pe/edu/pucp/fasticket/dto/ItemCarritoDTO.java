@@ -11,5 +11,9 @@ public class ItemCarritoDTO {
     private String nombreTicket;
     private Integer cantidad;
     private Double precioUnitario;
+    private Double precioBase;
+    private String etiquetaPrecio;
+    private String tipoAjuste;
+    private Double porcentaje;
     private Double subtotal;
 }

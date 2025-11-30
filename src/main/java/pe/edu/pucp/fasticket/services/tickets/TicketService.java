@@ -93,7 +93,8 @@ public class TicketService {
             // Colores (Paleta Elegante)
             Color colorOscuro = new Color(33, 33, 33);      // Casi negro
             Color colorGris = new Color(100, 100, 100);     // Gris texto
-            Color colorAcento = new Color(0, 122, 255);     // Azul moderno (iOS style)
+            Color colorAcento = new Color(220, 20, 60);
+            Color colorBarraSuperior = new Color(178, 34, 34);// Azul moderno (iOS style)
             Color colorFondoClaro = new Color(245, 245, 245); // Gris muy suave para fondo
 
             // Fuentes
@@ -124,13 +125,10 @@ public class TicketService {
             contentStream.stroke();
 
             // Barra Superior de Color
-            contentStream.setNonStrokingColor(colorOscuro);
+            contentStream.setNonStrokingColor(colorBarraSuperior);
             contentStream.addRect(margin, cardTopY - 60, width, 60);
             contentStream.fill();
-
-            // ==========================================
-            // 2. ENCABEZADO
-            // ==========================================
+            
             contentStream.beginText();
             contentStream.setNonStrokingColor(Color.WHITE);
             contentStream.setFont(fontBold, 22);

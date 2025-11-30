@@ -673,29 +673,17 @@ public class OrdenServicio {
         for (ItemCarrito item : orden.getItems()) {
             for (Ticket ticket : item.getTickets()) {
                 ticket.setEstado(EstadoTicket.VENDIDA);
-
-                // Calcular precio real pagado por este ticket específico
                 double precioOriginal = ticket.getPrecio() != null ? ticket.getPrecio() : 0.0;
                 double precioRealPagado = precioOriginal * factorAjuste;
-
-                // Redondear a 2 decimales
                 precioRealPagado = Math.round(precioRealPagado * 100.0) / 100.0;
-
                 ticket.setPrecio(precioRealPagado);
-
-                // [IMPORTANTE] Guardar el ticket individualmente para asegurar que el precio se persista
-                // antes de que el servicio de PDF lo lea.
                 ticketRepository.save(ticket);
             }
-
-            // Lógica de aforo
             Evento evento = tipoTicketRepositorio.findEventoByTipoTicket(item.getTipoTicket().getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Evento no encontrado para el tipo de ticket " + item.getTipoTicket().getNombre()));
             cantidadPorEvento.merge(evento, item.getCantidad(), Integer::sum);
         }
-
-        // 4. Actualizar Aforos
         for (Map.Entry<Evento, Integer> entry : cantidadPorEvento.entrySet()) {
             Evento evento = entry.getKey();
             Integer cantidadVendida = entry.getValue();
@@ -703,14 +691,9 @@ public class OrdenServicio {
                 evento.setAforoDisponible(Math.max(evento.getAforoDisponible() - cantidadVendida, 0));
             }
         }
-
-        // 5. Guardar Orden y Sincronizar
         ordenCompraRepositorio.save(orden);
         ordenCompraRepositorio.flush();
-
         log.info("Orden ID {} confirmada exitosamente.", idOrden);
-
-        // 6. Enviar Correo (Async)
         try {
             log.info("Enviando correo de confirmación de compra para orden ID: {}", idOrden);
             emailService.enviarCorreoConfirmacionCompra(orden);

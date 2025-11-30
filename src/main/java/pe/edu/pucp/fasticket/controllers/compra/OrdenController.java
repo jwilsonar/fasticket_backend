@@ -35,6 +35,7 @@ import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.fidelizacion.ValidacionCuponResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.EstadoCompra;
@@ -375,22 +376,24 @@ public class OrdenController {
     )
     @GetMapping("/validar-cupon")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<Double>> validarCupon(
+    public ResponseEntity<StandardResponse<ValidacionCuponResponseDTO>> validarCupon(
             @RequestParam String codigo,
-            @RequestParam Double montoTotal,
             Authentication authentication) {
 
         try {
             Integer idCliente = obtenerIdUsuarioLogueado(authentication);
-            Double descuento = fidelizacionService.validarCodigoPromocional(codigo, montoTotal, idCliente);
+
+            // Llamamos al servicio sin el monto
+            ValidacionCuponResponseDTO infoCupon = fidelizacionService.validarCodigoPromocional(codigo, idCliente);
 
             return ResponseEntity.ok(StandardResponse.success(
-                    "Cupón válido. Descuento aplicable: S/ " + descuento,
-                    descuento
+                    "Cupón válido",
+                    infoCupon
             ));
+
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
-                    new StandardResponse<>(false, e.getMessage(), 0.0)
+                    new StandardResponse<>(false, e.getMessage(), null)
             );
         }
     }

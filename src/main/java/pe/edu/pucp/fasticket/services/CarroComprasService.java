@@ -9,4 +9,5 @@ public interface CarroComprasService {
     CarroComprasDTO verCarrito(Integer idCliente);
     public CarroComprasDTO eliminarTicketIndividualDelCarrito(Integer idTicket, Integer idCliente);
     public CarroComprasDTO aplicarCodigoPromocional(Integer idCarrito, String codigo);
+    public CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente);
 }

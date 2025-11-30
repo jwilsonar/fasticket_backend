@@ -382,6 +382,25 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
     }
+
+    @Override
+    @Transactional
+    public CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente) {
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new RuntimeException("El item con ID " + idItemCarrito + " no existe."));
+        if (!item.getCarroCompra().getCliente().getIdPersona().equals(idCliente)) {
+            throw new SecurityException("Acción no permitida. No puedes eliminar un item que no está en tu carrito.");
+        }
+        CarroCompras carro = item.getCarroCompra();
+        carro.removeItem(item);
+        if (carro.getItems().isEmpty()) {
+            carro.setIdEventoActual(null);
+        }
+        carro.setFechaActualizacion(LocalDateTime.now());
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+
+        return convertirADTO(carroGuardado);
+    }
 }
 
 

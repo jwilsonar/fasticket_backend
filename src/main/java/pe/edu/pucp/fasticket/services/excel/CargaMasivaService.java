@@ -136,7 +136,7 @@ public class CargaMasivaService {
                 }
             }
             try {
-                Local local = localRepository.findByNombreIgnoreCase(dto.getNombreLocal().trim())
+                Local local = localRepository.findByNombreIgnoreCaseAndActivoTrue(dto.getNombreLocal().trim())
                         .orElseThrow(() -> new ResourceNotFoundException("No existe local con nombre: " + dto.getNombreLocal()));
                 evento.setLocal(local);
             } catch (Exception e) {

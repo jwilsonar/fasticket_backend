@@ -128,7 +128,6 @@ public class TicketService {
             contentStream.setNonStrokingColor(colorBarraSuperior);
             contentStream.addRect(margin, cardTopY - 60, width, 60);
             contentStream.fill();
-
             contentStream.beginText();
             contentStream.setNonStrokingColor(Color.WHITE);
             contentStream.setFont(fontBold, 22);

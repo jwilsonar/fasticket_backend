@@ -66,6 +66,7 @@ public class AuthServiceTest {
         cliente.setContrasena(passwordEncoder.encode(passwordTest));
         cliente.setRol(Rol.CLIENTE);
         cliente.setActivo(true);
+        cliente.setVerificado(true); // Marcar como verificado para permitir login
         cliente.setFechaCreacion(LocalDate.now());
         
         clienteExistente = clienteRepository.save(cliente);
@@ -95,6 +96,30 @@ public class AuthServiceTest {
 
         // Act & Assert
         assertThrows(Exception.class, () -> authService.login(request));
+    }
+
+    @Test
+    void testLogin_CuentaNoVerificada() {
+        // Arrange - Crear cliente no verificado
+        Cliente clienteNoVerificado = new Cliente();
+        clienteNoVerificado.setTipoDocumento(TipoDocumento.DNI);
+        clienteNoVerificado.setDocIdentidad("99999999");
+        clienteNoVerificado.setNombres("Test");
+        clienteNoVerificado.setApellidos("NoVerificado");
+        clienteNoVerificado.setEmail("noverificado@fasticket.com");
+        clienteNoVerificado.setContrasena(passwordEncoder.encode("password123"));
+        clienteNoVerificado.setRol(Rol.CLIENTE);
+        clienteNoVerificado.setActivo(true);
+        clienteNoVerificado.setVerificado(false); // No verificado
+        clienteNoVerificado.setFechaCreacion(LocalDate.now());
+        clienteRepository.save(clienteNoVerificado);
+
+        LoginRequestDTO request = new LoginRequestDTO("noverificado@fasticket.com", "password123");
+
+        // Act & Assert
+        BusinessException exception = assertThrows(BusinessException.class, 
+            () -> authService.login(request));
+        assertTrue(exception.getMessage().contains("no ha sido verificada"));
     }
 
     @Test

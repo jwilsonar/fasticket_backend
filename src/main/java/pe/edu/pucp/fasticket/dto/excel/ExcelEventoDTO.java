@@ -26,8 +26,8 @@ public class ExcelEventoDTO {
     @ExcelCellName("Aforo Disponible")
     private Integer aforoDisponible;
 
-    @ExcelCellName("ID Local")
-    private Integer idLocal;
+    @ExcelCellName("Nombre Local")
+    private String nombreLocal;
 
     @ExcelCellName("Tipo Evento")
     private String tipoEvento;

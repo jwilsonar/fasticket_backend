@@ -35,24 +35,41 @@ public class CargaMasivaService {
     public String cargarLocales(MultipartFile file) throws IOException {
         List<ExcelLocalDTO> dtos = Poiji.fromExcel(file.getInputStream(), com.poiji.exception.PoijiExcelType.XLSX, ExcelLocalDTO.class);
         List<Local> nuevosLocales = new ArrayList<>();
+        int errores = 0;
 
         for (ExcelLocalDTO dto : dtos) {
-            if (dto.getNombre() == null || dto.getAforoTotal() == null) continue;
+            if (dto.getNombre() == null || dto.getAforoTotal() == null ||
+                    dto.getDepartamento() == null || dto.getProvincia() == null || dto.getDistrito() == null) {
+                errores++;
+                continue;
+            }
             Local local = new Local();
             local.setNombre(dto.getNombre());
             local.setDireccion(dto.getDireccion());
             local.setAforoTotal(dto.getAforoTotal());
-            local.setUrlMapa(dto.getUrlMapa());
             local.setActivo(true);
             local.setFechaCreacion(LocalDate.now());
-            if (dto.getIdDistrito() != null) {
-                Distrito distrito = distritoRepository.findById(dto.getIdDistrito()).orElse(null);
+            local.setFechaActualizacion(LocalDate.now());
+            try {
+                Distrito distrito = distritoRepository.buscarPorNombres(
+                        dto.getDepartamento().trim(),
+                        dto.getProvincia().trim(),
+                        dto.getDistrito().trim()
+                ).orElseThrow(() -> new ResourceNotFoundException("Ubicación no encontrada"));
+
                 local.setDistrito(distrito);
+            } catch (Exception e) {
+                log.warn("No se encontró el distrito: {} / {} / {}. Saltando local '{}'",
+                        dto.getDepartamento(), dto.getProvincia(), dto.getDistrito(), dto.getNombre());
+                errores++;
+                continue;
             }
             nuevosLocales.add(local);
         }
+
         localRepository.saveAll(nuevosLocales);
-        return "Carga exitosa: " + nuevosLocales.size() + " locales registrados.";
+        return String.format("Carga finalizada: %d locales registrados. (Errores/No encontrados: %d)",
+                nuevosLocales.size(), errores);
     }
 
     @Transactional
@@ -60,10 +77,17 @@ public class CargaMasivaService {
         List<ExcelEventoDTO> dtos = Poiji.fromExcel(file.getInputStream(), com.poiji.exception.PoijiExcelType.XLSX, ExcelEventoDTO.class);
         List<Evento> nuevosEventos = new ArrayList<>();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
         int errores = 0;
         int conflictos = 0;
+
         for (ExcelEventoDTO dto : dtos) {
-            if (dto.getNombre() == null || dto.getIdLocal() == null) continue;
+            if (dto.getNombre() == null || dto.getNombreLocal() == null || dto.getFechaInicio() == null || dto.getHoraInicio() == null) {
+                log.warn("Fila saltada por datos incompletos: {}", dto);
+                errores++;
+                continue;
+            }
+
             Evento evento = new Evento();
             evento.setNombre(dto.getNombre());
             evento.setDescripcion(dto.getDescripcion());
@@ -71,32 +95,36 @@ public class CargaMasivaService {
             evento.setRestricciones(dto.getRestricciones());
             evento.setPoliticasDevolucion(dto.getPoliticasDevolucion());
             evento.setMenoresDeEdadPermitidos(dto.getMenoresDeEdadPermitidos());
+
             evento.setEstadoEvento(EstadoEvento.PUBLICADO);
             evento.setActivo(true);
-            evento.setImagenUrl(dto.getImagenUrl());
-            evento.setFechaActualizacion(LocalDate.now());
             evento.setFechaCreacion(LocalDate.now());
             evento.setMaxTransferenciasPermitidas(1);
-            evento.setHorasCooldownTransferencia(1);
+            evento.setHorasCooldownTransferencia(12);
+
             try {
-                if (dto.getFechaInicio() != null) {
-                    evento.setFechaEvento(LocalDate.parse(dto.getFechaInicio(), dateFormatter));
-                }
+                LocalDate fInicio = LocalDate.parse(dto.getFechaInicio(), dateFormatter);
+                evento.setFechaEvento(fInicio);
+
                 if (dto.getFechaFin() != null) {
                     evento.setFechaFinEvento(LocalDate.parse(dto.getFechaFin(), dateFormatter));
                 } else {
-                    evento.setFechaFinEvento(evento.getFechaEvento());
+                    evento.setFechaFinEvento(fInicio);
                 }
-                if (dto.getHoraInicio() != null) evento.setHoraInicio(LocalTime.parse(dto.getHoraInicio()));
-                if (dto.getHoraFin() != null) evento.setHoraFin(LocalTime.parse(dto.getHoraFin()));
-                if (evento.getFechaFinEvento() != null && evento.getFechaEvento() != null &&
-                        evento.getFechaFinEvento().isBefore(evento.getFechaEvento())) {
-                    log.warn("Fecha fin anterior a fecha inicio en evento '{}'", dto.getNombre());
+
+                evento.setHoraInicio(LocalTime.parse(dto.getHoraInicio()));
+                if (dto.getHoraFin() != null) {
+                    evento.setHoraFin(LocalTime.parse(dto.getHoraFin()));
+                } else {
+                    evento.setHoraFin(evento.getHoraInicio().plusHours(2)); // Default duración
+                }
+                if (evento.getFechaFinEvento().isBefore(evento.getFechaEvento())) {
+                    log.warn("Fecha fin anterior a inicio en evento '{}'", dto.getNombre());
                     errores++;
                     continue;
                 }
             } catch (Exception e) {
-                log.warn("Formato de fecha/hora inválido en fila '{}'", dto.getNombre());
+                log.warn("Error formato fecha/hora en '{}': {}", dto.getNombre(), e.getMessage());
                 errores++;
                 continue;
             }
@@ -108,35 +136,42 @@ public class CargaMasivaService {
                 }
             }
             try {
-                Local local = localRepository.findById(dto.getIdLocal())
-                        .orElseThrow(() -> new ResourceNotFoundException("Local ID " + dto.getIdLocal() + " no existe"));
+                Local local = localRepository.findByNombreIgnoreCase(dto.getNombreLocal().trim())
+                        .orElseThrow(() -> new ResourceNotFoundException("No existe local con nombre: " + dto.getNombreLocal()));
                 evento.setLocal(local);
             } catch (Exception e) {
+                log.error("Error vinculando local '{}': {}", dto.getNombreLocal(), e.getMessage());
                 errores++;
                 continue;
             }
+
             LocalDateTime inicioNuevo = LocalDateTime.of(evento.getFechaEvento(), evento.getHoraInicio());
             LocalDateTime finNuevo = LocalDateTime.of(evento.getFechaFinEvento(), evento.getHoraFin());
-            boolean cruceBD = eventosRepositorio.existeCruceDeHorario(
+
+            boolean hayCruce = eventosRepositorio.existeCruceDeHorario(
                     evento.getLocal().getIdLocal(),
                     inicioNuevo,
                     finNuevo
             );
+
             boolean cruceMemoria = nuevosEventos.stream().anyMatch(e ->
                     e.getLocal().getIdLocal().equals(evento.getLocal().getIdLocal()) &&
-                            !e.getEstadoEvento().name().equals("CANCELADO") &&
-                            (e.getFechaEvento().isBefore(evento.getFechaFinEvento().plusDays(1)) && e.getFechaFinEvento().isAfter(evento.getFechaEvento().minusDays(1))) &&
-                            (e.getHoraInicio().isBefore(evento.getHoraFin()) && e.getHoraFin().isAfter(evento.getHoraInicio()))
+                            LocalDateTime.of(e.getFechaEvento(), e.getHoraInicio()).isBefore(finNuevo) &&
+                            LocalDateTime.of(e.getFechaFinEvento(), e.getHoraFin()).isAfter(inicioNuevo)
             );
-            if (cruceBD||cruceMemoria) {
-                log.warn("CONFLICTO: El evento '{}' se cruza con otro en el mismo local.", dto.getNombre());
+
+            if (hayCruce || cruceMemoria) {
+                log.warn("CONFLICTO: El evento '{}' se cruza con otro en {}", dto.getNombre(), evento.getLocal().getNombre());
                 conflictos++;
                 continue;
             }
+
             nuevosEventos.add(evento);
         }
+
         eventosRepositorio.saveAll(nuevosEventos);
-        return String.format("Carga finalizada: %d eventos creados. (Errores formato: %d, Conflictos horario: %d)",
+
+        return String.format("Carga finalizada: %d eventos creados. (Errores: %d, Conflictos: %d)",
                 nuevosEventos.size(), errores, conflictos);
     }
 }

@@ -413,7 +413,7 @@ public class FidelizacionService {
     @Transactional
     public void generarPuntosPorCompra(Integer idCliente, Double montoTotal, Integer idOrdenCompra) {
         // Lee Configuración Global (1 Sol = 1 Punto)
-        int puntosPorSol = Integer.parseInt(getConfig("PUNTOS_POR_MONEDA", "1"));
+        double puntosPorSol = Double.parseDouble(getConfig("PUNTOS_POR_MONEDA", "1"));
         int puntosGenerados = (int) (montoTotal * puntosPorSol);
 
         if (puntosGenerados <= 0) return;

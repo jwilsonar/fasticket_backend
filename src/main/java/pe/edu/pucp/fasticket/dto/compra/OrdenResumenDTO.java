@@ -123,7 +123,8 @@ public class OrdenResumenDTO {
         }
         this.tieneComprobante = orden.getPago() != null
                 && orden.getPago().getComprobantePago() != null
-                && orden.getPago().getComprobantePago().getPdfContenido() != null;
+                && orden.getPago().getComprobantePago().getPdfUrl() != null
+                && !orden.getPago().getComprobantePago().getPdfUrl().isEmpty();
     }
 
     public OrdenResumenDTO(OrdenCompra orden) {

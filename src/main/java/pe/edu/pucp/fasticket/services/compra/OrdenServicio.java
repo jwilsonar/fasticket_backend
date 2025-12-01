@@ -1139,7 +1139,8 @@ public class OrdenServicio {
                         evento.getNombre(),
                         evento.getFechaEvento(),
                         evento.getHoraInicio(),
-                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Por confirmar"
+                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Por confirmar",
+                        evento.getImagenUrl()
                 ))
                 .collect(Collectors.toList());
     }@Transactional(readOnly = true)
@@ -1154,7 +1155,8 @@ public class OrdenServicio {
                 evento.getNombre(),
                 evento.getFechaEvento(),
                 evento.getHoraInicio(),
-                evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar"
+                evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar",
+                evento.getImagenUrl()
         );
     }
 }

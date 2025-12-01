@@ -3,23 +3,29 @@ package pe.edu.pucp.fasticket.controllers.compra;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import pe.edu.pucp.fasticket.dto.AddItemRequestDTO;
 import pe.edu.pucp.fasticket.dto.CarroComprasDTO;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
+import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
 import pe.edu.pucp.fasticket.model.compra.ItemCarrito;
+import pe.edu.pucp.fasticket.repository.usuario.ClienteRepository;
 import pe.edu.pucp.fasticket.services.CarroComprasService;
 
 import java.time.LocalDateTime;
@@ -34,7 +40,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class CarritoController {
-
+    private final ClienteRepository clienteRepository;
     private final CarroComprasService carroComprasService;
 
     @Operation(
@@ -90,26 +96,87 @@ public class CarritoController {
     }
 
     @Operation(
-        summary = "Agregar item al carrito",
-        description = "Agrega un tipo de ticket al carrito del cliente",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Agregar item(s) al carrito",
+            description = """
+        Agrega uno o más tipos de tickets al carrito del cliente.
+        
+        Soporta dos formatos:
+        
+        **Formato Simple** (un solo tipo de ticket):
+```json
+        {
+          "idCliente": 6,
+          "idTipoTicket": 12,
+          "cantidad": 1
+        }
+```
+        
+        **Formato Múltiple** (varios tipos de tickets):
+```json
+        {
+          "idCliente": 6,
+          "items": [
+            { "idTipoTicket": 12, "cantidad": 1 },
+            { "idTipoTicket": 13, "cantidad": 2 }
+          ]
+        }
+```
+        """,
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Item agregado exitosamente",
-            content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
-        ),
-        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
-        @ApiResponse(responseCode = "401", description = "No autenticado")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Item(s) agregado(s) exitosamente",
+                    content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o stock insuficiente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "404", description = "Cliente o tipo de ticket no encontrado")
     })
     @PostMapping("/items")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(@RequestBody AddItemRequestDTO request) {
-        log.info("POST /api/v1/carrito/items - Cliente: {}, Tipo Ticket: {}", 
-                 request.getIdCliente(), request.getIdTipoTicket());
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Datos del/los item(s) a agregar",
+                    required = true,
+                    content = @Content(
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Formato Simple",
+                                            value = """
+                            {
+                              "idCliente": 6,
+                              "idTipoTicket": 12,
+                              "cantidad": 1
+                            }
+                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "Formato Múltiple",
+                                            value = """
+                            {
+                              "idCliente": 6,
+                              "items": [
+                                { "idTipoTicket": 12, "cantidad": 1 },
+                                { "idTipoTicket": 13, "cantidad": 2 }
+                              ]
+                            }
+                            """
+                                    )
+                            }
+                    )
+            )
+            @RequestBody @Valid AddItemRequestDTO request) {
+
+        String formato = request.esFormatoMultiple() ? "múltiple" : "simple";
+        log.info("POST /api/v1/carrito/items [formato: {}] - Cliente: {}", formato, request.getIdCliente());
+
         CarroComprasDTO carritoActualizado = carroComprasService.agregarItemAlCarrito(request);
-        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Item agregado al carrito exitosamente", carritoActualizado);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success(
+                "Item(s) agregado(s) al carrito exitosamente",
+                carritoActualizado
+        );
         return ResponseEntity.ok(response);
     }
 
@@ -189,6 +256,97 @@ public class CarritoController {
                 "Información del evento recuperada",
                 eventos
         ));
+    }
+
+    @Operation(
+            summary = "Incrementar cantidad de un tipo de ticket",
+            description = "Incrementa en 1 la cantidad de un tipo de ticket específico en el carrito",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Ticket agregado exitosamente",
+                    content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "Stock insuficiente o límite excedido"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado"
+            )
+    })
+    @PostMapping("/incrementar-ticket/{idTipoTicket}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> incrementarCantidadTipoTicket(
+            @Parameter(description = "ID del tipo de ticket a incrementar", required = true)
+            @PathVariable Integer idTipoTicket,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Integer idCliente = obtenerIdClienteDesdeAuth(userDetails);
+        log.info("POST /api/v1/carrito/incrementar-ticket/{} - Cliente: {}", idTipoTicket, idCliente);
+
+        CarroComprasDTO carritoActualizado = carroComprasService.incrementarCantidadTipoTicket(idCliente, idTipoTicket);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success(
+                "Ticket agregado exitosamente",
+                carritoActualizado
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    private Integer obtenerIdClienteDesdeAuth(UserDetails userDetails) {
+        String email = userDetails.getUsername();
+        return clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"))
+                .getIdPersona();
+    }
+
+    @Operation(
+            summary = "Decrementar cantidad de un tipo de ticket",
+            description = "Decrementa en 1 la cantidad de un tipo de ticket específico en el carrito. Si llega a 0, elimina el item.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Ticket eliminado exitosamente",
+                    content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "No hay tickets para eliminar"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado"
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Tipo de ticket no encontrado en el carrito"
+            )
+    })
+    @PostMapping("/decrementar-ticket/{idTipoTicket}")
+    @PreAuthorize("hasRole('CLIENTE')")
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> decrementarCantidadTipoTicket(
+            @Parameter(description = "ID del tipo de ticket a decrementar", required = true)
+            @PathVariable Integer idTipoTicket,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Integer idCliente = obtenerIdClienteDesdeAuth(userDetails);
+        log.info("POST /api/v1/carrito/decrementar-ticket/{} - Cliente: {}", idTipoTicket, idCliente);
+
+        CarroComprasDTO carritoActualizado = carroComprasService.decrementarCantidadTipoTicket(idCliente, idTipoTicket);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success(
+                "Ticket eliminado exitosamente",
+                carritoActualizado
+        );
+        return ResponseEntity.ok(response);
     }
 }
 

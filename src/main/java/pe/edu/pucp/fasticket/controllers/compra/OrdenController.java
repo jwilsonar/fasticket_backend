@@ -35,6 +35,7 @@ import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.dto.fidelizacion.ValidacionCuponResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
@@ -68,7 +69,7 @@ public class OrdenController {
     private final S3Service s3Service;
 
     @Operation(
-            summary = "Crear nueva orden (Checkout directo)",
+            summary = "Crear nueva orden ",
             description = "Crea una orden PENDIENTE y reserva tickets para el cliente autenticado. " +
                           "El ID del cliente se obtiene automáticamente del token JWT, no es necesario enviarlo en el cuerpo de la petición. " +
                           "Los datos de asistentes NO se requieren en la creación de la orden. " +
@@ -432,5 +433,22 @@ public class OrdenController {
                     new StandardResponse<>(false, e.getMessage(), null)
             );
         }
+    }
+    @Operation(
+            summary = "Obtener info del evento por Tipo de Ticket (Pre-compra)",
+            description = "Devuelve los datos del evento basándose en el ID del tipo de ticket. Útil para mostrar el resumen en compra directa antes de crear la orden.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @GetMapping("/evento-info-por-ticket")
+    @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<EventoResumenDTO>> obtenerInfoPorTicket(
+            @RequestParam Integer idTipoTicket) {
+
+        EventoResumenDTO info = ordenServicio.obtenerEventoPorTipoTicket(idTipoTicket);
+
+        return ResponseEntity.ok(StandardResponse.success(
+                "Información del evento recuperada",
+                info
+        ));
     }
 }

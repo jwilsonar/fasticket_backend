@@ -28,6 +28,7 @@ import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
 import pe.edu.pucp.fasticket.dto.compra.ItemsDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
 import pe.edu.pucp.fasticket.dto.compra.ProcesarCompraResponseDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
 import pe.edu.pucp.fasticket.model.compra.CarroCompras;
@@ -1122,4 +1123,40 @@ public class OrdenServicio {
         return ordenCompraRepositorio.findByCliente_IdPersonaAndEstado(idCliente, estado);
     }
 
+    @Transactional(readOnly = true)
+    public List<EventoResumenDTO> obtenerEventosDeOrden(Integer idOrden) {
+        OrdenCompra orden = ordenCompraRepositorio.findById(idOrden)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada"));
+
+        if (orden.getItems() == null || orden.getItems().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return orden.getItems().stream()
+                .map(item -> item.getTipoTicket().getEvento())
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .map(evento -> new EventoResumenDTO(
+                        evento.getNombre(),
+                        evento.getFechaEvento(),
+                        evento.getHoraInicio(),
+                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Por confirmar",
+                        evento.getImagenUrl()
+                ))
+                .collect(Collectors.toList());
+    }@Transactional(readOnly = true)
+    public EventoResumenDTO obtenerEventoPorTipoTicket(Integer idTipoTicket) {
+        TipoTicket tipo = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado"));
+        Evento evento = tipo.getEvento();
+        if (evento == null) {
+            throw new BusinessException("Este ticket no tiene evento asignado");
+        }
+        return new EventoResumenDTO(
+                evento.getNombre(),
+                evento.getFechaEvento(),
+                evento.getHoraInicio(),
+                evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar",
+                evento.getImagenUrl()
+        );
+    }
 }

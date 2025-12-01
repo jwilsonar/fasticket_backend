@@ -206,7 +206,6 @@ public class CarroComprasServiceTests {
             asistente.setNumeroDocumento("1234567" + i);
             asistentes.add(asistente);
         }
-        request.setAsistentes(asistentes);
 
         Exception exception = assertThrows(Exception.class, () -> carroComprasService.agregarItemAlCarrito(request));
         assertTrue(exception.getMessage().contains("Stock insuficiente"));
@@ -271,7 +270,6 @@ public class CarroComprasServiceTests {
         primerRequest.setIdCliente(clientePrueba.getIdPersona());
         primerRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
         primerRequest.setCantidad(2);
-        primerRequest.setAsistentes(asistentes1);
 
         try {
             carroComprasService.agregarItemAlCarrito(primerRequest);
@@ -292,7 +290,6 @@ public class CarroComprasServiceTests {
         segundoRequest.setIdCliente(clientePrueba.getIdPersona());
         segundoRequest.setIdTipoTicket(ticketEvento1.getIdTipoTicket());
         segundoRequest.setCantidad(1);
-        segundoRequest.setAsistentes(List.of(asistenteExtra));
 
         Exception exception = assertThrows(Exception.class, () -> {
             System.out.println("Intentando segundo request...");

@@ -51,13 +51,147 @@ public class CarroComprasServiceImpl implements CarroComprasService {
     @Override
     @Transactional
     public CarroComprasDTO agregarItemAlCarrito(AddItemRequestDTO request) {
-        log.info("Agregando item (con reserva) al carrito para cliente ID: {}", request.getIdCliente());
+        List<AddItemRequestDTO.ItemRequest> itemsAProcesar = request.getItemsNormalizados();
 
-        TipoTicket tipoTicket = tipoTicketRepositorio.findById(request.getIdTipoTicket())
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + request.getIdTipoTicket()));
+        log.info("Agregando {} item(s) al carrito para cliente ID: {}",
+                itemsAProcesar.size(), request.getIdCliente());
 
+        Cliente cliente = clienteRepository.findById(request.getIdCliente())
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
 
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
+                .orElseGet(() -> {
+                    log.info("No se encontró carrito para cliente ID: {}, creando uno nuevo.", cliente.getIdPersona());
+                    CarroCompras nuevoCarro = new CarroCompras();
+                    nuevoCarro.setCliente(cliente);
+                    nuevoCarro.setFechaCreacion(LocalDateTime.now());
+                    return nuevoCarro;
+                });
+
+        Integer idEventoCarrito = carro.getIdEventoActual();
+        if (idEventoCarrito == null && !carro.getItems().isEmpty()) {
+            idEventoCarrito = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
+        }
+
+        List<TipoTicket> tiposTicket = new ArrayList<>();
+        for (AddItemRequestDTO.ItemRequest itemReq : itemsAProcesar) {
+            TipoTicket tipo = tipoTicketRepositorio.findById(itemReq.getIdTipoTicket())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Tipo de ticket no encontrado: " + itemReq.getIdTipoTicket()));
+
+            Integer idEventoActual = tipo.getEvento().getIdEvento();
+            if (idEventoCarrito == null) {
+                idEventoCarrito = idEventoActual;
+            } else if (!idEventoCarrito.equals(idEventoActual)) {
+                throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
+            }
+
+            tiposTicket.add(tipo);
+        }
+
+        if (carro.getIdEventoActual() == null) {
+            carro.setIdEventoActual(idEventoCarrito);
+        }
+
+        if (carro.getIdCarro() == null) {
+            carro = carroComprasRepository.save(carro);
+            log.info("Carrito nuevo guardado con ID: {}", carro.getIdCarro());
+        }
+
+        for (int i = 0; i < itemsAProcesar.size(); i++) {
+            AddItemRequestDTO.ItemRequest itemReq = itemsAProcesar.get(i);
+            TipoTicket tipoTicket = tiposTicket.get(i);
+
+            log.info("Procesando item {}/{}: TipoTicket ID {} '{}', Cantidad {}",
+                    i + 1, itemsAProcesar.size(),
+                    tipoTicket.getIdTipoTicket(), tipoTicket.getNombre(), itemReq.getCantidad());
+
+            validarDisponibilidadTipoTicket(tipoTicket);
+
+            if (tipoTicket.getEvento() != null) {
+                validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
+            }
+
+            Double precioActual = tipoTicket.getPrecioCalculado();
+
+            validarLimitePorPersona(tipoTicket, itemReq.getCantidad(), cliente);
+
+            List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
+                    tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemReq.getCantidad())
+            );
+
+            if (ticketsAReservar.size() < itemReq.getCantidad()) {
+                throw new BusinessException("Stock insuficiente para " + tipoTicket.getNombre() +
+                        ". Solo quedan " + ticketsAReservar.size() + " tickets disponibles.");
+            }
+
+            ItemCarrito itemExistente = carro.getItems().stream()
+                    .filter(item -> item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket()) &&
+                            item.getPrecio().equals(precioActual))
+                    .findFirst()
+                    .orElse(null);
+
+            if (itemExistente != null) {
+                log.info("Item ID {} ya existe. Añadiendo {} tickets.",
+                        itemExistente.getIdItemCarrito(), itemReq.getCantidad());
+
+                int nuevaCantidad = itemExistente.getCantidad() + itemReq.getCantidad();
+                validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente); // Validar total
+
+                itemExistente.setCantidad(nuevaCantidad);
+                itemExistente.calcularPrecioFinal();
+
+                for (Ticket ticket : ticketsAReservar) {
+                    ticket.setEstado(EstadoTicket.RESERVADA);
+                    ticket.setCliente(cliente);
+                    ticket.setItemCarrito(itemExistente);
+                }
+                itemExistente.getTickets().addAll(ticketsAReservar);
+                itemCarritoRepository.save(itemExistente);
+
+            } else {
+                log.info("Creando nuevo ItemCarrito para TipoTicket ID {} '{}'",
+                        tipoTicket.getIdTipoTicket(), tipoTicket.getNombre());
+
+                ItemCarrito nuevoItem = new ItemCarrito();
+                nuevoItem.setTipoTicket(tipoTicket);
+                nuevoItem.setCantidad(itemReq.getCantidad());
+                nuevoItem.setPrecio(precioActual);
+                nuevoItem.setFechaAgregado(LocalDate.now());
+                nuevoItem.setCarroCompra(carro);
+                nuevoItem.calcularPrecioFinal();
+
+                ItemCarrito itemGuardado = itemCarritoRepository.save(nuevoItem);
+
+                for (Ticket ticket : ticketsAReservar) {
+                    ticket.setEstado(EstadoTicket.RESERVADA);
+                    ticket.setCliente(cliente);
+                    ticket.setItemCarrito(itemGuardado);
+                }
+
+                itemGuardado.setTickets(ticketsAReservar);
+                carro.addItem(itemGuardado);
+            }
+            ticketRepository.saveAll(ticketsAReservar);
+            tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - itemReq.getCantidad());
+            tipoTicketRepositorio.save(tipoTicket);
+
+            log.info("✓ Procesado exitosamente: {} ticket(s) de '{}'",
+                    itemReq.getCantidad(), tipoTicket.getNombre());
+        }
+        carro.recalcularTotales();
+        carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+
+        log.info("✓ Carrito ID {} actualizado exitosamente con {} item(s) total(es)",
+                carroGuardado.getIdCarro(), carroGuardado.getItems().size());
+
+        return convertirADTO(carroGuardado);
+    }
+
+    private void validarDisponibilidadTipoTicket(TipoTicket tipoTicket) {
         LocalDate hoy = LocalDate.now();
+
         if (tipoTicket.getFechaInicioVenta() != null && hoy.isBefore(tipoTicket.getFechaInicioVenta())) {
             throw new BusinessException("La venta para el tipo de ticket '" + tipoTicket.getNombre() +
                     "' aún no ha comenzado. Fecha de inicio: " + tipoTicket.getFechaInicioVenta());
@@ -66,100 +200,10 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             throw new BusinessException("La venta para el tipo de ticket '" + tipoTicket.getNombre() +
                     "' ha finalizado. Fecha de fin: " + tipoTicket.getFechaFinVenta());
         }
-
         if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
-            throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
+            throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() +
+                    "' no está disponible para la venta.");
         }
-        Double precioActual = tipoTicket.getPrecioCalculado();
-        Cliente cliente = clienteRepository.findById(request.getIdCliente())
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado: " + request.getIdCliente()));
-
-        // Validar edad del cliente para eventos +18
-        if (tipoTicket.getEvento() != null) {
-            validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
-        }
-
-        validarLimitePorPersona(tipoTicket, request.getCantidad(), cliente);
-
-        List<Ticket> ticketsAReservar = ticketRepository.findAvailableTicketsByTypeAndState(
-                tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, request.getCantidad())
-        );
-
-        if (ticketsAReservar.size() < request.getCantidad()) {
-            throw new BusinessException("Stock insuficiente para " + tipoTicket.getNombre() +
-                    ". Solo quedan " + ticketsAReservar.size() + " tickets reales.");
-        }
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(cliente.getIdPersona())
-                .orElseGet(() -> {
-                    log.info("No se encontró NINGÚN carrito para cliente ID: {}, creando uno nuevo.", cliente.getIdPersona());
-                    CarroCompras nuevoCarro = new CarroCompras();
-                    nuevoCarro.setCliente(cliente);
-                    nuevoCarro.setFechaCreacion(LocalDateTime.now());
-                    return nuevoCarro;
-                });
-
-        if (!carro.getItems().isEmpty()) {
-            Integer idEventoActual = carro.getItems().get(0).getTipoTicket().getEvento().getIdEvento();
-            if (!tipoTicket.getEvento().getIdEvento().equals(idEventoActual)) {
-                throw new BusinessException("No puedes añadir tickets de diferentes eventos al mismo carrito.");
-            }
-        } else {
-            carro.setIdEventoActual(tipoTicket.getEvento().getIdEvento());
-        }
-        ItemCarrito itemExistente = null;
-        for (ItemCarrito item : carro.getItems()) {
-            if (item.getTipoTicket().getIdTipoTicket().equals(tipoTicket.getIdTipoTicket()) &&
-                item.getPrecio().equals(precioActual)) {
-                itemExistente = item;
-                break;
-            }
-        }
-
-        if (itemExistente != null) {
-            log.info("Item ID {} ya existe. Añadiendo {} tickets.", itemExistente.getIdItemCarrito(), request.getCantidad());
-
-            int nuevaCantidad = itemExistente.getCantidad() + request.getCantidad();
-            validarLimitePorPersona(tipoTicket, nuevaCantidad, cliente); // Valida el total
-            itemExistente.setCantidad(nuevaCantidad);
-            itemExistente.calcularPrecioFinal();
-
-            for (Ticket ticket : ticketsAReservar) {
-                ticket.setEstado(EstadoTicket.RESERVADA);
-                ticket.setCliente(cliente);
-                ticket.setItemCarrito(itemExistente);
-            }
-            itemExistente.getTickets().addAll(ticketsAReservar);
-            itemCarritoRepository.save(itemExistente); // Guarda el item actualizado
-
-        } else {
-            log.info("Creando nuevo ItemCarrito para TipoTicket ID {}", tipoTicket.getIdTipoTicket());
-
-            ItemCarrito nuevoItem = new ItemCarrito();
-            nuevoItem.setTipoTicket(tipoTicket);
-            nuevoItem.setCantidad(request.getCantidad());
-            nuevoItem.setPrecio(precioActual);
-            nuevoItem.setFechaAgregado(LocalDate.now());
-            nuevoItem.setCarroCompra(carro);
-            nuevoItem.calcularPrecioFinal();
-
-            ItemCarrito itemGuardado = itemCarritoRepository.save(nuevoItem);
-
-            for (Ticket ticket : ticketsAReservar) {
-                ticket.setEstado(EstadoTicket.RESERVADA);
-                ticket.setCliente(cliente);
-                ticket.setItemCarrito(itemGuardado);
-            }
-
-            itemGuardado.setTickets(ticketsAReservar);
-            carro.addItem(itemGuardado);
-        }
-        carro.recalcularTotales();
-        carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
-        CarroCompras carroGuardado = carroComprasRepository.save(carro);
-        ticketRepository.saveAll(ticketsAReservar);
-        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - request.getCantidad());
-        tipoTicketRepositorio.save(tipoTicket);
-        return convertirADTO(carroGuardado);
     }
 
     @Transactional
@@ -412,8 +456,16 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + cantidadLiberada);
         log.info("Liberados {} tickets del tipo {}", cantidadLiberada, tipoTicket.getNombre());
+
         carro.removeItem(item); // Elimina del carrito
         carro.setFechaActualizacion(LocalDateTime.now());
+
+        // Si el carrito queda vacío, marcarlo como inactivo
+        if (carro.getItems().isEmpty()) {
+            carro.setActivo(false);
+            log.info("Carrito ID {} marcado como inactivo (sin items)", carro.getIdCarro());
+        }
+
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
     }
@@ -435,9 +487,110 @@ public class CarroComprasServiceImpl implements CarroComprasService {
                         evento.getNombre(),
                         evento.getFechaEvento(),
                         evento.getHoraInicio(),
-                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar"
+                        evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar",
+                        evento.getImagenUrl()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public CarroComprasDTO incrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
+        log.info("Incrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
+        Cliente cliente = carro.getCliente();
+        ItemCarrito item = carro.getItems().stream()
+                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
+        Double precioActual = tipoTicket.getPrecioCalculado();
+        if (!item.getPrecio().equals(precioActual)) {
+            throw new BusinessException("El precio del ticket ha cambiado. Por favor, elimina el item y agrégalo nuevamente.");
+        }
+
+        validarLimitePorPersona(tipoTicket, item.getCantidad() + 1, cliente);
+        List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
+                tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, 1)
+        );
+        if (ticketsDisponibles.isEmpty()) {
+            throw new BusinessException("No hay stock disponible para " + tipoTicket.getNombre());
+        }
+        Ticket ticketAReservar = ticketsDisponibles.get(0);
+        ticketAReservar.setEstado(EstadoTicket.RESERVADA);
+        ticketAReservar.setCliente(cliente);
+        ticketAReservar.setItemCarrito(item);
+        ticketRepository.save(ticketAReservar);
+        item.setCantidad(item.getCantidad() + 1);
+        item.getTickets().add(ticketAReservar);
+        item.calcularPrecioFinal();
+        itemCarritoRepository.save(item);
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - 1);
+        tipoTicketRepositorio.save(tipoTicket);
+        log.info("Reservado 1 ticket adicional del tipo {} para item ID {}", tipoTicket.getNombre(), item.getIdItemCarrito());
+        carro.recalcularTotales();
+        carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+
+        return convertirADTO(carroGuardado);
+    }
+
+    @Override
+    @Transactional
+    public CarroComprasDTO decrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
+        log.info("Decrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
+        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
+                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
+        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
+        ItemCarrito item = carro.getItems().stream()
+                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
+        if (item.getCantidad() <= 0) {
+            throw new BusinessException("No hay tickets de este tipo para eliminar");
+        }
+        Ticket ticketALiberar = item.getTickets().stream()
+                .filter(t -> t.getEstado() == EstadoTicket.RESERVADA)
+                .reduce((first, second) -> second)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Error de consistencia: No se encontró un ticket RESERVADO para liberar"));
+        ticketALiberar.setEstado(EstadoTicket.DISPONIBLE);
+        ticketALiberar.setCliente(null);
+        ticketALiberar.setItemCarrito(null);
+        ticketALiberar.setNombreAsistente(null);
+        ticketALiberar.setApellidoAsistente(null);
+        ticketALiberar.setTipoDocumentoAsistente(null);
+        ticketALiberar.setDocumentoAsistente(null);
+        ticketALiberar.setCodigoQr(null);
+        ticketALiberar.setQrImageUrl(null);
+        ticketRepository.save(ticketALiberar);
+        tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + 1);
+        tipoTicketRepositorio.save(tipoTicket);
+        log.info("Liberado 1 ticket del tipo {}", tipoTicket.getNombre());
+        if (item.getCantidad() > 1) {
+            item.setCantidad(item.getCantidad() - 1);
+            item.getTickets().remove(ticketALiberar);
+            item.calcularPrecioFinal();
+            itemCarritoRepository.save(item);
+            log.info("Item ID {} actualizado. Nueva cantidad: {}", item.getIdItemCarrito(), item.getCantidad());
+        } else {
+            carro.removeItem(item);
+            log.info("Item ID {} eliminado del carrito (cantidad llegó a 0)", item.getIdItemCarrito());
+        }
+        carro.recalcularTotales();
+        carro.setFechaActualizacion(LocalDateTime.now());
+        if (carro.getItems().isEmpty()) {
+            carro.setActivo(false);
+            log.info("Carrito ID {} marcado como inactivo (sin items)", carro.getIdCarro());
+        }
+        CarroCompras carroGuardado = carroComprasRepository.save(carro);
+
+        return convertirADTO(carroGuardado);
     }
 }
 

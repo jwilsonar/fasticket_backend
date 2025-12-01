@@ -14,4 +14,5 @@ public class EventoResumenDTO {
     private LocalDate fecha;
     private LocalTime hora;
     private String nombreLocal;
+    private String imagenURL;
 }

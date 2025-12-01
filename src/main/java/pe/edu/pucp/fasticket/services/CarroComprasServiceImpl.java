@@ -242,8 +242,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
         CarroCompras carro = item.getCarroCompra();
         TipoTicket tipoTicket = item.getTipoTicket();
-
-        // 1. Liberar el Ticket
         ticket.setEstado(EstadoTicket.DISPONIBLE);
         ticket.setCliente(null);
         ticket.setItemCarrito(null);
@@ -253,26 +251,19 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         ticket.setDocumentoAsistente(null);
         ticket.setCodigoQr(null);
         ticket.setQrImageUrl(null);
-        ticketRepository.save(ticket); // Guarda el ticket liberado
-
-        // 2. Actualizar el stock
+        ticketRepository.save(ticket);
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + 1);
         tipoTicketRepositorio.save(tipoTicket);
         log.info("Liberado 1 ticket del tipo {}", tipoTicket.getNombre());
-
-        // 3. Actualizar el ItemCarrito (Reducir cantidad o borrarlo)
         if (item.getCantidad() > 1) {
             item.setCantidad(item.getCantidad() - 1);
-            item.getTickets().remove(ticket); // Quita el ticket de la lista del item
+            item.getTickets().remove(ticket);
             item.calcularPrecioFinal();
             itemCarritoRepository.save(item);
         } else {
-            // Si era el último ticket, borra el item
-            carro.removeItem(item); // Prepara para orphanRemoval
-            // itemCarritoRepository.delete(item); // No es necesario si CarroCompras tiene orphanRemoval=true
+            carro.removeItem(item);
         }
 
-        // 4. Recalcular el total del Carro (Arreglo Bug #1)
         carro.recalcularTotales();
         carroComprasRepository.save(carro);
 
@@ -289,27 +280,15 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
     }
 
-    /**
-     * Valida que el cliente tenga la edad mínima requerida para eventos +18.
-     * Si el evento no permite menores de edad (menoresDeEdadPermitidos == false),
-     * el cliente debe tener al menos 18 años.
-     * 
-     * @param evento El evento para el cual se está validando
-     * @param cliente El cliente que intenta comprar
-     * @throws BusinessException Si el cliente no cumple con la edad mínima requerida
-     */
     private void validarEdadClienteParaEvento(pe.edu.pucp.fasticket.model.eventos.Evento evento, Cliente cliente) {
         if (evento == null) {
             log.warn("Evento es null, no se puede validar edad");
             return;
         }
 
-        // Si el evento permite menores de edad, no hay restricción
         if (Boolean.TRUE.equals(evento.getMenoresDeEdadPermitidos())) {
             return;
         }
-
-        // Si menoresDeEdadPermitidos es false, el evento es +18
         if (Boolean.FALSE.equals(evento.getMenoresDeEdadPermitidos())) {
             if (cliente.getFechaNacimiento() == null) {
                 throw new BusinessException("No se puede verificar la edad. Por favor, actualiza tu fecha de nacimiento en tu perfil.");
@@ -317,11 +296,7 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
             LocalDate fechaNacimiento = cliente.getFechaNacimiento();
             LocalDate fechaActual = LocalDate.now();
-            
-            // Calcular edad comparando fecha de nacimiento con fecha actual
             int edad = fechaActual.getYear() - fechaNacimiento.getYear();
-            
-            // Ajustar si aún no ha cumplido años este año
             if (fechaActual.getMonthValue() < fechaNacimiento.getMonthValue() ||
                 (fechaActual.getMonthValue() == fechaNacimiento.getMonthValue() &&
                  fechaActual.getDayOfMonth() < fechaNacimiento.getDayOfMonth())) {
@@ -349,7 +324,6 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         CarroComprasDTO dto = new CarroComprasDTO();
         dto.setIdCarro(carro.getIdCarro());
 
-        // Convertimos la lista de items y calculamos datos al vuelo
         List<ItemCarritoDTO> itemsDTO = carro.getItems().stream().map(item -> {
             ItemCarritoDTO itemDTO = new ItemCarritoDTO();
             itemDTO.setIdItemCarrito(item.getIdItemCarrito());
@@ -358,43 +332,28 @@ public class CarroComprasServiceImpl implements CarroComprasService {
             if (item.getTipoTicket() != null) {
                 TipoTicket tipo = item.getTipoTicket();
 
-                // 1. Datos Básicos
                 itemDTO.setIdTipoTicket(tipo.getIdTipoTicket());
                 itemDTO.setNombreTicket(tipo.getNombre());
-
-                // 2. Precio BASE (Original de BD)
                 itemDTO.setPrecioBase(tipo.getPrecio());
-
-                // 3. Calcular Descuentos/Etiquetas según la fecha de HOY
                 TipoTicket.DetallePrecio detalle = tipo.getDetallePrecioActual();
-
-                itemDTO.setEtiquetaPrecio(detalle.getEtiqueta()); // "PREVENTA"
-                itemDTO.setTipoAjuste(detalle.getTipoAjuste());   // "DESCUENTO"
-
-                // Calcular porcentaje visual: Si factor es 0.8 -> |1 - 0.8| = 0.2 -> 20%
+                itemDTO.setEtiquetaPrecio(detalle.getEtiqueta());
+                itemDTO.setTipoAjuste(detalle.getTipoAjuste());
                 double pct = Math.abs(1.0 - detalle.getFactor()) * 100.0;
                 itemDTO.setPorcentaje(Math.round(pct * 100.0) / 100.0);
-
-                // 4. Precio Final Unitario
                 double precioFinalCalculado = tipo.getPrecio() * detalle.getFactor();
                 itemDTO.setPrecioUnitario(precioFinalCalculado);
-
-                // 5. Subtotal de la línea
                 itemDTO.setSubtotal(precioFinalCalculado * item.getCantidad());
             }
             return itemDTO;
         }).collect(Collectors.toList());
 
         dto.setItems(itemsDTO);
-
-        // Recalcular Totales del Carrito basados en los items procesados
-        // (Es más seguro recalcular aquí para que coincida con lo que mostramos)
         double sumaTotal = itemsDTO.stream()
                 .mapToDouble(ItemCarritoDTO::getSubtotal)
                 .sum();
 
         dto.setSubtotal(sumaTotal);
-        dto.setTotal(sumaTotal); // (Aquí agregarías descuentos globales si tuvieras)
+        dto.setTotal(sumaTotal);
 
         return dto;
     }
@@ -457,10 +416,8 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + cantidadLiberada);
         log.info("Liberados {} tickets del tipo {}", cantidadLiberada, tipoTicket.getNombre());
 
-        carro.removeItem(item); // Elimina del carrito
+        carro.removeItem(item);
         carro.setFechaActualizacion(LocalDateTime.now());
-
-        // Si el carrito queda vacío, marcarlo como inactivo
         if (carro.getItems().isEmpty()) {
             carro.setActivo(false);
             log.info("Carrito ID {} marcado como inactivo (sin items)", carro.getIdCarro());
@@ -495,23 +452,21 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     @Override
     @Transactional
-    public CarroComprasDTO incrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
-        log.info("Incrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
-        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
+    public CarroComprasDTO incrementarCantidadItem(Integer idCliente, Integer idItemCarrito) {
+        log.info("Incrementando cantidad del item ID: {} para cliente ID: {}", idItemCarrito, idCliente);
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Item de carrito no encontrado: " + idItemCarrito));
+
+        CarroCompras carro = item.getCarroCompra();
+        if (!carro.getCliente().getIdPersona().equals(idCliente) || !carro.getActivo()) {
+            throw new ResourceNotFoundException("El item no pertenece a un carrito activo del usuario actual");
+        }
+        TipoTicket tipoTicket = item.getTipoTicket();
         Cliente cliente = carro.getCliente();
-        ItemCarrito item = carro.getItems().stream()
-                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
         Double precioActual = tipoTicket.getPrecioCalculado();
         if (!item.getPrecio().equals(precioActual)) {
             throw new BusinessException("El precio del ticket ha cambiado. Por favor, elimina el item y agrégalo nuevamente.");
         }
-
         validarLimitePorPersona(tipoTicket, item.getCantidad() + 1, cliente);
         List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                 tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, 1)
@@ -540,25 +495,23 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     @Override
     @Transactional
-    public CarroComprasDTO decrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
-        log.info("Decrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
-        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
-        ItemCarrito item = carro.getItems().stream()
-                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
+    public CarroComprasDTO decrementarCantidadItem(Integer idCliente, Integer idItemCarrito) {
+        log.info("Decrementando cantidad del item ID: {} para cliente ID: {}", idItemCarrito, idCliente);
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Item de carrito no encontrado: " + idItemCarrito));
+        CarroCompras carro = item.getCarroCompra();
+        if (!carro.getCliente().getIdPersona().equals(idCliente) || !carro.getActivo()) {
+            throw new ResourceNotFoundException("El item no pertenece a un carrito activo del usuario actual");
+        }
+        TipoTicket tipoTicket = item.getTipoTicket();
         if (item.getCantidad() <= 0) {
-            throw new BusinessException("No hay tickets de este tipo para eliminar");
+            throw new BusinessException("No hay tickets en este item para eliminar");
         }
         Ticket ticketALiberar = item.getTickets().stream()
                 .filter(t -> t.getEstado() == EstadoTicket.RESERVADA)
                 .reduce((first, second) -> second)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Error de consistencia: No se encontró un ticket RESERVADO para liberar"));
+                        "Error de consistencia: No se encontró un ticket RESERVADO para liberar en este item"));
         ticketALiberar.setEstado(EstadoTicket.DISPONIBLE);
         ticketALiberar.setCliente(null);
         ticketALiberar.setItemCarrito(null);

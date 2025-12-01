@@ -234,24 +234,18 @@ public class OrdenServicio {
     }
 
     private void actualizarTicketsConAsistentes(ItemCarrito item, CrearOrdenDTO datosOrden, OrdenCompra orden) {
-        // Buscar el DTO que corresponde a este item
         ItemSeleccionadoDTO dtoCoincidente = datosOrden.getItems().stream()
                 .filter(d -> d.getIdTipoTicket().equals(item.getTipoTicket().getIdTipoTicket()))
                 .findFirst()
                 .orElse(null);
 
-        // Obtener los IDs de tickets asociados al item
         List<Integer> ticketIds = ticketRepository.findTicketIdsByItemCarritoId(item.getIdItemCarrito());
         List<Ticket> tickets = ticketRepository.findAllById(ticketIds);
 
         for (int i = 0; i < tickets.size(); i++) {
             Ticket ticket = tickets.get(i);
-
-            // Actualizar estado y orden
             ticket.setEstado(EstadoTicket.RESERVADA);
             ticket.setOrdenCompra(orden);
-
-            // Asignar datos de asistente si están disponibles
             if (dtoCoincidente != null && dtoCoincidente.getAsistentes() != null
                     && i < dtoCoincidente.getAsistentes().size()) {
 
@@ -270,13 +264,9 @@ public class OrdenServicio {
                         );
                     }
                 }
-                // Generar y subir QR a S3 si no existe
                 if (ticket.getCodigoQr() == null || ticket.getQrImageUrl() == null) {
-                    // Guardar primero el ticket para obtener ID
                     ticketRepository.save(ticket);
                     ticketRepository.flush();
-                    
-                    // Generar QR y subir a S3
                     String codigoQr = generarCodigoQrUnico();
                     ticket.setCodigoQr(codigoQr);
                     String qrUrl = generarYSubirQrAS3(codigoQr, ticket.getIdTicket());
@@ -288,9 +278,7 @@ public class OrdenServicio {
         }
     }
 
-    /**
-     * Validar que el item tenga stock suficiente antes de procesarlo.
-     */
+
     private void validarStockItem(ItemCarrito item, Cliente cliente) {
         TipoTicket tipoTicket = item.getTipoTicket();
 
@@ -305,33 +293,19 @@ public class OrdenServicio {
                     ", Solicitado: " + item.getCantidad());
         }
 
-        // Validar edad del cliente para eventos +18
         if (tipoTicket.getEvento() != null) {
             validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
         }
     }
 
-    /**
-     * Valida que el cliente tenga la edad mínima requerida para eventos +18.
-     * Si el evento no permite menores de edad (menoresDeEdadPermitidos == false),
-     * el cliente debe tener al menos 18 años.
-     * 
-     * @param evento El evento para el cual se está validando
-     * @param cliente El cliente que intenta comprar
-     * @throws BusinessException Si el cliente no cumple con la edad mínima requerida
-     */
     private void validarEdadClienteParaEvento(Evento evento, Cliente cliente) {
         if (evento == null) {
             log.warn("Evento es null, no se puede validar edad");
             return;
         }
-
-        // Si el evento permite menores de edad, no hay restricción
         if (Boolean.TRUE.equals(evento.getMenoresDeEdadPermitidos())) {
             return;
         }
-
-        // Si menoresDeEdadPermitidos es false, el evento es +18
         if (Boolean.FALSE.equals(evento.getMenoresDeEdadPermitidos())) {
             if (cliente.getFechaNacimiento() == null) {
                 throw new BusinessException("No se puede verificar la edad. Por favor, actualiza tu fecha de nacimiento en tu perfil.");
@@ -339,11 +313,7 @@ public class OrdenServicio {
 
             LocalDate fechaNacimiento = cliente.getFechaNacimiento();
             LocalDate fechaActual = LocalDate.now();
-            
-            // Calcular edad comparando fecha de nacimiento con fecha actual
             int edad = fechaActual.getYear() - fechaNacimiento.getYear();
-            
-            // Ajustar si aún no ha cumplido años este año
             if (fechaActual.getMonthValue() < fechaNacimiento.getMonthValue() ||
                 (fechaActual.getMonthValue() == fechaNacimiento.getMonthValue() &&
                  fechaActual.getDayOfMonth() < fechaNacimiento.getDayOfMonth())) {
@@ -359,10 +329,6 @@ public class OrdenServicio {
         }
     }
 
-    /**
-     * Calcula el descuento según el nivel de membresía del cliente.
-     */
-
     @Transactional
     public OrdenCompra crearOrden(CrearOrdenDTO datosOrden) {
         if (datosOrden == null || datosOrden.getIdCliente() == null) {
@@ -371,16 +337,14 @@ public class OrdenServicio {
         return crearOrden(datosOrden, datosOrden.getIdCliente());
     }
 
-    // --- NUEVO MÉTODO HELPER (RF-046) ---
     public void validarLimitePorCompra(List<ItemSeleccionadoDTO> itemsDTO) {
         int totalTicketsEnOrden = itemsDTO.stream()
                 .mapToInt(item -> item.getCantidad() != null ? item.getCantidad() : 0)
                 .sum();
 
-        // Leer el límite desde la BD (RF-046)
         int limitePorCompra = configuracionRepository.findById("LIMITE_TICKETS_POR_COMPRA")
                 .map(config -> Integer.parseInt(config.getValue()))
-                .orElse(5); // Valor por defecto si no se encuentra
+                .orElse(5);
 
         if (totalTicketsEnOrden > limitePorCompra) {
             throw new BusinessException("No puede comprar más de " + limitePorCompra + " tickets por orden.");
@@ -391,8 +355,6 @@ public class OrdenServicio {
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
-
-            // VALIDACIÓN CLAVE (RF-028 + RF-084)
             if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
                 throw new BusinessException("La venta de esta categoría de ticket está pausada temporalmente.");
             }
@@ -408,19 +370,16 @@ public class OrdenServicio {
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
             log.info("Tipo de ticket: {}", tipoTicket);
-            // Validar que el tipo de ticket esté activo
             if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
                 throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
             }
 
-            // Validar el contador de cantidad disponible (evitar NPEs y mensajes genéricos)
             Integer cantidadDisponible = tipoTicket.getCantidadDisponible();
             Integer cantidadSolicitada = itemDTO.getCantidad() != null ? itemDTO.getCantidad() : 0;
             if (cantidadDisponible == null || cantidadDisponible < cantidadSolicitada) {
                 throw new BusinessException("No hay suficientes tickets disponibles");
             }
 
-            // Validar que existan suficientes tickets en estado DISPONIBLE en la BD
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
@@ -429,7 +388,6 @@ public class OrdenServicio {
                 throw new BusinessException("No hay suficientes tickets disponibles");
             }
 
-            // Validar edad del cliente para eventos +18
             if (tipoTicket.getEvento() != null && cliente != null) {
                 validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
             }
@@ -442,10 +400,8 @@ public class OrdenServicio {
                 .mapToInt(ItemCarrito::getCantidad)
                 .sum();
 
-        // Obtener el tipo de membresía del cliente
         TipoMembresia tipoMembresia = cliente.getNivel();
 
-        // Calcular el porcentaje de descuento según las reglas de negocio
         double porcentajeDescuento = fidelizacionService.calcularDescuentoPorMembresia(tipoMembresia, totalEntradas);
         double subtotalBase = orden.getSubtotal() != null ? orden.getSubtotal() : 0.0;
         double descuentoPromocional = orden.getDescuentoPromocional() != null ? orden.getDescuentoPromocional() : 0.0;
@@ -485,18 +441,13 @@ public class OrdenServicio {
         List<ItemCarrito> itemsGuardados = new ArrayList<>();
 
         for (ItemSeleccionadoDTO itemDTO : itemsDTO) {
-            // Recargar el TipoTicket para obtener el estado más reciente (evitar condiciones de carrera)
             TipoTicket tipoTicket = tipoTicketRepositorio.findById(itemDTO.getIdTipoTicket())
                     .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + itemDTO.getIdTipoTicket()));
             
             validarLimitePorPersona(tipoTicket, itemDTO.getCantidad(), cliente);
-
-            // Validar edad del cliente para eventos +18
             if (tipoTicket.getEvento() != null) {
                 validarEdadClienteParaEvento(tipoTicket.getEvento(), cliente);
             }
-
-            // Validar stock justo antes de reservar (evitar condiciones de carrera)
             if (Boolean.FALSE.equals(tipoTicket.getActivo())) {
                 throw new BusinessException("El tipo de ticket '" + tipoTicket.getNombre() + "' no está disponible para la venta.");
             }
@@ -516,8 +467,6 @@ public class OrdenServicio {
             item.calcularPrecioFinal();
 
             ItemCarrito itemGuardado = itemCarritoRepositorio.save(item);
-
-            // Validar que existan suficientes tickets en estado DISPONIBLE y activos
             List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                     tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, itemDTO.getCantidad())
             );
@@ -542,8 +491,6 @@ public class OrdenServicio {
                 ticket.setEvento(evento);
                 ticket.setItemCarrito(itemGuardado);
                 ticket.setOrdenCompra(orden);
-
-                // Asignar asistentes si vienen en el DTO (para tests/unit)
                 if (itemDTO.getAsistentes() != null && i < itemDTO.getAsistentes().size()) {
                     DatosAsistenteDTO asistente = itemDTO.getAsistentes().get(i);
                     ticket.setNombreAsistente(asistente.getNombres());
@@ -555,11 +502,9 @@ public class OrdenServicio {
                 ticketsReservados.add(ticket);
             }
 
-            // Guardar tickets primero para obtener IDs
             ticketRepository.saveAll(ticketsReservados);
             ticketRepository.flush();
             
-            // Generar QR y subir a S3 para cada ticket
             for (Ticket ticket : ticketsReservados) {
                 String codigoQr = generarCodigoQrUnico();
                 ticket.setCodigoQr(codigoQr);
@@ -567,7 +512,6 @@ public class OrdenServicio {
                 ticket.setQrImageUrl(qrUrl);
             }
             
-            // Guardar de nuevo con las URLs del QR
             ticketRepository.saveAll(ticketsReservados);
             itemGuardado.setTickets(ticketsReservados);
 

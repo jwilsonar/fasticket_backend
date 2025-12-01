@@ -2,7 +2,9 @@ package pe.edu.pucp.fasticket.dto.eventos;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
+import jakarta.validation.Valid;
 import org.joda.time.DateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -50,4 +52,15 @@ public class CrearTipoTicketRequestDTO {
     @Schema(description = "Fecha de fin de venta del ticket", example = "2024-07-31", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "La fecha de fin de venta es obligatoria")
     private LocalDate fechaFinVenta;
+
+    @Valid
+    private List<RangoPrecio> preciosEscalonados;
+
+    @Data
+    public static class RangoPrecio {
+        @NotBlank private String nombreEtapa;
+        @NotNull @Positive private Double precio;
+        @NotNull private LocalDateTime fechaInicio;
+        @NotNull private LocalDateTime fechaFin;
+    }
 }

@@ -84,47 +84,57 @@ public class TipoTicket {
         if (this.evento == null || this.evento.getFechaEvento() == null) {
             return this.precio;
         }
+
         LocalDate hoy = LocalDate.now();
-        LocalDate fechaEvento = this.evento.getFechaEvento();
-        // Si la compra es después del evento, no se vende
-        if (hoy.isAfter(fechaEvento)) {
+
+        // Validar que el evento no haya pasado
+        if (hoy.isAfter(this.evento.getFechaEvento())) {
             throw new BusinessException("El evento ya pasó. No se pueden comprar tickets.");
         }
-        // 1. PREVENTA (14+ días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(14))) {
-            return this.precio * 0.80; // 20% Descuento
+
+        // Buscar si hoy estamos dentro de una etapa especial
+        if (preciosEscalonados != null) {
+            for (PrecioEscalonado etapa : preciosEscalonados) {
+                // [CORRECCIÓN] Comparamos LocalDate con LocalDate
+                if (Boolean.TRUE.equals(etapa.getActivo()) &&
+                        (hoy.isEqual(etapa.getFechaInicio()) || hoy.isAfter(etapa.getFechaInicio())) &&
+                        (hoy.isEqual(etapa.getFechaFin()) || hoy.isBefore(etapa.getFechaFin()))) {
+
+                    return etapa.getPrecio();
+                }
+            }
         }
-        // 2. EARLY BIRD (Entre 7 y 14 días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(7))) {
-            return this.precio * 0.90; // 10% Descuento
-        }
-        // 3. REGULAR (Entre 3 y 7 días antes)
-        if (hoy.isBefore(fechaEvento.minusDays(3))) {
-            return this.precio * 1.0; // 1.0 (Precio Base)
-        }
-        // 4. LATE (3 días antes o menos, hasta el día del evento)
-        return this.precio * 1.15; // 15% Recargo
+
+        return this.precio;
     }
+
     public DetallePrecio getDetallePrecioActual() {
         if (this.evento == null || this.evento.getFechaEvento() == null) {
             return new DetallePrecio(1.0, "REGULAR", "NINGUNO");
         }
+        if (LocalDate.now().isAfter(this.evento.getFechaEvento())) {
+            return new DetallePrecio(1.0, "EVENTO FINALIZADO", "NINGUNO");
+        }
 
-        LocalDate hoy = LocalDate.now();
-        LocalDate fechaEvento = this.evento.getFechaEvento();
+        Double precioActual = getPrecioCalculado();
 
-        // Lógica de fechas (Preventa, Early Bird, etc.)
-        if (hoy.isBefore(fechaEvento.minusDays(14))) {
-            return new DetallePrecio(0.80, "PREVENTA", "DESCUENTO"); // 20% OFF
+        if (!precioActual.equals(this.precio)) {
+            String nombreEtapa = "OFERTA";
+            if (preciosEscalonados != null) {
+                nombreEtapa = preciosEscalonados.stream()
+                        .filter(p -> p.getPrecio().equals(precioActual))
+                        .findFirst()
+                        .map(p -> p.getNombreEtapa().name())
+                        .orElse("PROMOCIÓN");
+            }
+
+            double factor = precioActual / this.precio;
+            String tipoAjuste = factor < 1.0 ? "DESCUENTO" : "SOBRECARGO";
+
+            return new DetallePrecio(factor, nombreEtapa, tipoAjuste);
         }
-        if (hoy.isBefore(fechaEvento.minusDays(7))) {
-            return new DetallePrecio(0.90, "EARLY BIRD", "DESCUENTO"); // 10% OFF
-        }
-        if (hoy.isBefore(fechaEvento.minusDays(3))) {
-            return new DetallePrecio(1.0, "REGULAR", "NINGUNO");
-        }
-        // Últimos 3 días
-        return new DetallePrecio(1.15, "LATE BIRD", "SOBRECARGO"); // +15%
+
+        return new DetallePrecio(1.0, "REGULAR", "NINGUNO");
     }
 
     @lombok.Data

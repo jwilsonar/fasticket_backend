@@ -21,6 +21,9 @@ public class PrecioEscalonado {
     @Column(name = "nombre_etapa", nullable = false)
     private Etapa nombreEtapa;
 
+    @Column(nullable = false)
+    private Double precio;
+
     @Column(name = "fecha_inicio", nullable = false)
     private LocalDate fechaInicio;
 

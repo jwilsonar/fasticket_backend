@@ -101,6 +101,22 @@ public class TipoTicketServicio {
         if (dto.getStock() > zona.getAforoMax()) {
             throw new BusinessException("El stock no puede exceder el aforo máximo de la zona (" + zona.getAforoMax() + ")");
         }
+
+        Integer stockOcupado = tipoTicketRepositorio.sumarStockPorZona(zona.getIdZona());
+
+        // 2. Calcular espacio disponible real
+        int espacioDisponible = zona.getAforoMax() - stockOcupado;
+
+        // 3. Validar (Ahora comparamos contra lo que queda, no contra el total)
+        if (dto.getStock() > espacioDisponible) {
+            throw new BusinessException(
+                    "Stock insuficiente en la zona '" + zona.getNombre() + "'. " +
+                            "Aforo Total: " + zona.getAforoMax() + ", " +
+                            "Ya asignado: " + stockOcupado + ", " +
+                            "Disponible: " + espacioDisponible + ". " +
+                            "Intentaste asignar: " + dto.getStock()
+            );
+        }
         
         // Validar que no exista otro tipo de ticket con el mismo nombre en la misma zona
         if (tipoTicketRepositorio.existsByNombreAndZonaIdZona(dto.getNombre(), dto.getIdZona())) {

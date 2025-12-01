@@ -36,4 +36,7 @@ public interface TipoTicketRepositorio extends JpaRepository<TipoTicket, Integer
 
     @Query("SELECT COALESCE((SELECT SUM(tt.precio * tt.cantidadVendida) FROM TipoTicket tt WHERE tt.evento.idEvento = :idEvento AND tt.activo = true), 0)")
     Double sumIngresosByEventoId(@Param("idEvento") Integer idEvento);
+
+    @Query("SELECT COALESCE(SUM(t.stock), 0) FROM TipoTicket t WHERE t.zona.idZona = :idZona AND t.activo = true")
+    Integer sumarStockPorZona(@Param("idZona") Integer idZona);
 }

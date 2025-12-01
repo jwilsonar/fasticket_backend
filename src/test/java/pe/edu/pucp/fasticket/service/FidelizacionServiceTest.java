@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,7 @@ import pe.edu.pucp.fasticket.model.usuario.TipoDocumento;
 import pe.edu.pucp.fasticket.repository.ConfiguracionRepository; // IMPORTANTE
 import pe.edu.pucp.fasticket.repository.compra.OrdenCompraRepositorio;
 import pe.edu.pucp.fasticket.repository.eventos.*;
+import pe.edu.pucp.fasticket.repository.fidelizacion.CanjeRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.CodigoPromocionalRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.PuntosRepository;
 import pe.edu.pucp.fasticket.repository.fidelizacion.ReglaPuntosRepository;
@@ -77,7 +80,8 @@ class FidelizacionServiceTest {
     @Autowired private TipoTicketRepository tipoTicketRepository;
     @Autowired private ZonaRepository zonaRepositorio;
     @Autowired private AdministradorRepository administradorRepository;
-
+    @Autowired private CanjeRepository canjeRepository;
+    @Autowired private OrdenCompraRepositorio ordenCompraRepository;
     // INYECCIÓN NUEVA
     @Autowired private ConfiguracionRepository configuracionRepository;
 
@@ -85,7 +89,8 @@ class FidelizacionServiceTest {
     private ReglaPuntos reglaCompra;
     private ReglaPuntos reglaCanje;
     private Administrador adminPrueba;
-
+    @Autowired
+    private EntityManager entityManager;
     @BeforeEach
     void setUp() {
         // 1. Configurar Entorno Global (CRÍTICO PARA QUE LOS TESTS PASEN)
@@ -131,7 +136,8 @@ class FidelizacionServiceTest {
         reglaCanje.setActivo(true);
         reglaCanje.setEstado("true");
         reglaCanje = reglaPuntosRepository.save(reglaCanje);
-
+        entityManager.flush();
+        entityManager.clear();
         // 4. Crear Admin
         Administrador admin = new Administrador();
         admin.setNombres("Admin");
@@ -143,6 +149,17 @@ class FidelizacionServiceTest {
         admin.setTipoDocumento(TipoDocumento.DNI);
         admin.setDocIdentidad("87654321");
         adminPrueba = administradorRepository.save(admin);
+    }
+
+    @AfterEach
+    void tearDown() {
+        puntosRepository.deleteAll();
+        canjeRepository.deleteAll();
+        ordenCompraRepository.deleteAll();
+        // Borra en orden inverso a la creación para evitar FK constraints
+        clienteRepository.deleteAll();
+        reglaPuntosRepository.deleteAll();
+        configuracionRepository.deleteAll();
     }
 
     // Helper para guardar config
@@ -176,20 +193,26 @@ class FidelizacionServiceTest {
     @DisplayName("Debe generar puntos correctamente por una compra")
     void debeGenerarPuntosPorCompra() {
         // Given: Configuración dice 1 Sol = 1 Punto (guardado en setUp)
+
         // When: Compra de 100 soles
-        fidelizacionService.generarPuntosPorCompra(
+        Integer puntosGenerados = fidelizacionService.generarPuntosPorCompra(
                 clientePrueba.getIdPersona(),
                 100.0,
                 1
         );
 
+        // Forzar commit de la transacción REQUIRES_NEW
+        entityManager.flush();
+        entityManager.clear();
+
+        // Verificar que retornó el valor correcto
+        assertEquals(100, puntosGenerados, "Debería retornar 100 puntos generados");
+
         // Then: Debería tener 100 puntos (100 * 1)
         List<Puntos> puntos = puntosRepository.findByCliente_IdPersona(clientePrueba.getIdPersona());
-        assertEquals(1, puntos.size());
 
-        // ACTUALIZADO: Esperamos 100, no 10. Porque 1 Sol = 1 Punto en tu nueva lógica.
-        assertEquals(100, puntos.get(0).getCantPuntos());
-
+        assertEquals(1, puntos.size(), "Debería haber exactamente 1 registro de puntos");
+        assertEquals(100, puntos.get(0).getCantPuntos(), "El registro debería tener 100 puntos");
         assertEquals(TipoTransaccion.GANADO, puntos.get(0).getTipoTransaccion());
         assertTrue(puntos.get(0).getActivo());
     }

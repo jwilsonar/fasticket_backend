@@ -405,7 +405,7 @@ public class FidelizacionService {
         return Double.parseDouble(valorConfig);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public Integer generarPuntosPorCompra(Integer idCliente, Double montoTotal, Integer idOrdenCompra) {
         // Lee Configuración Global (1 Sol = 1 Punto)
         double puntosPorSol = Double.parseDouble(getConfig("PUNTOS_POR_MONEDA", "1"));

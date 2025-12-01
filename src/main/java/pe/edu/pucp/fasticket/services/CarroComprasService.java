@@ -14,6 +14,6 @@ public interface CarroComprasService {
     public CarroComprasDTO aplicarCodigoPromocional(Integer idCarrito, String codigo);
     public CarroComprasDTO eliminarItemDelCarrito(Integer idItemCarrito, Integer idCliente);
     public List<EventoResumenDTO> obtenerEventosDelCarrito(Integer idCarrito);
-    CarroComprasDTO incrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket);
-    public CarroComprasDTO decrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket);
+    public CarroComprasDTO incrementarCantidadItem(Integer idCliente, Integer idItemCarrito);
+    public CarroComprasDTO decrementarCantidadItem(Integer idCliente, Integer idItemCarrito);
 }

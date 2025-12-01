@@ -1142,5 +1142,19 @@ public class OrdenServicio {
                         evento.getLocal() != null ? evento.getLocal().getNombre() : "Por confirmar"
                 ))
                 .collect(Collectors.toList());
+    }@Transactional(readOnly = true)
+    public EventoResumenDTO obtenerEventoPorTipoTicket(Integer idTipoTicket) {
+        TipoTicket tipo = tipoTicketRepositorio.findById(idTipoTicket)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado"));
+        Evento evento = tipo.getEvento();
+        if (evento == null) {
+            throw new BusinessException("Este ticket no tiene evento asignado");
+        }
+        return new EventoResumenDTO(
+                evento.getNombre(),
+                evento.getFechaEvento(),
+                evento.getHoraInicio(),
+                evento.getLocal() != null ? evento.getLocal().getNombre() : "Lugar por confirmar"
+        );
     }
 }

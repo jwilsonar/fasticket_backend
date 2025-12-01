@@ -435,20 +435,20 @@ public class OrdenController {
         }
     }
     @Operation(
-            summary = "Obtener información del evento de la orden",
-            description = "Devuelve los detalles del evento asociado a una orden específica. Útil para pantallas de confirmación o historial.",
+            summary = "Obtener info del evento por Tipo de Ticket (Pre-compra)",
+            description = "Devuelve los datos del evento basándose en el ID del tipo de ticket. Útil para mostrar el resumen en compra directa antes de crear la orden.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
-    @GetMapping("/{idOrden}/evento-info")
+    @GetMapping("/evento-info-por-ticket")
     @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<List<EventoResumenDTO>>> obtenerInfoEventoOrden(
-            @PathVariable Integer idOrden) {
+    public ResponseEntity<StandardResponse<EventoResumenDTO>> obtenerInfoPorTicket(
+            @RequestParam Integer idTipoTicket) {
 
-        List<EventoResumenDTO> eventos = ordenServicio.obtenerEventosDeOrden(idOrden);
+        EventoResumenDTO info = ordenServicio.obtenerEventoPorTipoTicket(idTipoTicket);
 
         return ResponseEntity.ok(StandardResponse.success(
                 "Información del evento recuperada",
-                eventos
+                info
         ));
     }
 }

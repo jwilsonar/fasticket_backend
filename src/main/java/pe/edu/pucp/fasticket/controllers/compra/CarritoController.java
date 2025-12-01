@@ -172,23 +172,5 @@ public class CarritoController {
         CarroComprasDTO carritoActualizado = carroComprasService.eliminarItemDelCarrito(idItemCarrito, idCliente);
         return ResponseEntity.ok(carritoActualizado);
     }
-
-    @Operation(
-            summary = "Obtener información del evento del carrito",
-            description = "Devuelve los detalles del evento (nombre, fecha, lugar) asociado a los tickets guardados en el carrito.",
-            security = @SecurityRequirement(name = "Bearer Authentication")
-    )
-    @GetMapping("/{idCarrito}/evento-info")
-    @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
-    public ResponseEntity<StandardResponse<List<EventoResumenDTO>>> obtenerInfoEventoCarrito(
-            @PathVariable Integer idCarrito) {
-
-        List<EventoResumenDTO> eventos = carroComprasService.obtenerEventosDelCarrito(idCarrito);
-
-        return ResponseEntity.ok(StandardResponse.success(
-                "Información del evento recuperada",
-                eventos
-        ));
-    }
 }
 

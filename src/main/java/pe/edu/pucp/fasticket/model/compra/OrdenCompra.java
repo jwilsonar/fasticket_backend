@@ -110,6 +110,9 @@ public class OrdenCompra {
     @Column(name = "codigo_promocional")
     private String codigoPromocionalAplicado;
 
+    @Column(name = "puntos_ganados")
+    private Integer puntosGanados;
+
     // --- INICIO RF-081: DATOS DE FACTURACIÓN (Opcional) ---
     @Column(name = "fact_ruc", length = 11)
     private String ruc;

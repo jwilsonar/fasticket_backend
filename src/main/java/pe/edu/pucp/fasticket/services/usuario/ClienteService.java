@@ -257,90 +257,101 @@ public class ClienteService {
      * @return DTO de historial
      */
     private HistorialCompraDTO convertirAHistorialDTO(OrdenCompra orden) {
-        // Obtener evento: primero desde items -> tipoTicket -> evento (ya cargado con FETCH)
-        // Luego como fallback desde carroCompras.idEventoActual
-        Evento evento = null;
-        
-        // Método 1: Obtener desde los items (todos los items de una orden pertenecen al mismo evento)
-        // El evento ya está cargado con LEFT JOIN FETCH en el repositorio
+        HistorialCompraDTO dto = new HistorialCompraDTO();
+
+        // 1. DATOS GENERALES
+        dto.setIdOrden(orden.getIdOrdenCompra());
+        dto.setCodigoCompra("ORD-" + orden.getIdOrdenCompra());
+        dto.setEstado(orden.getEstado().toString());
+        // Usamos fechaCreacion para la fecha de compra
+        dto.setFechaCompra(orden.getFechaCreacion() != null ? orden.getFechaCreacion().atStartOfDay() : orden.getFechaOrden().atStartOfDay());
+        dto.setCodigoSeguimiento(orden.getCodigoSeguimiento());
+
+        // 2. DATOS DEL EVENTO (Tomados del primer ticket)
         if (orden.getItems() != null && !orden.getItems().isEmpty()) {
-            for (var item : orden.getItems()) {
-                if (item.getTipoTicket() != null && item.getTipoTicket().getEvento() != null) {
-                    evento = item.getTipoTicket().getEvento();
-                    break; // Todos los items tienen el mismo evento
-                }
-            }
+            var tipoTicket = orden.getItems().get(0).getTipoTicket();
+            var evento = tipoTicket.getEvento();
+
+            dto.setNombreEvento(evento.getNombre());
+            dto.setLugarEvento(evento.getLocal().getNombre());
+            // Opcional: Dirección
+            dto.setDireccionLocal(evento.getLocal().getDireccion());
+
+            // Fecha del evento (para mostrar cuándo es el concierto)
+            dto.setFechaEvento(evento.getFechaEvento().atStartOfDay());
+            dto.setImagenUrl(evento.getImagenUrl());
         }
-        
-        // Método 2: Fallback - Desde carroCompras.idEventoActual si no se encontró en items
-        if (evento == null && orden.getCarroCompras() != null && orden.getCarroCompras().getIdEventoActual() != null) {
-            evento = eventoRepositorio.findById(orden.getCarroCompras().getIdEventoActual())
-                    .orElse(null);
-        }
-        
-        // Construir EventoHistorialDTO
-        EventoHistorialDTO eventoDTO = null;
-        if (evento != null) {
-            eventoDTO = EventoHistorialDTO.builder()
-                    .idEvento(evento.getIdEvento())
-                    .nombre(evento.getNombre())
-                    .imagenUrl(evento.getImagenUrl())
-                    .build();
-            log.debug("Evento cargado para orden {}: id={}, nombre={}, imagenUrl={}", 
-                    orden.getIdOrdenCompra(), evento.getIdEvento(), evento.getNombre(), evento.getImagenUrl());
+
+        // 3. DATOS FINANCIEROS (Desglose)
+        dto.setSubtotal(orden.getSubtotal());
+
+        // Descuentos (Manejando nulos)
+        dto.setDescuentoCupon(orden.getDescuentoPromocional() != null ? orden.getDescuentoPromocional() : 0.0);
+        dto.setDescuentoPuntos(orden.getDescuentoPorCanje() != null ? orden.getDescuentoPorCanje() : 0.0);
+
+        dto.setTotalPagado(orden.getTotal());
+
+        // 4. FIDELIZACIÓN (Puntos)
+        // Puntos Ganados (Cálculo estimado o real si lo guardaste)
+        // Regla: 1 punto por sol (ejemplo). Ajusta según tu regla real.
+        dto.setPuntosGanados(orden.getPuntosGanados() != null ? orden.getPuntosGanados() : 0);
+
+        // Puntos Canjeados (Estimación inversa si hubo descuento por canje)
+        // Ej: Si descontó 20 soles y la regla es 10 pts/sol -> usó 200 puntos.
+        if (dto.getDescuentoPuntos() > 0) {
+            // Ajusta el '10' por tu factor de canje real o lee de config
+            dto.setPuntosCanjeados((int) (dto.getDescuentoPuntos() * 10));
         } else {
-            log.warn("No se encontró evento para la orden de compra ID: {}", orden.getIdOrdenCompra());
+            dto.setPuntosCanjeados(0);
         }
-        
-        // Construir PagoHistorialDTO
-        PagoHistorialDTO pagoDTO = null;
+
+        // 5. DATOS DEL PAGO
         if (orden.getPago() != null) {
-            pagoDTO = PagoHistorialDTO.builder()
-                    .idPago(orden.getPago().getIdPago())
-                    .monto(orden.getPago().getMonto())
-                    .estado(orden.getPago().getEstado())
-                    .fechaPago(orden.getPago().getFechaPago())
-                    .metodo(orden.getPago().getMetodo())
-                    .build();
+            var pago = orden.getPago();
+            dto.setIdTransaccionPago(pago.getIdPago());
+            dto.setMedioPago(pago.getMetodo()); // Ej: "Tarjeta (4242)"
+            dto.setEstadoPago(pago.getEstado().toString());
+
+            // Enmascarar tarjeta visualmente si viene en el texto del método
+            if (pago.getMetodo().contains("(")) {
+                String last4 = pago.getMetodo().substring(pago.getMetodo().indexOf("(") + 1, pago.getMetodo().indexOf(")"));
+                dto.setNumeroTarjeta("**** **** **** " + last4);
+            } else {
+                dto.setNumeroTarjeta("**** **** **** ****");
+            }
+
+            // Verificar si hay comprobante para mostrar botón "Descargar"
+            dto.setTieneComprobante(pago.getComprobantePago() != null);
+        } else {
+            dto.setTieneComprobante(false);
+            dto.setMedioPago("Pendiente");
+            dto.setNumeroTarjeta("---");
         }
-        
-        // Construir ItemHistorialDTO
-        List<ItemHistorialDTO> itemsDTO = orden.getItems().stream()
-                .map(item -> ItemHistorialDTO.builder()
-                        .idItemCarrito(item.getIdItemCarrito())
-                        .cantidad(item.getCantidad())
-                        .precio(item.getPrecio())
-                        .precioFinal(item.getPrecioFinal())
-                        .tipoTicketNombre(item.getTipoTicket() != null ? item.getTipoTicket().getNombre() : null)
-                        .build())
-                .collect(Collectors.toList());
-        
-        // Obtener tickets de la orden
-        List<Ticket> tickets = ticketRepositorio.findByOrdenCompraId(orden.getIdOrdenCompra());
-        
-        // Construir TicketHistorialDTO
-        List<TicketHistorialDTO> ticketsDTO = tickets.stream()
-                .map(ticket -> TicketHistorialDTO.builder()
-                        .idTicket(ticket.getIdTicket())
-                        .codigoQr(ticket.getCodigoQr())
-                        .asiento(ticket.getAsiento())
-                        .fila(ticket.getFila())
-                        .estado(ticket.getEstado() != null ? ticket.getEstado().toString() : null)
-                        .build())
-                .collect(Collectors.toList());
-        
-        // Construir HistorialCompraDTO
-        return HistorialCompraDTO.builder()
-                .idOrdenCompra(orden.getIdOrdenCompra())
-                .fechaOrden(orden.getFechaOrden())
-                .total(orden.getTotal())
-                .estado(orden.getEstado())
-                .codigoSeguimiento(orden.getCodigoSeguimiento())
-                .pago(pagoDTO)
-                .evento(eventoDTO)
-                .items(itemsDTO)
-                .tickets(ticketsDTO)
-                .build();
+
+        // 6. ITEMS Y ASISTENTES (El detalle más importante)
+        List<HistorialCompraDTO.DetalleItemDTO> itemsDTO = orden.getItems().stream().map(item -> {
+            // Mapear cada ticket individual como un asistente
+            List<HistorialCompraDTO.DetalleAsistenteDTO> asistentes = item.getTickets().stream().map(t -> {
+                return HistorialCompraDTO.DetalleAsistenteDTO.builder()
+                        .idTicket(t.getIdTicket())
+                        .nombreCompleto(t.getNombreAsistente() + " " + t.getApellidoAsistente())
+                        .documento((t.getTipoDocumentoAsistente() != null ? t.getTipoDocumentoAsistente() : "DOC") + ": " + t.getDocumentoAsistente())
+                        .codigoQr(t.getCodigoQr()) // El texto del QR para generarlo en el front si se quiere
+                        .build();
+            }).collect(Collectors.toList());
+
+            return HistorialCompraDTO.DetalleItemDTO.builder()
+                    .nombreTipoTicket(item.getTipoTicket().getNombre()) // "V.I.P"
+                    .cantidad(item.getCantidad())
+                    .precioUnitario(item.getPrecioFinal()) // Precio real pagado por ticket
+                    .subtotalLinea(item.getPrecioFinal() * item.getCantidad())
+                    .asistentes(asistentes)
+                    .build();
+        }).collect(Collectors.toList());
+
+        dto.setItems(itemsDTO);
+
+        return dto;
     }
 
     /**

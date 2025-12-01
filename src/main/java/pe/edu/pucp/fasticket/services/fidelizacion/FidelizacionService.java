@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -405,12 +406,12 @@ public class FidelizacionService {
     }
 
     @Transactional
-    public void generarPuntosPorCompra(Integer idCliente, Double montoTotal, Integer idOrdenCompra) {
+    public Integer generarPuntosPorCompra(Integer idCliente, Double montoTotal, Integer idOrdenCompra) {
         // Lee Configuración Global (1 Sol = 1 Punto)
         double puntosPorSol = Double.parseDouble(getConfig("PUNTOS_POR_MONEDA", "1"));
         int puntosGenerados = (int) (montoTotal * puntosPorSol);
 
-        if (puntosGenerados <= 0) return;
+        if (puntosGenerados <= 0) return 0;
 
         ReglaPuntos reglaBase = reglaPuntosRepository.findByTipoReglaAndActivoTrue(TipoRegla.COMPRA)
                 .stream().findFirst().orElse(null);
@@ -421,13 +422,11 @@ public class FidelizacionService {
             Cliente cliente = clienteRepository.findById(idCliente).orElseThrow();
             int nuevoAcumulado = (cliente.getPuntosAcumulados() != null ? cliente.getPuntosAcumulados() : 0) + puntosGenerados;
             cliente.setPuntosAcumulados(nuevoAcumulado);
-
-            // SÍ actualiza nivel (Ganancia)
             actualizarNivelCliente(cliente, nuevoAcumulado);
-
             clienteRepository.save(cliente);
             log.info("Orden {}: Cliente {} ganó {} puntos.", idOrdenCompra, idCliente, puntosGenerados);
         }
+        return puntosGenerados;
     }
 
     /**

@@ -259,40 +259,38 @@ public class CarritoController {
     }
 
     @Operation(
-            summary = "Incrementar cantidad de un tipo de ticket",
-            description = "Incrementa en 1 la cantidad de un tipo de ticket específico en el carrito",
+            summary = "Incrementar cantidad de un item",
+            description = "Incrementa en 1 la cantidad de un item específico en el carrito usando su ID de item",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "Ticket agregado exitosamente",
+                    description = "Cantidad incrementada exitosamente",
                     content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "Stock insuficiente o límite excedido"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "No autenticado"
+                    description = "Stock insuficiente, límite excedido o precio inconsistente"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
-                    description = "Tipo de ticket no encontrado"
+                    description = "Item de carrito no encontrado"
             )
     })
-    @PostMapping("/incrementar-ticket/{idTipoTicket}")
+    @PostMapping("/incrementar-item/{idItemCarrito}")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> incrementarCantidadTipoTicket(
-            @Parameter(description = "ID del tipo de ticket a incrementar", required = true)
-            @PathVariable Integer idTipoTicket,
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> incrementarCantidadItem(
+            @Parameter(description = "ID del item del carrito a incrementar", required = true)
+            @PathVariable Integer idItemCarrito,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Integer idCliente = obtenerIdClienteDesdeAuth(userDetails);
-        log.info("POST /api/v1/carrito/incrementar-ticket/{} - Cliente: {}", idTipoTicket, idCliente);
+        log.info("POST /api/v1/carrito/incrementar-item/{} - Cliente: {}", idItemCarrito, idCliente);
 
-        CarroComprasDTO carritoActualizado = carroComprasService.incrementarCantidadTipoTicket(idCliente, idTipoTicket);
+        // Nota: El servicio ahora recibe idItemCarrito
+        CarroComprasDTO carritoActualizado = carroComprasService.incrementarCantidadItem(idCliente, idItemCarrito);
+
         StandardResponse<CarroComprasDTO> response = StandardResponse.success(
                 "Ticket agregado exitosamente",
                 carritoActualizado
@@ -300,53 +298,50 @@ public class CarritoController {
         return ResponseEntity.ok(response);
     }
 
-    private Integer obtenerIdClienteDesdeAuth(UserDetails userDetails) {
-        String email = userDetails.getUsername();
-        return clienteRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"))
-                .getIdPersona();
-    }
-
     @Operation(
-            summary = "Decrementar cantidad de un tipo de ticket",
-            description = "Decrementa en 1 la cantidad de un tipo de ticket específico en el carrito. Si llega a 0, elimina el item.",
+            summary = "Decrementar cantidad de un item",
+            description = "Decrementa en 1 la cantidad de un item. Si llega a 0, elimina el item del carrito.",
             security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
-                    description = "Ticket eliminado exitosamente",
+                    description = "Cantidad decrementada o item eliminado exitosamente",
                     content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "No hay tickets para eliminar"
-            ),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "401",
-                    description = "No autenticado"
+                    description = "No es posible decrementar (ej. cantidad ya es 0)"
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
-                    description = "Tipo de ticket no encontrado en el carrito"
+                    description = "Item de carrito no encontrado"
             )
     })
-    @PostMapping("/decrementar-ticket/{idTipoTicket}")
+    @PostMapping("/decrementar-item/{idItemCarrito}")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> decrementarCantidadTipoTicket(
-            @Parameter(description = "ID del tipo de ticket a decrementar", required = true)
-            @PathVariable Integer idTipoTicket,
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> decrementarCantidadItem(
+            @Parameter(description = "ID del item del carrito a decrementar", required = true)
+            @PathVariable Integer idItemCarrito,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Integer idCliente = obtenerIdClienteDesdeAuth(userDetails);
-        log.info("POST /api/v1/carrito/decrementar-ticket/{} - Cliente: {}", idTipoTicket, idCliente);
+        log.info("POST /api/v1/carrito/decrementar-item/{} - Cliente: {}", idItemCarrito, idCliente);
 
-        CarroComprasDTO carritoActualizado = carroComprasService.decrementarCantidadTipoTicket(idCliente, idTipoTicket);
+        // Nota: El servicio ahora recibe idItemCarrito
+        CarroComprasDTO carritoActualizado = carroComprasService.decrementarCantidadItem(idCliente, idItemCarrito);
+
         StandardResponse<CarroComprasDTO> response = StandardResponse.success(
                 "Ticket eliminado exitosamente",
                 carritoActualizado
         );
         return ResponseEntity.ok(response);
+    }
+    private Integer obtenerIdClienteDesdeAuth(UserDetails userDetails) {
+        String email = userDetails.getUsername();
+        return clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"))
+                .getIdPersona();
     }
 }
 

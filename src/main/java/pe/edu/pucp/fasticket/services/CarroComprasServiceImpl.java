@@ -495,42 +495,48 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     @Override
     @Transactional
-    public CarroComprasDTO incrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
-        log.info("Incrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
-        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
+    public CarroComprasDTO incrementarCantidadItem(Integer idCliente, Integer idItemCarrito) {
+        log.info("Incrementando cantidad del item ID: {} para cliente ID: {}", idItemCarrito, idCliente);
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Item de carrito no encontrado: " + idItemCarrito));
+        CarroCompras carro = item.getCarroCompra();
+        if (!carro.getCliente().getIdPersona().equals(idCliente) || !carro.getActivo()) {
+            throw new ResourceNotFoundException("El item no pertenece a un carrito activo del usuario actual");
+        }
+        TipoTicket tipoTicket = item.getTipoTicket();
         Cliente cliente = carro.getCliente();
-        ItemCarrito item = carro.getItems().stream()
-                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
         Double precioActual = tipoTicket.getPrecioCalculado();
         if (!item.getPrecio().equals(precioActual)) {
             throw new BusinessException("El precio del ticket ha cambiado. Por favor, elimina el item y agrégalo nuevamente.");
         }
 
         validarLimitePorPersona(tipoTicket, item.getCantidad() + 1, cliente);
+
         List<Ticket> ticketsDisponibles = ticketRepository.findAvailableTicketsByTypeAndState(
                 tipoTicket, EstadoTicket.DISPONIBLE, PageRequest.of(0, 1)
         );
+
         if (ticketsDisponibles.isEmpty()) {
             throw new BusinessException("No hay stock disponible para " + tipoTicket.getNombre());
         }
+
         Ticket ticketAReservar = ticketsDisponibles.get(0);
         ticketAReservar.setEstado(EstadoTicket.RESERVADA);
         ticketAReservar.setCliente(cliente);
         ticketAReservar.setItemCarrito(item);
+
         ticketRepository.save(ticketAReservar);
+
         item.setCantidad(item.getCantidad() + 1);
         item.getTickets().add(ticketAReservar);
         item.calcularPrecioFinal();
         itemCarritoRepository.save(item);
+
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() - 1);
         tipoTicketRepositorio.save(tipoTicket);
+
         log.info("Reservado 1 ticket adicional del tipo {} para item ID {}", tipoTicket.getNombre(), item.getIdItemCarrito());
+
         carro.recalcularTotales();
         carro.setFechaActualizacion(LocalDateTime.now().plusMinutes(TIEMPO_RESERVA_MINUTOS));
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
@@ -540,25 +546,26 @@ public class CarroComprasServiceImpl implements CarroComprasService {
 
     @Override
     @Transactional
-    public CarroComprasDTO decrementarCantidadTipoTicket(Integer idCliente, Integer idTipoTicket) {
-        log.info("Decrementando cantidad del tipo ticket ID: {} para cliente ID: {}", idTipoTicket, idCliente);
-        CarroCompras carro = carroComprasRepository.findByCliente_IdPersonaAndActivoTrue(idCliente)
-                .orElseThrow(() -> new ResourceNotFoundException("No tienes un carrito activo"));
-        TipoTicket tipoTicket = tipoTicketRepositorio.findById(idTipoTicket)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo de ticket no encontrado: " + idTipoTicket));
-        ItemCarrito item = carro.getItems().stream()
-                .filter(i -> i.getTipoTicket().getIdTipoTicket().equals(idTipoTicket))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No se encontró un item con el tipo de ticket " + tipoTicket.getNombre() + " en tu carrito"));
+    public CarroComprasDTO decrementarCantidadItem(Integer idCliente, Integer idItemCarrito) {
+        log.info("Decrementando cantidad del item ID: {} para cliente ID: {}", idItemCarrito, idCliente);
+
+        ItemCarrito item = itemCarritoRepository.findById(idItemCarrito)
+                .orElseThrow(() -> new ResourceNotFoundException("Item de carrito no encontrado: " + idItemCarrito));
+        CarroCompras carro = item.getCarroCompra();
+        if (!carro.getCliente().getIdPersona().equals(idCliente) || !carro.getActivo()) {
+            throw new ResourceNotFoundException("El item no pertenece a un carrito activo del usuario actual");
+        }
+        TipoTicket tipoTicket = item.getTipoTicket();
+
         if (item.getCantidad() <= 0) {
-            throw new BusinessException("No hay tickets de este tipo para eliminar");
+            throw new BusinessException("No hay tickets en este item para eliminar");
         }
         Ticket ticketALiberar = item.getTickets().stream()
                 .filter(t -> t.getEstado() == EstadoTicket.RESERVADA)
                 .reduce((first, second) -> second)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Error de consistencia: No se encontró un ticket RESERVADO para liberar"));
+                        "Error de consistencia: No se encontró un ticket RESERVADO para liberar en este item"));
+
         ticketALiberar.setEstado(EstadoTicket.DISPONIBLE);
         ticketALiberar.setCliente(null);
         ticketALiberar.setItemCarrito(null);
@@ -568,10 +575,14 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         ticketALiberar.setDocumentoAsistente(null);
         ticketALiberar.setCodigoQr(null);
         ticketALiberar.setQrImageUrl(null);
+
         ticketRepository.save(ticketALiberar);
+
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + 1);
         tipoTicketRepositorio.save(tipoTicket);
+
         log.info("Liberado 1 ticket del tipo {}", tipoTicket.getNombre());
+
         if (item.getCantidad() > 1) {
             item.setCantidad(item.getCantidad() - 1);
             item.getTickets().remove(ticketALiberar);

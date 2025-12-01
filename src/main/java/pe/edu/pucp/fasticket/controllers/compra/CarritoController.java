@@ -337,5 +337,11 @@ public class CarritoController {
         );
         return ResponseEntity.ok(response);
     }
+    private Integer obtenerIdClienteDesdeAuth(UserDetails userDetails) {
+        String email = userDetails.getUsername();
+        return clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"))
+                .getIdPersona();
+    }
 }
 

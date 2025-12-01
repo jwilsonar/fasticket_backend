@@ -3,11 +3,13 @@ package pe.edu.pucp.fasticket.controllers.compra;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -94,26 +96,87 @@ public class CarritoController {
     }
 
     @Operation(
-        summary = "Agregar item al carrito",
-        description = "Agrega un tipo de ticket al carrito del cliente",
-        security = @SecurityRequirement(name = "Bearer Authentication")
+            summary = "Agregar item(s) al carrito",
+            description = """
+        Agrega uno o más tipos de tickets al carrito del cliente.
+        
+        Soporta dos formatos:
+        
+        **Formato Simple** (un solo tipo de ticket):
+```json
+        {
+          "idCliente": 6,
+          "idTipoTicket": 12,
+          "cantidad": 1
+        }
+```
+        
+        **Formato Múltiple** (varios tipos de tickets):
+```json
+        {
+          "idCliente": 6,
+          "items": [
+            { "idTipoTicket": 12, "cantidad": 1 },
+            { "idTipoTicket": 13, "cantidad": 2 }
+          ]
+        }
+```
+        """,
+            security = @SecurityRequirement(name = "Bearer Authentication")
     )
     @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Item agregado exitosamente",
-            content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
-        ),
-        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
-        @ApiResponse(responseCode = "401", description = "No autenticado")
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Item(s) agregado(s) exitosamente",
+                    content = @Content(schema = @Schema(implementation = CarroComprasDTO.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos o stock insuficiente"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "404", description = "Cliente o tipo de ticket no encontrado")
     })
     @PostMapping("/items")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(@RequestBody AddItemRequestDTO request) {
-        log.info("POST /api/v1/carrito/items - Cliente: {}, Tipo Ticket: {}", 
-                 request.getIdCliente(), request.getIdTipoTicket());
+    public ResponseEntity<StandardResponse<CarroComprasDTO>> agregarItem(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Datos del/los item(s) a agregar",
+                    required = true,
+                    content = @Content(
+                            examples = {
+                                    @ExampleObject(
+                                            name = "Formato Simple",
+                                            value = """
+                            {
+                              "idCliente": 6,
+                              "idTipoTicket": 12,
+                              "cantidad": 1
+                            }
+                            """
+                                    ),
+                                    @ExampleObject(
+                                            name = "Formato Múltiple",
+                                            value = """
+                            {
+                              "idCliente": 6,
+                              "items": [
+                                { "idTipoTicket": 12, "cantidad": 1 },
+                                { "idTipoTicket": 13, "cantidad": 2 }
+                              ]
+                            }
+                            """
+                                    )
+                            }
+                    )
+            )
+            @RequestBody @Valid AddItemRequestDTO request) {
+
+        String formato = request.esFormatoMultiple() ? "múltiple" : "simple";
+        log.info("POST /api/v1/carrito/items [formato: {}] - Cliente: {}", formato, request.getIdCliente());
+
         CarroComprasDTO carritoActualizado = carroComprasService.agregarItemAlCarrito(request);
-        StandardResponse<CarroComprasDTO> response = StandardResponse.success("Item agregado al carrito exitosamente", carritoActualizado);
+        StandardResponse<CarroComprasDTO> response = StandardResponse.success(
+                "Item(s) agregado(s) al carrito exitosamente",
+                carritoActualizado
+        );
         return ResponseEntity.ok(response);
     }
 

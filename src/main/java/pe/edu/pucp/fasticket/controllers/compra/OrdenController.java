@@ -69,7 +69,7 @@ public class OrdenController {
     private final S3Service s3Service;
 
     @Operation(
-            summary = "Crear nueva orden (Checkout directo)",
+            summary = "Crear nueva orden ",
             description = "Crea una orden PENDIENTE y reserva tickets para el cliente autenticado. " +
                           "El ID del cliente se obtiene automáticamente del token JWT, no es necesario enviarlo en el cuerpo de la petición. " +
                           "Los datos de asistentes NO se requieren en la creación de la orden. " +

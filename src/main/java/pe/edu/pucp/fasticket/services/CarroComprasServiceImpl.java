@@ -412,8 +412,16 @@ public class CarroComprasServiceImpl implements CarroComprasService {
         }
         tipoTicket.setCantidadDisponible(tipoTicket.getCantidadDisponible() + cantidadLiberada);
         log.info("Liberados {} tickets del tipo {}", cantidadLiberada, tipoTicket.getNombre());
+
         carro.removeItem(item); // Elimina del carrito
         carro.setFechaActualizacion(LocalDateTime.now());
+
+        // Si el carrito queda vacío, marcarlo como inactivo
+        if (carro.getItems().isEmpty()) {
+            carro.setActivo(false);
+            log.info("Carrito ID {} marcado como inactivo (sin items)", carro.getIdCarro());
+        }
+
         CarroCompras carroGuardado = carroComprasRepository.save(carro);
         return convertirADTO(carroGuardado);
     }

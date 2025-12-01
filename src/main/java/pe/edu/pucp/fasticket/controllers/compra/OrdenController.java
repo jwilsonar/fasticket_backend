@@ -35,6 +35,7 @@ import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
 import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
 import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
+import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.dto.fidelizacion.ValidacionCuponResponseDTO;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
@@ -432,5 +433,22 @@ public class OrdenController {
                     new StandardResponse<>(false, e.getMessage(), null)
             );
         }
+    }
+    @Operation(
+            summary = "Obtener información del evento de la orden",
+            description = "Devuelve los detalles del evento asociado a una orden específica. Útil para pantallas de confirmación o historial.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @GetMapping("/{idOrden}/evento-info")
+    @PreAuthorize("hasAnyRole('CLIENTE', 'ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<List<EventoResumenDTO>>> obtenerInfoEventoOrden(
+            @PathVariable Integer idOrden) {
+
+        List<EventoResumenDTO> eventos = ordenServicio.obtenerEventosDeOrden(idOrden);
+
+        return ResponseEntity.ok(StandardResponse.success(
+                "Información del evento recuperada",
+                eventos
+        ));
     }
 }

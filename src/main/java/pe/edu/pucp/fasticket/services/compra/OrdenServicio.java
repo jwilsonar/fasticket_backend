@@ -18,16 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
-import pe.edu.pucp.fasticket.dto.compra.AsistenteParaItemDTO;
-import pe.edu.pucp.fasticket.dto.compra.BeneficiosDTO;
-import pe.edu.pucp.fasticket.dto.compra.CheckoutCarritoRequestDTO;
-import pe.edu.pucp.fasticket.dto.compra.CrearOrdenDTO;
-import pe.edu.pucp.fasticket.dto.compra.DatosAsistenteDTO;
-import pe.edu.pucp.fasticket.dto.compra.ItemResumenDTO;
-import pe.edu.pucp.fasticket.dto.compra.ItemSeleccionadoDTO;
-import pe.edu.pucp.fasticket.dto.compra.ItemsDTO;
-import pe.edu.pucp.fasticket.dto.compra.OrdenResumenDTO;
-import pe.edu.pucp.fasticket.dto.compra.ProcesarCompraResponseDTO;
+import pe.edu.pucp.fasticket.dto.compra.*;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResumenDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
@@ -730,11 +721,15 @@ public class OrdenServicio {
 
         // 7. Generar Puntos
         try {
-            fidelizacionService.generarPuntosPorCompra(
+            Integer puntosGanados = fidelizacionService.generarPuntosPorCompra(
                     orden.getCliente().getIdPersona(),
                     orden.getTotal(),
                     orden.getIdOrdenCompra()
             );
+            if (puntosGanados != null && puntosGanados > 0) {
+                orden.setPuntosGanados(puntosGanados);
+                ordenCompraRepositorio.save(orden); // Actualizamos la orden con el dato
+            }
         } catch (Exception e) {
             log.error("Error no bloqueante al generar puntos: {}", e.getMessage());
         }
@@ -854,6 +849,7 @@ public class OrdenServicio {
                 })
                 .collect(Collectors.toList());
     }
+
 
     @Transactional
     public OrdenCompra checkoutDesdeCarrito(Integer idCarrito, CheckoutCarritoRequestDTO requestDTO) {

@@ -416,14 +416,14 @@ class OrdenServiceTest {
         when(ordenCompraRepositorio.findById(1)).thenReturn(Optional.of(ordenPendiente));
         when(tipoTicketRepositorio.findEventoByTipoTicket(1)).thenReturn(Optional.of(eventoMock));
         when(ordenCompraRepositorio.save(any(OrdenCompra.class))).thenReturn(ordenPendiente);
-        doNothing().when(fidelizacionService).generarPuntosPorCompra(any(), any(), any());
+        when(fidelizacionService.generarPuntosPorCompra(any(), any(), any())).thenReturn(100);
         when(carroComprasRepository.save(any(CarroCompras.class))).thenReturn(carroMock);
 
         ordenServicio.confirmarPagoOrden(1);
 
         assertThat(ordenPendiente.getEstado()).isEqualTo(EstadoCompra.APROBADO);
         assertThat(ticket.getEstado()).isEqualTo(EstadoTicket.VENDIDA);
-        verify(ordenCompraRepositorio, times(1)).save(ordenPendiente);
+        verify(ordenCompraRepositorio, times(2)).save(ordenPendiente);
         verify(carroComprasRepository, times(2)).save(any(CarroCompras.class));
     }
 

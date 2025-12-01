@@ -833,5 +833,22 @@ public Double ventasPorEvento(Integer idEvento) {
             totalIngresos += tipoTicketRepositorio.sumIngresosByEventoId(idEvento);  
         } 
         return totalIngresos != null ? totalIngresos : 0.0;
-    }  
+    }
+    /**
+     * Nuevo método para el Dashboard.
+     * Devuelve los datos del reporte en JSON (DTO) sin generar PDF.
+     */
+    @Transactional(readOnly = true)
+    public ReporteVentasEventoDTO obtenerReporteVentasJson(Integer idEvento) {
+        log.info("Generando data JSON de ventas para evento ID: {}", idEvento);
+
+        // 1. Obtener Datos (Copiado de la lógica del PDF)
+        Evento evento = eventoRepository.findById(idEvento)
+                .orElseThrow(() -> new ResourceNotFoundException("Evento no encontrado con ID: " + idEvento));
+
+        List<OrdenCompra> ordenesAprobadas = ordenCompraRepository.findByItems_TipoTicket_Evento_IdEventoAndEstado(idEvento, EstadoCompra.APROBADO);
+
+        // 2. Calcular Métricas (Reutilizamos tu método auxiliar existente)
+        return calcularMetricasReporte(evento, ordenesAprobadas);
+    }
 }

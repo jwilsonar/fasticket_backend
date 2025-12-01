@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import pe.edu.pucp.fasticket.dto.StandardResponse;
 import pe.edu.pucp.fasticket.dto.eventos.EventoCreateDTO;
 import pe.edu.pucp.fasticket.dto.eventos.EventoResponseDTO;
+import pe.edu.pucp.fasticket.dto.reportes.ReporteVentasEventoDTO;
 import pe.edu.pucp.fasticket.exception.BusinessException;
 import pe.edu.pucp.fasticket.exception.ErrorResponse;
 import pe.edu.pucp.fasticket.exception.ResourceNotFoundException;
@@ -419,6 +420,34 @@ public ResponseEntity<StandardResponse<EventoResponseDTO>> actualizarConImagen(
             log.warn("Intento de generar reporte para evento no encontrado ID: {}", idEvento);
             return ResponseEntity.notFound().build();
         }
-    } 
+    }
+
+    @Operation(
+            summary = "Obtener Reporte de Ventas en JSON (Dashboard)",
+            description = "Devuelve los datos de ventas (ingresos, desglose, ocupación) en formato JSON para uso en dashboards.",
+            security = @SecurityRequirement(name = "Bearer Authentication")
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Datos obtenidos exitosamente"),
+            @ApiResponse(responseCode = "404", description = "Evento no encontrado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    @GetMapping(value = "/{idEvento}/reporte/ventas/json")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<StandardResponse<ReporteVentasEventoDTO>> obtenerReporteVentasJson(
+            @Parameter(description = "ID del evento", required = true)
+            @PathVariable Integer idEvento) {
+
+        log.info("GET /api/v1/eventos/{}/reporte/ventas/json", idEvento);
+
+        ReporteVentasEventoDTO reporte = eventoService.obtenerReporteVentasJson(idEvento);
+
+        StandardResponse<ReporteVentasEventoDTO> response = StandardResponse.success(
+                "Reporte de ventas generado exitosamente",
+                reporte
+        );
+
+        return ResponseEntity.ok(response);
+    }
 }
 

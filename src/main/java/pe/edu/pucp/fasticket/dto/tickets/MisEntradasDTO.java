@@ -17,6 +17,7 @@ public class MisEntradasDTO {
     private LocalTime horaEvento;
     private String nombreLocal;
     private String nombreZona;
+    private String qrImageUrl;
     private String nombreTipoTicket;
     private Double precioPagado;
     private String estado;
@@ -28,6 +29,7 @@ public class MisEntradasDTO {
         this.idTicket = ticket.getIdTicket();
         this.estado = ticket.getEstado().toString();
         this.precioPagado = ticket.getPrecio();
+        this.qrImageUrl = ticket.getQrImageUrl();
         this.nombreAsistente = ticket.getNombreAsistente();
         this.apellidoAsistente = ticket.getApellidoAsistente();
         this.documentoAsistente = ticket.getDocumentoAsistente();

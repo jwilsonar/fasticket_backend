@@ -12,6 +12,7 @@ public interface TipoTicketMapper {
     @Mapping(target = "idZona", source = "zona.idZona")
     @Mapping(target = "nombreZona", source = "zona.nombre")
     @Mapping(target = "activo", source = "activo")
+    @Mapping(target = "cantidadDisponible", source = "cantidadDisponible")
     TipoTicketDTO toDTO(TipoTicket tipoTicket);
 
     @Mapping(target = "idTipoTicket", ignore = true)

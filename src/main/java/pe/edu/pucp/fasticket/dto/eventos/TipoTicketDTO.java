@@ -30,6 +30,9 @@ public class TipoTicketDTO {
     
     @Schema(description = "Stock disponible", example = "100")
     private Integer stock;
+
+    @Schema(description = "Cantidad real disponible para venta", example = "50")
+    private Integer cantidadDisponible;
     
     @Schema(description = "Estado activo", example = "true")
     private Boolean activo;

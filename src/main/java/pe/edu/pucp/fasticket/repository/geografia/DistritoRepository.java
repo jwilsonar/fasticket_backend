@@ -13,17 +13,12 @@ import java.util.Optional;
 public interface DistritoRepository extends JpaRepository<Distrito, Integer> {
     List<Distrito> findByProvincia_IdProvinciaOrderByNombreAsc(Integer idProvincia);
 
-    @Query(value = """
-        SELECT COUNT(*) > 0 FROM evento e 
-        WHERE e.id_local = :idLocal
-          AND e.estado_evento != 'CANCELADO'
-          AND e.activo = true  -- <--- ¡ESTA ES LA LÍNEA NUEVA!
-          AND (
-            (e.fecha_evento + e.hora_inicio) < CAST(:fin AS TIMESTAMP)
-            AND
-            (e.fecha_fin_evento + e.hora_fin) > CAST(:inicio AS TIMESTAMP)
-          )
-    """, nativeQuery = true)
+    @Query("SELECT d FROM Distrito d " +
+            "JOIN d.provincia p " +
+            "JOIN p.departamento dep " +
+            "WHERE UPPER(d.nombre) = UPPER(:distrito) " +
+            "AND UPPER(p.nombre) = UPPER(:provincia) " +
+            "AND UPPER(dep.nombre) = UPPER(:departamento)")
     Optional<Distrito> buscarPorNombres(
             @Param("departamento") String departamento,
             @Param("provincia") String provincia,
